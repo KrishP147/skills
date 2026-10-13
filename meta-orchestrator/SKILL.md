@@ -30,7 +30,8 @@ merge gate and the ledger stay with you.
 4. Write answers to `skilleddocs/orchestrator/scope.md` **in the repo** — the
    run's contract. It must contain: repo path, default branch, branch prefix,
    exclusions, ordering, merge style, interview authorization, reports folder
-   (default `skilleddocs/reports/`), `execution:`, `handoff_budget:`. Commit
+   (default `skilleddocs/reports/`), `execution:`, `handoff_budget:`,
+   `decisions:` (§4, default `ask`). Commit
    it on the default branch (`docs(skilleddocs): orchestrator scope`).
 
 **Read `skilleddocs/` first.** If the repo has one, its `decisions.md`,
@@ -47,6 +48,7 @@ brief. `skilleddocs/README.md` in that repo says what each folder holds.
 | Implement (`pair`) | `manager` | opus | worktree/repo path + kickoff brief verbatim + rules + max_rounds | branch/commits, tests it reran, review findings fixed, rounds used, `skilleddocs/HANDOFF.md` if unfinished |
 | Implement (`flat`) | `implementer` | sonnet | kickoff brief verbatim + branch prefix + protected branch | handoff doc absolute path, last line |
 | Verify | `verifier` | opus | handoff path (or manager report path) + interview authorization yes/no + `review-done=<yes|no>` | verified-by, fixes / issues filed, decided-for-you, manual steps, `next` |
+| Chores | `general-purpose` | **haiku** | one self-contained task with exact commands or a written spec | a few lines: what it did, ids/links |
 
 **`execution: pair` (default)** — you spawn a `manager` per issue; it owns
 the implementer and the retry loop (fresh implementer from `skilleddocs/HANDOFF.md`,
@@ -62,6 +64,18 @@ loop). Cheaper; you handle retries yourself (§4). Verifier gets
 **You (orchestrate):** the strongest model available is recommended — Fable-class
 if you have it — because you hold every merge and scope decision. Not required:
 an Opus-class orchestrator works; just re-check the merge gate more carefully.
+
+**Haiku for chores.** Haiku is fast and cheap; use it, in parallel and in
+the background, for small mechanical work that needs no judgment: board
+moves and field edits, filing an issue whose body you already wrote, adding
+labels, CI log triage ("which test failed, paste the assertion"), read-only
+recon (PR/branch/CI lists, "does X exist"), fixing counts or links in docs,
+resolving a conflict whose resolution you spelled out. The planner may also
+recommend `model: haiku` for an implementer on a trivial one-file issue.
+Never Haiku for: design calls, `assumed` decisions, code review, the
+verifier, a manager, or anything touching the merge gate. Brief it with exact
+commands and the expected output; check what it reports (a `gh` read or a
+diff skim) before you rely on it.
 
 Planner says ambiguous / algorithm-heavy → implementer `model: opus` (in pair
 mode, pass that recommendation to the manager). **Go with the strong model's
@@ -125,6 +139,18 @@ Verifier fixes on default afterwards are normal; issues it files join the queue.
   plan, picks its own recommendation, and lists every Q → A under "decided
   for you". Copy it into the ledger. If not authorized, record the deviation
   and leave the plan untouched.
+- **Design decisions: `decisions: ask | assume`** (scope.md). `ask`
+  (default): the interview rule above. `assume`: when no human answer
+  exists and waiting would stall the work (e.g. "go fast", an MVP run), the
+  agent that hits the call picks its recommendation and records it as an
+  **assumed** decision in the repo's decision record (its own section or a
+  status column, ids `A-n`), with four things: what is assumed, why, what
+  would change it, and the cost to undo. Work builds on it and cites it. It
+  stays **open**: never marked accepted or committed, never closes a
+  `decision` card; only a human turns it into a real decision or replaces
+  it. Log a ledger `assumption` entry for each, and list open ones in every
+  orchestrator handoff and progress report so the user can confirm them.
+  Pass `decisions=assume` in planner, manager and verifier briefs.
 - **Divide** when the planner says multi-session, a manager returns
   unfinished after its rounds, an implementer reports leaving the smart zone (it wrote
   `skilleddocs/HANDOFF.md`),
@@ -151,7 +177,7 @@ branch after every entry, so the design record and the work record live
 together and survive any machine. Append only:
 
 ```
-### <NNN> · <local ISO timestamp, e.g. 2026-09-23 17:42 EDT> · <kind: plan|implement|merge|verify|decision|problem|manual|handoff>
+### <NNN> · <local ISO timestamp, e.g. 2026-09-23 17:42 EDT> · <kind: plan|implement|merge|verify|decision|assumption|problem|manual|handoff>
 - issue/PR: #n / PR #m
 - what: one or two lines
 - verified by: pytest 73/73 · CI run <id> green · (or "not verified: <why>")
@@ -188,6 +214,7 @@ and git — so a fresh orchestrator loses nothing. Rotate on purpose instead of 
      - loop state: which agent last ran, on which issue and branch, its
        result path, what the next step is (plan / implement / gate / verify)
      - open worktrees and unmerged branches
+     - open assumed decisions (`A-n`, one line each) if `decisions: assume`
      - `resume with: /meta-orchestrator <repo> resume`
    - append a ledger `handoff` entry (issue = none; what = budget reached /
      smart zone; manual step = the resume command)

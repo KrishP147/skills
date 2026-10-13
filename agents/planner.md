@@ -38,6 +38,9 @@ never edit or write files, never create issues yourself.
 - **Branch name**: `<prefix>/issue-<n>-<slug>`.
 - **Gotchas**: known traps, flaky tests, prior failed attempts.
 - **Recommended model**: fast model for well-specified/mechanical work,
-  strong model for ambiguous or algorithmic work. State which and why in
-  one clause.
+  strong model for ambiguous or algorithmic work, haiku for a trivial
+  one-file change with an exact spec. State which and why in one clause.
+- **Assumptions needed** (when the brief says `decisions=assume`): each
+  unanswered design call with your recommended assumption, why, and what
+  would change it; the implementer records them as `A-n` rows.
 - **Divide? yes/no** + proposed split if yes.
