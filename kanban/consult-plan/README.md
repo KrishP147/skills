@@ -17,9 +17,11 @@ Grills a proposed change, deviation or new idea against the repo's existing plan
 
 ## How it works
 
-1. **Baseline** (whatever exists): `gh issue list --state open`, board state (`gh project item-list` or `status:*` labels), a roadmap doc (`ROADMAP.md`, `docs/roadmap.md`, …).
+1. **Baseline** (whatever exists): open issues (`gh issue list --state open`), board state (`gh project item-list` or `status:*` labels), a roadmap doc (`ROADMAP.md`, `docs/roadmap.md`, …), plus `skilleddocs/decisions.md` and `skilleddocs/grills/`. Earlier decisions are cited as `D<k>`.
 2. **Grill:** calls [`grilling`](../../grilling/) with that baseline, framed as fit / conflict / extension and what you want to happen.
-3. **Record**, first match wins: append to an existing decisions doc (e.g. `docs/decisions.md`); else comment on the relevant issue, or open a new one. A new issue also goes on the board (Projects v2: `item-add` + `item-edit` to Todo; label: `status:todo`, created first if missing). Never invents a decisions-doc convention.
+3. **Record** once settled, both:
+   - **Decision:** append to the repo's decisions doc. An existing `docs/decisions.md` or ADR folder wins; otherwise `skilleddocs/decisions.md` (header from [`grill-docs`](../../grill-docs/)).
+   - **Issue:** comment on the relevant issue, or open a new one and put it on the board at Todo (Projects v2: `item-add` + `item-edit`; label mode: `status:todo`, created first if missing).
 
 ## Related
 
@@ -32,4 +34,4 @@ Grills a proposed change, deviation or new idea against the repo's existing plan
 /consult-plan add a plugin system instead of hard-coding exporters
 ```
 
-Reads 12 open issues and `ROADMAP.md`, asks a round of questions (does it replace #31? scope for v1?), you settle it, and it appends an entry to `docs/decisions.md` (or comments on #31 if there's no decisions doc).
+Reads 12 open issues and `ROADMAP.md`, asks a round of questions (does it replace #31? scope for v1?), you settle it, and it appends an entry to `docs/decisions.md` (or `skilleddocs/decisions.md` if the repo has none) and comments on #31.
