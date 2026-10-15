@@ -9,4 +9,4 @@ argument-hint: "issue number or URL"
 3. Move the card ([BOARD.md](../next/BOARD.md)): complete → In Review; partial or blocked → stays In Progress, plus an issue comment saying why if blocked.
 4. Print the handoff path as the last line.
 
-A repo's `CLAUDE.md`/`AGENTS.md` may prescribe filename or required sections; follow it.
+A repo's `CLAUDE.md`/`AGENTS.md` may prescribe filename or required sections; follow it. Commit the handoff or not per [TRACKING.md](../../handoff-auto/TRACKING.md).

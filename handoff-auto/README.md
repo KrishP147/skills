@@ -17,7 +17,7 @@ Model-invocable: another skill calls the Skill tool with `handoff-auto` (optiona
 
 ## How it works
 
-1. Summarises the conversation into a document under the repo's **`skilleddocs/handoffs/`** (OS temp dir only when there is no repo).
+1. Summarises the conversation into a document under the repo's **`skilleddocs/handoffs/`** (OS temp dir only when there is no repo). Committed or left untracked per [`TRACKING.md`](TRACKING.md): commit only if the repo already tracks `skilleddocs/` or opts in, never on a fork.
 2. Adds a "suggested skills" section.
 3. References existing artifacts by path/URL instead of duplicating them.
 4. Redacts secrets and personal data.
