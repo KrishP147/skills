@@ -96,8 +96,8 @@ are unset. Delete the temp directory when you're done.
 
 ## 6. The site
 
-Every skill's `README.md` becomes a page at
-`skills.krishpunjabi.com/<name>`, built from the headings above. There's no
+Every skill's `README.md` becomes a page on the
+skills site at `/<name>`, built from the headings above. There's no
 separate docs step — write the README once, well. Community tips, corrections,
 and "here's how I use this" notes belong in that page's comments (GitHub
 Discussions), not in the README itself.
