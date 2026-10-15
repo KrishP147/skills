@@ -10,6 +10,33 @@ A **skill** is a directory with a `SKILL.md` that Claude Code loads into the cur
 
 Every skill folder has two files: `SKILL.md` is the prompt Claude follows (frontmatter + instructions), and `README.md` is for you: what it does, when to use it, how to invoke it, how it works step by step, and an example. Agents are documented together in [`agents/README.md`](agents/README.md); each `agents/<name>.md` is the definition Claude loads. Start with the READMEs; open a `SKILL.md` only to see or change exact behaviour.
 
+## Start here
+
+New to the repo? Check the prereqs, install, then try one skill.
+
+| Need | Why | Check |
+|---|---|---|
+| [Claude Code](https://claude.com/claude-code) | runs every skill and agent here | `claude --version` |
+| `gh` CLI, authenticated | `pair`, `meta-orchestrator`, `pr-watch`, `gap-scan` and everything under `kanban/` read and write GitHub (kanban also needs `gh auth refresh -s project -s read:project` once) | `gh auth status` |
+| Python 3.8+ | the lint step of the install, `scripts/build_site.py`, and the `guard-git` hook that stops agents pushing to `main` or merging | `python --version` |
+| Git Bash (Windows only) | the `guard-git` hook is a POSIX `sh` command; without it the hook fails open, so the installer refuses | `sh --version` |
+
+**Which skill first**
+
+1. [`grill-docs`](grill-docs/README.md): zero setup, and it leaves a decision record (`skilleddocs/decisions.md`) the other skills read. Good for seeing what a skill writes.
+2. [`pair`](pair/README.md): one task end to end in an isolated worktree, you push at the end. The smallest taste of the agents.
+3. [`meta-orchestrator`](meta-orchestrator/README.md): a whole backlog unattended. Try it last; it is the most autonomous and builds on the two above.
+
+**60-second quickstart**
+
+```bash
+git clone https://github.com/KrishP147/skills.git
+cd skills
+./scripts/install-skills.sh        # Windows PowerShell: .\scripts\install-skills.ps1
+```
+
+Open a new Claude Code session in any repo (skills and agents are read at startup), then type `/grill-docs <a plan you are unsure about>`. Details, flags and the `repo-scrub` / kanban extras: [Install](#install).
+
 ## Three ways to run work
 
 | Tier | You type | Sessions | For |
@@ -29,7 +56,7 @@ Each tier builds on the one above: `pair` is one orchestrator loop without the b
 | [`grill-me`](grill-me/README.md) *(Matt Pocock)* | Short alias for `grilling`. User-invoked only (`/grill-me`); Claude auto-invokes `grilling` instead. | none |
 | [`grill-docs`](grill-docs/README.md) | `grilling` with a paper trail: writes the Q→A transcript to `skilleddocs/grills/` as each round settles and appends every decision to `skilleddocs/decisions.md`, so planners, verifiers and teammates can read what was decided and why. | none |
 | [`handoff`](handoff/README.md) *(Matt Pocock, save path modified, commit rule added)* | Compacts the current conversation into a handoff document so a fresh session can pick up where it left off; saved under `skilleddocs/handoffs/`. User-invoked only (`/handoff`). | none |
-| [`handoff-auto`](handoff-auto/README.md) *(derived from Pocock's `handoff`)* | Same document, but callable by the model, so other skills and subagents can end a session unattended. Prints the file path as its last line. | none |
+| [`handoff-auto`](handoff-auto/README.md) *(derived from Pocock's `handoff`; frontmatter, save path and commit rule differ)* | Same document, but callable by the model, so other skills and subagents can end a session unattended. Saved under `skilleddocs/handoffs/`, committed or not per [`TRACKING.md`](handoff-auto/TRACKING.md). Prints the file path as its last line. | none |
 | [`pair`](pair/README.md) | Runs one task in an isolated git worktree: resolves the issue (syncs upstream first on a fork, checks the cited files still exist), spawns the `manager` agent, shows its report, and only then pushes and opens the PR itself. Agents never touch the remote. | `gh`; `manager` + `implementer` agents installed |
 | [`meta-orchestrator`](meta-orchestrator/README.md) | Runs a repo's backlog unattended: spawns `planner` → `manager` (or `implementer`, `execution: flat`) → `verifier` in a loop, holds the merge gate itself (tests + CI green or no merge), reads `skilleddocs/` for the design record, appends every event to `skilleddocs/orchestrator/ledger.md` (committed in the repo, unless `docs_commit: uncommitted`), and writes `orchestrator-handoff.md` after a budget of merges so `/meta-orchestrator <repo> resume` continues in a fresh session. | `gh`; the four agents installed; a kanban board, `status:*` labels, or a roadmap doc (whatever `next` finds) |
 | [`progress-report`](progress-report/README.md) | Turns the orchestrator's ledger into a short report covering only what happened since the last one (watermarked, never overlapping): done, what worked, what didn't, concerns, decisions made on your behalf, manual steps for you. Markdown by default, `.docx` on request. | `docx` skill or `python-docx` for the Word option |
@@ -73,7 +100,7 @@ Not auto-installed. [`smartzone.py`](hooks/smartzone.py) is a `UserPromptSubmit`
 
 Claude-Code-style terminal home (type `/` + a skill name) plus a plain list of every skill and agent, generated from this repo by [`scripts/build_site.py`](scripts/build_site.py) (stdlib only). Served at krishpunjabi.com/skills. Build, test and deploy steps in [`site/README.md`](site/README.md).
 
-`grilling` and `grill-me` are by [Matt Pocock](https://github.com/mattpocock/skills) (MIT, see [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)), included verbatim; `handoff` is his with the save location changed to `skilleddocs/handoffs/` and one sentence added on whether to commit it, and `handoff-auto` is that with its own frontmatter (name, description, model-invocable), an attribution line, and a last line printing the file path. `grill-docs` is original and only wraps his `grilling`. `npx skills add mattpocock/skills` pulls his full set directly if you want more than these. Everything else here is original.
+Attribution and divergences: [Relation to Matt Pocock's skills](#relation-to-matt-pococks-skills). Licence: [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
 
 ## Where skills write: `skilleddocs/`
 
@@ -186,6 +213,20 @@ Neither set → the forbidden-word check is silently skipped.
 ## Contributing / grow this repo
 
 Contributions welcome — new skills, fixes, better docs. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the submission format (start from [`templates/skill/`](templates/skill/)) and rules. Feel free to grow it.
+
+## Relation to Matt Pocock's skills
+
+Several things here come from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT; notice in [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)). Checked against his repo with the GitHub API on 2026-10-15.
+
+- **Copied unmodified:** `grilling` and `grill-me`. His `skills/productivity/grill-me` is identical to ours. His `grilling` has since gained one line ("Word each question so "yes" accepts your recommended answer.") that ours does not have yet.
+- **Modified:** `handoff` (his saves to the OS temp dir, not the workspace; ours saves under `skilleddocs/handoffs/` and adds a commit-or-not sentence), `handoff-auto` (that, plus its own frontmatter so the model can call it, and a last line printing the path), and [`dotfiles/CLAUDE.md`](dotfiles/CLAUDE.md) (adapted from his CLAUDE.md; see [My `CLAUDE.md`](#my-claudemd)).
+- **Builds on his principles:** how skills here are written follows his [`writing-for-agents`](https://github.com/mattpocock/skills/tree/main/skills/productivity/writing-for-agents) skill and the video linked from [`CONTRIBUTING.md` section 1](CONTRIBUTING.md#1-watch-this-first-mandatory).
+- **Divergences:**
+  - Our [`meta-orchestrator`](meta-orchestrator/SKILL.md) holds a merge gate and merges to the default branch itself once tests and CI are green (`merge: auto`; `ask` and `pr-only` are the alternatives). In his repo, `implement-spec` merges subagent work into an integration branch and opens a draft PR; I found no step that merges to the default branch.
+  - Our [`verifier`](agents/verifier.md) may answer grilling and `consult-plan` questions on your behalf, only when the run is set to `interview: answer` (otherwise it parks them for you), and lists every Q → A under "decided for you" ([`meta-orchestrator/SKILL.md`](meta-orchestrator/SKILL.md), Interviews). His `grilling` always waits for the user's answers.
+- **New here:** everything else (`grill-docs`, `pair`, `meta-orchestrator`, the agents, `kanban/`, `spend-gate`, `repo-scrub`, and the rest).
+
+`npx skills add mattpocock/skills` pulls his full set directly.
 
 ## My `CLAUDE.md`
 
