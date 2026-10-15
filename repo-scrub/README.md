@@ -43,7 +43,7 @@ Bails out on Git LFS repos (step 3). Never scans or rewrites your working clone.
 
 - **Going public is one-way.** Forks, caches and scrapers copy history within minutes and GitHub has no hook on the visibility toggle, so every cleanup happens before the flip, and the flip is its own gate.
 - **Rotation before rewrite.** A rewrite doesn't un-leak a secret that was ever pushed; rotating at the source is what protects you, the history rewrite is hygiene.
-- **Complete report, no raw values.** Every finding is shown, including ones you keep, but secrets appear only as fingerprints; the helper scripts never print or store a value.
+- **Complete report, no raw values.** Every finding is shown, including ones you keep, but secrets appear only as fingerprints; the helper scripts never print a value.
 - **Throwaway clones only.** Scanning and rewriting happen in fresh clones under a temp work dir, never your working clone.
 
 ## Use cases
@@ -72,7 +72,7 @@ Finds `S1` (an API key in `config/dev.env`, 3 commits) and `L1` (a 340 MB demo v
 
 ## Related
 
-Standalone; no other skills or agents.
+- [`repo-showcase`](../repo-showcase/) tidies the working tree first, then hands off here for history and visibility.
 
 ## Prereqs
 
