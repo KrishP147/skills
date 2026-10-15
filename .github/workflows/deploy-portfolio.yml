@@ -1,0 +1,35 @@
+name: deploy-portfolio
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "site/**"
+      - "scripts/build_site.py"
+      - "scripts/site_detail.py"
+      - "scripts/md_render.py"
+      - "scripts/lint.py"
+      - "agents/**"
+      - "*/SKILL.md"
+      - "*/*/SKILL.md"
+      - "*/README.md"
+      - "*/*/README.md"
+      - "CONTRIBUTING.md"
+      - "THIRD_PARTY_LICENSES.md"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: portfolio-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      HOOK: ${{ secrets.PORTFOLIO_DEPLOY_HOOK }}
+    steps:
+      # Skipped (job stays green) when the secret is unset.
+      - if: env.HOOK != ''
+        run: curl -fsS -X POST "$HOOK" -o /dev/null
