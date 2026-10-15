@@ -9,7 +9,7 @@ home with a locked slash input, a plain list of every skill and agent, and a
 | Path | What |
 |---|---|
 | `src/index.html` | home template (`{{COUNT}}`, `{{LIST}}`, `{{DATA}}` filled at build) |
-| `src/detail.html` | `/<name>` detail page template (sticky slash prompt, header card + chips, sections, prev/next, `#comments` placeholder) |
+| `src/detail.html` | `/<name>` detail page template (sticky slash prompt, header card + chips, sections, prev/next, `#comments` giscus block) |
 | `data/meta.json` | per-name author + battle-tested level (`levels_source` says where levels come from); names not listed get level `new`, author defaults to Krish |
 | `src/404.html`, `src/style.css` | not-found page, all styles |
 | `src/filter.js` | pure slash-input logic (browser global `SkillFilter`, CommonJS in node) |
@@ -23,6 +23,22 @@ only), with [`site_detail.py`](../scripts/site_detail.py) for detail pages and
 escapes all raw HTML and drops non-http(s)/mailto link URLs. It reuses `scripts/lint.py`'s discovery, so the site lists exactly what
 lint counts. Groups: top-level skill dirs = core, `kanban/*` = kanban,
 `agents/*.md` (minus README) = agents.
+
+## Comments (giscus)
+
+Each detail page embeds [giscus](https://giscus.app) in `#comments` (plain
+script tag in `src/detail.html`). Setup for a repo:
+
+1. Install the giscus GitHub app on the repo and enable Discussions.
+2. Fetch the ids:
+   `gh api graphql -f query='query { repository(owner:"<owner>", name:"<repo>") { id discussionCategories(first:20) { nodes { id name } } } }'`
+   and put them in `data-repo-id` / `data-category-id`.
+3. Mapping is `specific` with `data-term` = the page name (not pathname, since
+   the base differs between previews and prod), `data-strict="1"`.
+
+Optional: create a "Skill tips" category and swap `data-category` /
+`data-category-id`. No `giscus.json` on purpose: its origins list would block
+preview deploys.
 
 ## Detail pages
 

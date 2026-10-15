@@ -117,6 +117,18 @@ class BuildSiteTest(unittest.TestCase):
         self.assertIn('data-base=""', self.index)
         self.assertNotIn("{{BASE}}", self.index)
 
+    def test_giscus_only_on_detail_pages(self):
+        for n in (e["name"] for e in self.entries):
+            with open(os.path.join(self.out, n, "index.html"), encoding="utf-8") as f:
+                page = f.read()
+            self.assertIn("giscus.app/client.js", page, n)
+            self.assertIn('data-term="%s"' % n, page, n)
+            self.assertIn('data-strict="1"', page, n)
+        with open(os.path.join(self.out, "404.html"), encoding="utf-8") as f:
+            nf = f.read()
+        for page in (self.index, nf):
+            self.assertNotIn("giscus", page)
+
     def test_normalize_base(self):
         for raw in ("/skills", "/skills/", "skills", " /skills/ "):
             self.assertEqual(build_site.normalize_base(raw), "/skills")
@@ -173,6 +185,15 @@ class BaseBuildTest(unittest.TestCase):
         url = "https://krishpunjabi.com/skills/%s" % self.names[1]
         self.assertIn('<link rel="canonical" href="%s">' % url, page)
         self.assertNotIn("/skills/skills", page)
+
+    def test_giscus_only_on_detail_pages(self):
+        for label, page in self.pages():
+            if label in ("index.html", "404.html"):
+                self.assertNotIn("giscus", page, label)
+            else:
+                self.assertIn("giscus.app/client.js", page, label)
+                self.assertIn('data-term="%s"' % label, page, label)
+                self.assertIn('data-strict="1"', page, label)
 
     def test_displayed_names_unchanged(self):
         self.assertIn('<span class="nm">/pair</span>', self.read("index.html"))

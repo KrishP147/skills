@@ -271,7 +271,12 @@ kbd {
 }
 .pn a { text-decoration: none; overflow-wrap: anywhere; }
 .pn .next { margin-left: auto; text-align: right; }
-.comments:empty { display: none; }
+.comments {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.comments-h { margin: 0 0 12px; font-size: 1em; color: var(--accent); }
 
 @media (max-width: 600px) {
   html, body { font-size: 14px; }
