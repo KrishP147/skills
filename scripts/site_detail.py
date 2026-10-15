@@ -2,7 +2,9 @@
 
 Sources: a skill's README.md (split on "## " headings), or an agent's
 "## <name>" section of agents/README.md (split on its "- **Label:**"
-bullets) plus agents/<name>.md frontmatter. Headings are mapped onto the
+bullets) plus agents/<name>.md frontmatter, or a hook's "## `<file>.py`"
+section of hooks/README.md (split on paragraphs led by a "Label:" that maps,
+e.g. "How it works:", "Install into a repo:"). Headings are mapped onto the
 canonical SECTIONS with tolerant matching; sections that don't map render
 after the mapped ones, before Source. Missing sections are simply absent.
 """
@@ -33,7 +35,7 @@ SECTIONS = (
 ALIASES = {
     "what": ("what it does", "what", "overview", "summary", "role"),
     "when": ("when to use", "when to use it", "when"),
-    "invoke": ("how to invoke", "invoke", "invocation", "usage", "you pass"),
+    "invoke": ("how to invoke", "invoke", "invocation", "usage", "you pass", "install"),
     "how": ("how it works",),
     "design": ("design principles", "principles", "design"),
     "usecases": ("use cases", "use case"),
@@ -104,6 +106,36 @@ def split_label_bullets(md):
     return "\n".join(rest).strip(), [(l, "\n".join(b).strip()) for l, b in out]
 
 
+_LABEL_RE = re.compile(r"^([A-Z][^:`\[]*?):(?:\s+(.*))?$")
+
+
+def split_label_paragraphs(md):
+    """Split prose on paragraphs whose first line starts with a 'Label:' that
+    maps to a section ('How it works: ...', 'Related: ...'). Other paragraphs
+    stay with the block above them. A bare short label line (<= 4 words,
+    'Install into a repo:') is dropped; a longer one ('Example output once
+    ...:') is kept as text."""
+    pre, out, cur = [], [], None
+    in_fence, para_start = False, True
+    for line in md.split("\n"):
+        if _FENCE_RE.match(line):
+            in_fence = not in_fence
+        m = _LABEL_RE.match(line) if para_start and not in_fence and not _FENCE_RE.match(line) else None
+        key = section_key(m.group(1)) if m else None
+        if key:
+            rest = (m.group(2) or "").strip()
+            cur = [m.group(1), []]
+            out.append(cur)
+            if rest:
+                cur[1].append(rest[:1].upper() + rest[1:])
+            elif len(norm_heading(m.group(1)).split()) > 4:
+                cur[1].append(line)
+        else:
+            (cur[1] if cur else pre).append(line)
+        para_start = not in_fence and not line.strip()
+    return "\n".join(pre).strip(), [(l, "\n".join(b).strip()) for l, b in out]
+
+
 def organise(pre, pairs):
     """Map (heading, body) pairs onto SECTIONS. Returns (ordered, extras)."""
     mapped, extras = {}, []
@@ -132,9 +164,12 @@ class LinkIndex:
         self.names = {e["name"] for e in entries}
         self.agents = {e["name"] for e in entries if e["group"] == "agents"}
         self.dir_to_name = {}
+        self.hook_anchors = {}  # hooks/README.md#<slug> -> hook name
         for e in entries:
-            self.dir_to_name[e["source"]] = e["name"]  # skill dir or agents/<name>.md
-            if e["group"] != "agents":
+            self.dir_to_name[e["source"]] = e["name"]  # skill dir, agents/<name>.md, hooks/<name>.py
+            if e["group"] == "hooks":
+                self.hook_anchors[hook_anchor(e["_x"]["heading"])] = e["name"]
+            elif e["group"] != "agents":
                 self.dir_to_name[e["source"] + "/README.md"] = e["name"]
 
     def rewriter(self, base_dir, on_page_link=None, agents_readme=False):
@@ -156,6 +191,8 @@ class LinkIndex:
                 return self._page(self.dir_to_name[key], on_page_link)
             if key == "agents/README.md" and frag in self.agents:
                 return self._page(frag, on_page_link)
+            if key == "hooks/README.md" and frag in self.hook_anchors:
+                return self._page(self.hook_anchors[frag], on_page_link)
             kind = "tree" if os.path.isdir(os.path.join(self.root, *key.split("/"))) else "blob"
             return "%s/%s/master/%s%s" % (REPO_URL, kind, key, "#" + frag if frag else "")
         return rewrite
@@ -174,6 +211,31 @@ def agent_section(agents_readme, name):
         if heading.strip() == name:
             return body
     return ""
+
+
+def hook_section(hooks_readme, filename):
+    """(heading, body) of the '## `<filename>` ...' section, else ("", "")."""
+    _pre, secs = split_h2(hooks_readme)
+    for heading, body in secs:
+        if heading.startswith("`%s`" % filename):
+            return heading, body
+    return "", ""
+
+
+def hook_anchor(heading):
+    """GitHub anchor of a hooks/README.md heading."""
+    from md_render import slugify
+    return slugify(strip_inline(heading))
+
+
+def first_paragraph_text(md):
+    """Plain text of the first paragraph (one line, inline markup dropped)."""
+    para = []
+    for line in md.strip().split("\n"):
+        if not line.strip():
+            break
+        para.append(line.strip())
+    return strip_inline(" ".join(para))
 
 
 def shared_agent_example(agents_readme):
@@ -227,6 +289,9 @@ def raw_sections(root, e, agents_readme):
         if ex:
             pairs.append(("Example", ex))
         return rest, pairs, "agents"
+    if e["group"] == "hooks":
+        pre, pairs = split_label_paragraphs(e["readme"])
+        return pre, pairs, "hooks"
     pre, pairs = split_h2(e["readme"])
     if not any(section_key(h) == "prereqs" for h, _b in pairs):
         pp = parent_prereqs(root, e["source"])
@@ -288,6 +353,10 @@ def chips(meta, e, prereq_md, hint=""):
             out.append(("preloads", ", ".join("/" + s for s in skills), None))
         if "guard-git" in x.get("fm_raw", ""):
             out.append(("guard", "guard-git.py hook", None))
+    elif e["group"] == "hooks":
+        m = re.match(r"(\w+) hook\b", e["description"])  # "PreToolUse hook for ..."
+        out.append(("invocation", (m.group(1) + " hook") if m else "hook", None))
+        out.append(("source", e["source"], "%s/blob/master/%s" % (REPO_URL, e["source"])))
     else:
         user_only = str(fm.get("disable-model-invocation", "")).strip().lower() == "true"
         out.append(("invocation", "user only" if user_only else "model + user", None))
@@ -326,6 +395,8 @@ def build_pages(root, entries, meta, template, data_json, site_base=""):
         ordered, extras = organise(pre, pairs)
         if e["group"] == "agents":
             base_dir, agents_md = "agents", True
+        elif e["group"] == "hooks":
+            base_dir, agents_md = "hooks", False
         else:
             base_dir, agents_md = e["source"], False
         targets = set()
@@ -422,6 +493,11 @@ def _source_section(e):
         links.append((e["source"], "%s/blob/master/%s" % (REPO_URL, e["source"])))
         links.append(("agents/README.md#%s" % e["name"],
                       "%s/blob/master/agents/README.md#%s" % (REPO_URL, e["name"])))
+    elif e["group"] == "hooks":
+        anchor = hook_anchor(e["_x"]["heading"])
+        links.append((e["source"], "%s/blob/master/%s" % (REPO_URL, e["source"])))
+        links.append(("hooks/README.md#%s" % anchor,
+                      "%s/blob/master/hooks/README.md#%s" % (REPO_URL, anchor)))
     else:
         links.append((e["source"] + "/SKILL.md", "%s/blob/master/%s/SKILL.md" % (REPO_URL, e["source"])))
         if e["readme"]:

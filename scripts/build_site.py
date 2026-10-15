@@ -7,7 +7,7 @@ exactly what lint counts. Output (wiped + recreated every run):
   site/dist/index.html          terminal home + server-rendered skill list
   site/dist/skills.json         full data (name, description, summary,
                                 group, source, readme)
-  site/dist/<name>/index.html   detail page per skill/agent (site_detail.py)
+  site/dist/<name>/index.html   detail page per skill/agent/hook (site_detail.py)
   site/dist/404.html
   site/dist/*.css|*.js|*.svg    copied as text from site/src/
   site/dist/*.webp|*.png|*.jpg  copied byte for byte (rocky.webp, favicon-32.png, apple-touch-icon.png)
@@ -28,7 +28,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lint  # noqa: E402
 import site_detail  # noqa: E402
 
-GROUPS = ("core", "kanban", "agents")
+GROUPS = ("core", "kanban", "agents", "hooks")
+KINDS = {"agents": "agent", "hooks": "hook"}  # nav kind per group, else "skill"
 STATIC_EXTS = (".css", ".js", ".svg")
 BINARY_EXTS = (".webp", ".png", ".jpg")  # copied byte for byte
 # Abbreviations that end in '.' but don't end a sentence.
@@ -74,8 +75,38 @@ def collect(root):
         fm = fm or {}
         stem = os.path.splitext(os.path.basename(path))[0]
         entries.append(_entry(fm, stem, "agents", posix_rel(path, root), body.strip("\n") + "\n", text))
+    entries.extend(collect_hooks(root))
     entries.sort(key=lambda e: (GROUPS.index(e["group"]), e["name"]))
     return entries
+
+
+def hook_files(root):
+    """hooks/*.py, sorted. Agent hooks (agents/hooks/) are not listed."""
+    d = os.path.join(root, "hooks")
+    if not os.path.isdir(d):
+        return []
+    return [os.path.join(d, fn) for fn in sorted(os.listdir(d)) if fn.endswith(".py")]
+
+
+def collect_hooks(root):
+    """One entry per hooks/<stem>.py. Its page text is the "## `<stem>.py`"
+    section of hooks/README.md; its summary is that section's first sentence."""
+    files = hook_files(root)
+    if not files:
+        return []
+    readme = read_text(os.path.join(root, "hooks", "README.md"))
+    out = []
+    for path in files:
+        fn = os.path.basename(path)
+        heading, body = site_detail.hook_section(readme, fn)
+        if not body:
+            raise SystemExit("hooks/README.md: no '## `%s`' section" % fn)
+        e = _entry({}, os.path.splitext(fn)[0], "hooks", posix_rel(path, root), body + "\n", "")
+        e["description"] = site_detail.first_paragraph_text(body)
+        e["summary"] = first_sentence(e["description"])
+        e["_x"]["heading"] = heading
+        out.append(e)
+    return out
 
 
 def _entry(fm, fallback_name, group, source, readme, text):
@@ -104,14 +135,15 @@ def public(entries):
 
 
 def counts(entries):
+    """(skills, agents, hooks)."""
     agents = sum(1 for e in entries if e["group"] == "agents")
-    return len(entries) - agents, agents
+    hooks = sum(1 for e in entries if e["group"] == "hooks")
+    return len(entries) - agents - hooks, agents, hooks
 
 
 def count_line(entries):
-    skills, agents = counts(entries)
-    return "%d skill%s · %d agent%s" % (
-        skills, "" if skills == 1 else "s", agents, "" if agents == 1 else "s")
+    return " · ".join("%d %s%s" % (n, word, "" if n == 1 else "s")
+                      for n, word in zip(counts(entries), ("skill", "agent", "hook")))
 
 
 def esc(s):
@@ -163,13 +195,13 @@ def aliases_of(meta, entries):
             raise SystemExit("meta.json aliases[%r]: need a list of lowercase words (a-z, 0-9, -)" % name)
         clash = sorted(set(als) & names)
         if clash:
-            raise SystemExit("meta.json aliases[%r]: %s already a skill/agent name" % (name, clash))
+            raise SystemExit("meta.json aliases[%r]: %s already a skill/agent/hook name" % (name, clash))
         out[name] = list(als)
     return out
 
 
 def nav_entry(e, aliases):
-    d = {"name": e["name"], "kind": "agent" if e["group"] == "agents" else "skill",
+    d = {"name": e["name"], "kind": KINDS.get(e["group"], "skill"),
          "group": e["group"], "summary": e["summary"]}
     if aliases.get(e["name"]):
         d["aliases"] = aliases[e["name"]]
@@ -200,7 +232,7 @@ def build(root, out, base=""):
     entries = collect(root)
     names = [e["name"] for e in entries]
     if len(set(names)) != len(names):
-        raise SystemExit("duplicate skill/agent names: %s" % sorted(n for n in names if names.count(n) > 1))
+        raise SystemExit("duplicate skill/agent/hook names: %s" % sorted(n for n in names if names.count(n) > 1))
 
     if os.path.isdir(out):
         shutil.rmtree(out)
@@ -241,8 +273,7 @@ def main(argv):
     root = lint.repo_root()
     out = os.path.abspath(args.out) if args.out else os.path.join(root, "site", "dist")
     entries = build(root, out, args.base)
-    skills, agents = counts(entries)
-    print("Built %s: %d skills, %d agents" % (display_path(out, root), skills, agents))
+    print("Built %s: %s" % (display_path(out, root), count_line(entries).replace(" · ", ", ")))
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 # site
 
-Static site for this repo's skills and agents: a Claude Code style terminal
-home with a free-typing slash search, a plain list of every skill and agent,
+Static site for this repo's skills, agents and hooks: a Claude Code style
+terminal home with a free-typing slash search, a plain list of every entry,
 and a `/<name>` detail page for each. No framework, no npm install, no runtime deps.
 
 ## Layout
@@ -24,13 +24,16 @@ only), with [`site_detail.py`](../scripts/site_detail.py) for detail pages and
 [`md_render.py`](../scripts/md_render.py), a small Markdown renderer that
 escapes all raw HTML and drops non-http(s)/mailto link URLs. It reuses `scripts/lint.py`'s discovery, so the site lists exactly what
 lint counts. Groups: top-level skill dirs = core, `kanban/*` = kanban,
-`agents/*.md` (minus README) = agents.
+`agents/*.md` (minus README) = agents, `hooks/*.py` = hooks (lint doesn't
+count hooks; `agents/hooks/guard-git.py` is not listed). The home count line
+reads `N skills · M agents · K hooks`. The build fails on a name shared by
+two entries of any kind.
 
 ## Slash search
 
 The prompt (home dock and detail topbar) starts as `/`, which can't be deleted;
 everything after it is typed freely. Each page embeds the nav data
-(`name`, `kind` = `skill` | `agent` from the group, `group`, `summary`,
+(`name`, `kind` = `skill` | `agent` | `hook` from the group, `group`, `summary`,
 optional `aliases` from `meta.json`) in `#skill-data`.
 
 - **Ranking:** exact name > name prefix > word-boundary prefix (`handoff` finds
@@ -73,7 +76,11 @@ preview deploys.
   Role → What it does, You pass → How to invoke) plus `agents/<name>.md`
   frontmatter (model, tools / disallowedTools, preloads, guard hook). Agents
   also get the shared `## Example` and a generated Related list (preloads +
-  pages that link to them).
+  pages that link to them). Hook: its ``## `<file>.py` `` section of
+  `hooks/README.md`; paragraphs led by a label that maps (`How it works:`,
+  `Install into a repo:`, `Example output ...:`, `Related:`) start a
+  section, other paragraphs stay with the one above, the text before the
+  first label is What it does. Its summary is the section's first sentence.
 - **Sections**, in order: What it does, When to use, How to invoke, How it
   works, Design principles, Use cases, Tips, Example, Related, Prereqs, then
   any README sections that don't map (original heading kept), then Source.
@@ -82,12 +89,14 @@ preview deploys.
   section inherits its parent group README's (e.g. `kanban/README.md`).
 - **Links.** Relative links become
   `https://github.com/KrishP147/skills/blob/master/<path>` (anchors kept);
-  links to another skill's dir or README become `/<name>`, and
-  `agents/README.md#<agent>` becomes `/<agent>`.
+  links to another skill's dir or README become `/<name>`,
+  `agents/README.md#<agent>` becomes `/<agent>`, and `hooks/<hook>.py` or
+  `hooks/README.md#<hook heading anchor>` becomes `/<hook>`.
 - **Chips:** author (cross-checked in tests against
   `THIRD_PARTY_LICENSES.md`), invocation (`user only` when the SKILL.md
-  frontmatter has `disable-model-invocation: true`), model / tools / preloads
-  (agents), prereqs, tested level.
+  frontmatter has `disable-model-invocation: true`; hooks: the hook event),
+  model / tools / preloads (agents), source (hooks: the `.py` on GitHub),
+  prereqs, tested level.
 
 Never add a file named `SKILL.md` under `site/`: lint globs `*/SKILL.md` and
 `*/*/SKILL.md` and would treat it as a skill.
@@ -112,7 +121,7 @@ resolved against the current directory and may be outside the repo; skill
 sources are always read from this repo, not the cwd.
 
 Output: `index.html`, `skills.json` (name, description, summary, group,
-source, readme), `<name>/index.html` detail page per skill/agent (so `/pair` resolves
+source, readme), `<name>/index.html` detail page per skill/agent/hook (so `/pair` resolves
 statically), `404.html`, `style.css`, `filter.js`, `app.js`, `rocky.webp`, `favicon-32.png`, `apple-touch-icon.png`. Every
 `site/src/*.css|js|svg` is copied as text and every `*.webp|png|jpg` byte for byte. The build is
 deterministic.

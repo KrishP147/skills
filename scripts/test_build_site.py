@@ -7,6 +7,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from glob import glob
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build_site  # noqa: E402
@@ -39,16 +41,48 @@ class BuildSiteTest(unittest.TestCase):
         shutil.rmtree(cls.out, ignore_errors=True)
 
     def test_counts_match_lint(self):
-        skills, agents = build_site.counts(self.entries)
+        skills, agents, hooks = build_site.counts(self.entries)
         self.assertEqual(skills, len(lint.find_skill_files(ROOT)))
         self.assertEqual(agents, len(lint.find_agent_files(ROOT)))
-        self.assertIn(build_site.esc(build_site.count_line(self.entries)), self.index)
+        self.assertEqual(hooks, len(glob(os.path.join(ROOT, "hooks", "*.py"))))
+        self.assertEqual(hooks, 2)
+        line = build_site.count_line(self.entries)
+        self.assertEqual(line, "%d skills · %d agents · %d hooks" % (skills, agents, hooks))
+        self.assertIn(build_site.esc(line), self.index)
+
+    def test_hook_entries(self):
+        by = {e["name"]: e for e in self.data}
+        for name in ("smartzone", "spend-guard"):
+            e = by[name]
+            self.assertEqual(e["group"], "hooks")
+            self.assertEqual(e["source"], "hooks/%s.py" % name)
+            self.assertTrue(e["readme"].lstrip().startswith("`"), name)  # the README section, not the docstring
+            self.assertNotIn("\n## ", e["readme"], name)
+        self.assertEqual(by["smartzone"]["summary"], "UserPromptSubmit hook.")
+        self.assertEqual(by["spend-guard"]["summary"], "PreToolUse hook for Bash and MCP tool calls.")
+        self.assertNotIn("guard-git", by)
+        self.assertIn('href="/spend-guard"', self.index)
+
+    def test_name_collision_fails(self):
+        real = build_site.collect(ROOT)
+        hook = next(e for e in real if e["group"] == "hooks")
+        for other in ("pair", "planner"):
+            dup = dict(hook, name=other)
+            with mock.patch.object(build_site, "collect", return_value=real + [dup]):
+                out = tempfile.mkdtemp(prefix="site-dup-")
+                try:
+                    with self.assertRaises(SystemExit) as cm:
+                        build_site.build(ROOT, out)
+                    self.assertIn(other, str(cm.exception))
+                finally:
+                    shutil.rmtree(out, ignore_errors=True)
 
     def test_groups(self):
         by = {e["name"]: e["group"] for e in self.data}
         self.assertEqual(by["pair"], "core")
         self.assertEqual(by["next"], "kanban")
         self.assertEqual(by["implementer"], "agents")
+        self.assertEqual(by["spend-guard"], "hooks")
         self.assertNotIn("README", by)
         self.assertTrue(set(by.values()) <= set(build_site.GROUPS))
         order = [build_site.GROUPS.index(e["group"]) for e in self.data]
@@ -220,7 +254,7 @@ class BuildSiteTest(unittest.TestCase):
         self.assertIn("review", aliases.get("pr-watch", []))
         for n in nav:
             self.assertEqual(list(n)[:4], ["name", "kind", "group", "summary"], n["name"])
-            self.assertEqual(n["kind"], "agent" if n["group"] == "agents" else "skill", n["name"])
+            self.assertEqual(n["kind"], {"agents": "agent", "hooks": "hook"}.get(n["group"], "skill"), n["name"])
             if n["name"] in aliases:
                 self.assertEqual(n["aliases"], aliases[n["name"]])
             else:
@@ -230,13 +264,14 @@ class BuildSiteTest(unittest.TestCase):
 
     def test_aliases_validated(self):
         entries = [{"name": "pair", "group": "core", "summary": "s"},
-                   {"name": "planner", "group": "agents", "summary": "s"}]
-        ok = build_site.aliases_of({"aliases": {"pair": ["worktree", "run-1"]}}, entries)
-        self.assertEqual(ok, {"pair": ["worktree", "run-1"]})
+                   {"name": "planner", "group": "agents", "summary": "s"},
+                   {"name": "smartzone", "group": "hooks", "summary": "s"}]
+        ok = build_site.aliases_of({"aliases": {"pair": ["worktree", "run-1"], "smartzone": ["context"]}}, entries)
+        self.assertEqual(ok, {"pair": ["worktree", "run-1"], "smartzone": ["context"]})
         self.assertEqual(build_site.aliases_of({}, entries), {})
         self.assertEqual(build_site.aliases_of(None, entries), {})
         for bad in ({"nope": ["x"]}, {"pair": "worktree"}, {"pair": ["Work Tree"]},
-                    {"pair": [""]}, {"pair": ["planner"]}):
+                    {"pair": [""]}, {"pair": ["planner"]}, {"pair": ["smartzone"]}):
             with self.assertRaises(SystemExit, msg=bad):
                 build_site.aliases_of({"aliases": bad}, entries)
 
