@@ -9,7 +9,7 @@ exactly what lint counts. Output (wiped + recreated every run):
                                 group, source, readme)
   site/dist/<name>/index.html   detail page per skill/agent (site_detail.py)
   site/dist/404.html
-  site/dist/*.css|*.js|*.svg    copied from site/src/ (favicon.svg)
+  site/dist/*.css|*.js|*.svg|*.webp|*.png  copied from site/src/ (rocky.webp, favicon-32.png, apple-touch-icon.png)
 
 Usage: python scripts/build_site.py [--base /prefix] [--out DIR]
   --base  URL prefix the site is served under (default env SITE_BASE, else "/")
