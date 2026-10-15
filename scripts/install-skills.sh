@@ -10,18 +10,23 @@
 #   --no-lint  proceed even if no working python 3 is found (skips lint)
 #   --force    replace foreign skill dirs (no marker file) instead of
 #              skipping them
+#   --no-sh-check  proceed even if no POSIX `sh` is on PATH. The guard-git
+#              hook command in agents/*.md is POSIX sh; without sh, Claude
+#              Code can't run it, so the hook blocks nothing (fails open).
 set -euo pipefail
 
 MARKER=".from-krishp147-skills"
 
 no_lint=0
 force=0
+no_sh_check=0
 for arg in "$@"; do
   case "$arg" in
     --no-lint) no_lint=1 ;;
     --force) force=1 ;;
+    --no-sh-check) no_sh_check=1 ;;
     *)
-      echo "Usage: $0 [--no-lint] [--force]" >&2
+      echo "Usage: $0 [--no-lint] [--force] [--no-sh-check]" >&2
       exit 1
       ;;
   esac
@@ -30,6 +35,21 @@ done
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 target="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
 agents_target="${CLAUDE_AGENTS_DIR:-$HOME/.claude/agents}"
+
+# guard-git's hook command (agents/*.md frontmatter) is POSIX sh. Without
+# sh, Claude Code can't run the hook and nothing gets blocked, so check
+# before copying anything.
+if ! command -v sh >/dev/null 2>&1; then
+  if (( no_sh_check )); then
+    echo "warning: no POSIX sh on PATH - guard-git hook won't run and blocks nothing (--no-sh-check)" >&2
+  else
+    echo "error: no POSIX sh found on PATH." >&2
+    echo "The guard-git hook command is POSIX sh; without it Claude Code can't run" >&2
+    echo "the hook, which then fails open (blocks nothing). Install sh (on Windows:" >&2
+    echo "Git for Windows / Git Bash), or pass --no-sh-check to install anyway." >&2
+    exit 1
+  fi
+fi
 
 # first candidate that actually runs Python 3 (skips e.g. the Windows Store
 # python/python3 stub, which exists on PATH but refuses to run code)
