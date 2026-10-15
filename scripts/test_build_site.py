@@ -65,8 +65,22 @@ class BuildSiteTest(unittest.TestCase):
             self.assertTrue(os.path.isfile(path), path)
         with open(os.path.join(self.out, "pair", "index.html"), encoding="utf-8") as f:
             self.assertIn("/pair", f.read())
-        for fn in ("404.html", "style.css", "filter.js", "app.js"):
+        for fn in ("404.html", "style.css", "filter.js", "app.js", "black-square.png"):
             self.assertTrue(os.path.isfile(os.path.join(self.out, fn)), fn)
+
+    def test_png_copied_byte_for_byte(self):
+        with open(os.path.join(ROOT, "site", "src", "black-square.png"), "rb") as f:
+            src = f.read()
+        with open(os.path.join(self.out, "black-square.png"), "rb") as f:
+            self.assertEqual(f.read(), src)
+
+    def test_icons_and_robots_default_base(self):
+        for fn in ["index.html", "404.html"] + [os.path.join(e["name"], "index.html") for e in self.data]:
+            with open(os.path.join(self.out, fn), encoding="utf-8") as f:
+                page = f.read()
+            self.assertIn('<link rel="icon" href="/black-square.png">', page, fn)
+            self.assertIn('<link rel="apple-touch-icon" href="/black-square.png">', page, fn)
+            self.assertEqual('<meta name="robots" content="noindex">' in page, fn == "404.html", fn)
 
     def test_list_links_server_rendered(self):
         for e in self.data:
@@ -182,7 +196,7 @@ class BaseBuildTest(unittest.TestCase):
         page = self.read(self.names[1], "index.html")
         self.assertIn('href="/skills/%s" rel="prev"' % self.names[0], page)
         self.assertIn('href="/skills/%s" rel="next"' % self.names[2], page)
-        url = "https://krishpunjabi.com/skills/%s" % self.names[1]
+        url = "https://www.krishpunjabi.com/skills/%s" % self.names[1]
         self.assertIn('<link rel="canonical" href="%s">' % url, page)
         self.assertNotIn("/skills/skills", page)
 
@@ -194,6 +208,12 @@ class BaseBuildTest(unittest.TestCase):
                 self.assertIn("giscus.app/client.js", page, label)
                 self.assertIn('data-term="%s"' % label, page, label)
                 self.assertIn('data-strict="1"', page, label)
+
+    def test_icons_and_robots_prefixed_base(self):
+        for label, page in self.pages():
+            self.assertIn('<link rel="icon" href="/skills/black-square.png">', page, label)
+            self.assertIn('<link rel="apple-touch-icon" href="/skills/black-square.png">', page, label)
+            self.assertEqual('<meta name="robots" content="noindex">' in page, label == "404.html", label)
 
     def test_displayed_names_unchanged(self):
         self.assertIn('<span class="nm">/pair</span>', self.read("index.html"))
