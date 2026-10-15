@@ -38,9 +38,11 @@
       if (parts.slice(i).join("-").indexOf(q) === 0) return WORD;
     }
     if (n.indexOf(q) !== -1) return SUBSTRING;
+    // Aliases match from the start of the alias or one of its words, never
+    // mid-word ("board" must not hit "onboarding").
     var al = e.aliases || [];
     for (var j = 0; j < al.length; j++) {
-      if (al[j].indexOf(q) !== -1) return ALIAS;
+      if (("-" + al[j]).indexOf("-" + q) !== -1) return ALIAS;
     }
     return -1;
   }

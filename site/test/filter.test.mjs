@@ -79,8 +79,9 @@ test("bare '/' lists everything A-Z with nothing chosen", () => {
 
 test("tiers: exact > prefix > word-boundary prefix > substring > alias", () => {
   assert.deepEqual(opts("/handoff"), ["handoff", "handoff-auto", "session-handoff"]);
-  // prefixes A-Z, then substring (sitrep), then alias (handoff via "compact")
-  assert.deepEqual(opts("/p"), ["pair", "planner", "pr-watch", "progress-report", "sitrep", "handoff"]);
+  // prefixes A-Z, then substring (sitrep); aliases never match mid-word
+  assert.deepEqual(opts("/p"), ["pair", "planner", "pr-watch", "progress-report", "sitrep"]);
+  assert.deepEqual(opts("/pact"), []);
   // word-boundary prefix before plain substring
   assert.deepEqual(opts("/re"), ["progress-report", "sitrep"]);
   assert.deepEqual(opts("/report"), ["progress-report"]);
