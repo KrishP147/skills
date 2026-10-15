@@ -1,6 +1,6 @@
 ---
 name: pair
-description: Run one task (issue number or free text) in an isolated git worktree via a manager subagent that owns its implementer and retries; you push and open the PR at the end. Use for "implement issue #n", "pair on this", or one task on any repo, forks included.
+description: Run one task (issue number or free text) in an isolated git worktree via a manager subagent that owns its implementer and retries; you push and open the PR at the end. Use for "implement issue N", "pair on this", or one task on any repo, forks included.
 argument-hint: "<issue # | task text> [--no-worktree] [--push] [--model opus|sonnet]"
 ---
 
