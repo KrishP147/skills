@@ -27,10 +27,25 @@ Default `current`. User-invoked only (`disable-model-invocation: true`) because 
 4. **Candidates per mode:** `current` = undone items (deduped against existing issues); `retroactive` = finished items from CHANGELOG / git log / resolved TODOs; `both` = both, separated.
 5. **Preview, then create:** shows every issue (title, mode, target column) and waits. Then `current` → create + `item-add` + `item-edit` to Todo; `retroactive` → create, close, `item-add` + `item-edit` to Done (`item-add` alone leaves Status empty, so the `item-edit` step is required, not optional).
 
-## Related
+## Design principles
 
-- [`next`](../next/) reads the board it creates.
-- Needs `gh` with the `project` scope.
+- **Real issues, so preview first.** Issues it creates are public; every one is shown (title, mode, target column) before anything is created.
+- **Idempotent board.** It looks for this repo's board before creating one, and adds the In Review option only when missing.
+- **Backfill from what's documented.** Candidates come from the repo's own docs, TODOs, CHANGELOG and (retroactive) git log, deduped against existing issues.
+
+## Use cases
+
+- Starting the kanban loop on a repo with no board, when `next` says to run this.
+- Turning a README roadmap or `TODO`/`FIXME` comments into issues.
+- Giving a project a clean issue history from its CHANGELOG (`retroactive`, created and closed in Done).
+- Adding the missing In Review column to an existing board.
+
+## Tips
+
+- Refresh the `project` scope before starting; it stops until you have.
+- Default mode is `current`; pass `retroactive` or `both` for history.
+- Prune the preview before you say yes: anything you leave in becomes a real issue.
+- If you'd rather not run the GraphQL mutation for In Review, add the option by hand in the GitHub UI ([`IN-REVIEW-OPTION.md`](IN-REVIEW-OPTION.md)).
 
 ## Example
 
@@ -38,4 +53,17 @@ Default `current`. User-invoked only (`disable-model-invocation: true`) because 
 /kanban-setup both
 ```
 
-Creates "myrepo Board", finds 7 open TODOs and 12 CHANGELOG entries, previews 19 issues in two groups, and on your OK creates 7 in Todo and 12 closed in Done.
+1. `gh auth status` lists `project`, so it continues.
+2. No board for this repo, so it creates "myrepo Board"; the Status field lacks In Review, so it adds it.
+3. Scans the README roadmap, `TODO` comments, `CHANGELOG.md` and `git log`: 7 open TODOs (2 already have issues, skipped) and 12 CHANGELOG entries.
+4. Previews 17 issues in two groups: 5 "current → Todo", 12 "retroactive → Done".
+5. On your yes, creates the 5 and sets them to Todo; creates and closes the 12 and sets them to Done.
+
+## Related
+
+- [`next`](../next/) reads the board it creates.
+- Needs `gh` with the `project` scope.
+
+## Prereqs
+
+`gh`, authenticated with the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)). It checks for the scope itself and stops if missing.
