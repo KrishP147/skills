@@ -12,12 +12,12 @@
 <meta property="og:description" content="{{DESCRIPTION}}">
 <meta property="og:type" content="article">
 <meta property="og:url" content="{{URL}}">
-<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="{{BASE}}/style.css">
 </head>
-<body class="detail">
+<body class="detail" data-base="{{BASE}}">
 <header class="topbar">
   <div class="topbar-in term" id="term">
-    <a class="home" href="/" aria-label="All skills">~/skills</a>
+    <a class="home" href="{{BASE}}/" aria-label="All skills">~/skills</a>
     <div class="prompt-wrap">
       <div class="prompt-box" id="prompt-box">
         <span class="caret-sign" aria-hidden="true">&gt;</span>
@@ -50,11 +50,11 @@
   </nav>
   <section id="comments" class="comments" aria-label="Comments"></section>
   <footer class="foot dim">
-    <a href="/">&larr; all skills</a> · <a href="https://github.com/KrishP147/skills">source on GitHub</a> · MIT
+    <a href="{{BASE}}/">&larr; all skills</a> · <a href="https://github.com/KrishP147/skills">source on GitHub</a> · MIT
   </footer>
 </main>
 <script type="application/json" id="skill-data">{{DATA}}</script>
-<script src="/filter.js"></script>
-<script src="/app.js"></script>
+<script src="{{BASE}}/filter.js"></script>
+<script src="{{BASE}}/app.js"></script>
 </body>
 </html>

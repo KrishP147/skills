@@ -15,7 +15,7 @@ import re
 from md_render import Renderer, safe_url, strip_inline
 
 REPO_URL = "https://github.com/KrishP147/skills"
-SITE_URL = "https://skills.krishpunjabi.com"
+SITE_URL = "https://krishpunjabi.com/skills"
 
 SECTIONS = (
     ("what", "What it does"),
@@ -126,8 +126,9 @@ def organise(pre, pairs):
 class LinkIndex:
     """Knows every page name, and which repo paths map onto which page."""
 
-    def __init__(self, root, entries):
+    def __init__(self, root, entries, base=""):
         self.root = root
+        self.base = base
         self.names = {e["name"] for e in entries}
         self.agents = {e["name"] for e in entries if e["group"] == "agents"}
         self.dir_to_name = {}
@@ -159,11 +160,10 @@ class LinkIndex:
             return "%s/%s/master/%s%s" % (REPO_URL, kind, key, "#" + frag if frag else "")
         return rewrite
 
-    @staticmethod
-    def _page(name, on_page_link):
+    def _page(self, name, on_page_link):
         if on_page_link:
             on_page_link(name)
-        return "/" + name
+        return self.base + "/" + name
 
 
 # ---- sources ------------------------------------------------------------------
@@ -309,14 +309,14 @@ def _as_text(v):
 
 # ---- page -------------------------------------------------------------------
 
-def build_pages(root, entries, meta, template, data_json):
+def build_pages(root, entries, meta, template, data_json, site_base=""):
     """Return {name: html}. Two passes: render, then compose (for backlinks)."""
     agents_readme = ""
     p = os.path.join(root, "agents", "README.md")
     if os.path.isfile(p):
         with open(p, encoding="utf-8-sig") as f:
             agents_readme = f.read()
-    index = LinkIndex(root, entries)
+    index = LinkIndex(root, entries, site_base)
     video = contributing_video(root)
 
     rendered = {}
@@ -347,7 +347,7 @@ def build_pages(root, entries, meta, template, data_json):
         ordered, extras, rw, hint = rendered[e["name"]]
         ordered = list(ordered)
         if e["group"] == "agents":
-            ordered = _with_agent_related(ordered, e, backlinks[e["name"]])
+            ordered = _with_agent_related(ordered, e, backlinks[e["name"]], site_base)
         if video:
             ordered = [(k, t, b + "\n\nShared context for these principles: [Matt Pocock's video](%s)." % video
                         if k == "design" else b) for k, t, b in ordered]
@@ -371,7 +371,8 @@ def build_pages(root, entries, meta, template, data_json):
         values = {
             "CHIPS": chip_html,
             "BODY": "\n".join(body),
-            "PREVNEXT": _prevnext(prev_e, next_e),
+            "PREVNEXT": _prevnext(prev_e, next_e, site_base),
+            "BASE": esc(site_base),
             "DATA": data_json,
             "URL": esc(url),
             "NAME": esc(e["name"]),
@@ -384,14 +385,14 @@ def build_pages(root, entries, meta, template, data_json):
     return pages
 
 
-def _with_agent_related(ordered, e, backlinks):
+def _with_agent_related(ordered, e, backlinks, base=""):
     fm = e["_x"]["fm"]
     lines = []
     skills = fm.get("skills") or []
     if isinstance(skills, list) and skills:
-        lines.append("- Preloads: " + ", ".join("[`%s`](/%s)" % (s, s) for s in skills))
+        lines.append("- Preloads: " + ", ".join("[`%s`](%s/%s)" % (s, base, s) for s in skills))
     if backlinks:
-        lines.append("- Linked from: " + ", ".join("[`%s`](/%s)" % (s, s) for s in sorted(backlinks)))
+        lines.append("- Linked from: " + ", ".join("[`%s`](%s/%s)" % (s, base, s) for s in sorted(backlinks)))
     if not lines:
         return ordered
     md = "\n".join(lines)
@@ -430,14 +431,14 @@ def _source_section(e):
             "<ul>\n%s\n</ul>\n</section>" % items)
 
 
-def _prevnext(prev_e, next_e):
+def _prevnext(prev_e, next_e, base=""):
     parts = []
     if prev_e:
-        parts.append('    <a class="prev" href="/%s" rel="prev">&larr; /%s</a>' % (esc(prev_e["name"]), esc(prev_e["name"])))
+        parts.append('    <a class="prev" href="%s/%s" rel="prev">&larr; /%s</a>' % (esc(base), esc(prev_e["name"]), esc(prev_e["name"])))
     else:
         parts.append('    <span class="prev"></span>')
     if next_e:
-        parts.append('    <a class="next" href="/%s" rel="next">/%s &rarr;</a>' % (esc(next_e["name"]), esc(next_e["name"])))
+        parts.append('    <a class="next" href="%s/%s" rel="next">/%s &rarr;</a>' % (esc(base), esc(next_e["name"]), esc(next_e["name"])))
     return "\n".join(parts)
 
 

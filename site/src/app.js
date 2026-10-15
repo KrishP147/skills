@@ -76,7 +76,8 @@
   }
 
   function go(name) {
-    window.location.assign("/" + encodeURIComponent(name));
+    var base = (document.body && document.body.getAttribute("data-base")) || "";
+    window.location.assign(base + "/" + encodeURIComponent(name));
   }
 
   // Block invalid insertions before they land (desktop + most mobile).
