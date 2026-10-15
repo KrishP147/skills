@@ -80,7 +80,8 @@ The site is built inside the portfolio site's Vercel build into `public/skills`
 and served at <https://krishpunjabi.com/skills>. From the portfolio root:
 
 ```sh
-git clone --depth 1 <skills repo url> /tmp/skills && \n  python3 /tmp/skills/scripts/build_site.py --base /skills --out public/skills
+git clone --depth 1 <skills repo url> /tmp/skills && \
+  python3 /tmp/skills/scripts/build_site.py --base /skills --out public/skills
 ```
 
 No install step (stdlib Python only). Set `SITE_BASE=/skills` instead of
