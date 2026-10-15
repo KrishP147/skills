@@ -1,0 +1,40 @@
+name: upstream-sync
+
+# Weekly check of upstream repos listed in upstream.json (see
+# scripts/upstream_sync.py). Verbatim changes -> one PR from
+# upstream-sync/verbatim; each modified file -> one issue titled
+# "upstream-sync: <path>". Skips any already open. Default GITHUB_TOKEN only;
+# opening the PR needs "Allow GitHub Actions to create and approve pull
+# requests" enabled in Settings > Actions > General.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Check upstream and open PR/issues
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/upstream_sync.py --out "$RUNNER_TEMP/upstream-sync" --publish
