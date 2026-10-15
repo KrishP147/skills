@@ -75,7 +75,7 @@ Shows the contract (merge already set to `ask`), you pick "Use these", it writes
 - Spawns [`planner`, `manager`, `implementer`, `verifier`](../agents/README.md).
 - Uses [`pair`](../pair/)'s worktree pattern; kanban skills via the agents ([`next`](../kanban/next/), [`divide`](../kanban/divide/), [`update-progress`](../kanban/update-progress/), [`consult-plan`](../kanban/consult-plan/)).
 - [`progress-report`](../progress-report/) reads its ledger.
-- Optional [`hooks/smartzone.py`](../hooks/) triggers an early rotation.
+- Optional [`hooks/smartzone.py`](../hooks/smartzone.py) triggers an early rotation.
 
 ## Prereqs
 
