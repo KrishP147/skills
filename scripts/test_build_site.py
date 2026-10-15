@@ -123,6 +123,7 @@ class BuildSiteTest(unittest.TestCase):
                 page = f.read()
             self.assertIn("giscus.app/client.js", page, n)
             self.assertIn('data-term="%s"' % n, page, n)
+            self.assertIn('data-strict="1"', page, n)
         with open(os.path.join(self.out, "404.html"), encoding="utf-8") as f:
             nf = f.read()
         for page in (self.index, nf):
@@ -192,6 +193,7 @@ class BaseBuildTest(unittest.TestCase):
             else:
                 self.assertIn("giscus.app/client.js", page, label)
                 self.assertIn('data-term="%s"' % label, page, label)
+                self.assertIn('data-strict="1"', page, label)
 
     def test_displayed_names_unchanged(self):
         self.assertIn('<span class="nm">/pair</span>', self.read("index.html"))
