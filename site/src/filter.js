@@ -179,7 +179,7 @@
   // (never for the bare "/" list, where nothing is chosen yet).
   function pick(state, active) {
     if (typeof active === "number" && active >= 0) return active;
-    return state.mode === "all" ? -1 : 0;
+    return state.options.length ? 0 : -1;
   }
 
   // Tab: fill the highlighted option. Returns the new buffer, or null when

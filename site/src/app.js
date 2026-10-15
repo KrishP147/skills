@@ -31,7 +31,7 @@
       caretToEnd();
     }
     state = F.search(buffer, items);
-    active = state.mode === "results" || state.mode === "suggest" ? 0 : -1;
+    active = state.mode === "results" || state.mode === "suggest" || state.mode === "all" ? 0 : -1;
     if (engage) open = true;
     render(true);
   }

@@ -68,12 +68,12 @@ test("free typing: any text is a valid buffer (no rejection)", () => {
   }
 });
 
-test("bare '/' lists everything A-Z with nothing chosen", () => {
+test("bare '/' lists everything A-Z with the first highlighted (D2)", () => {
   const s = F.search("/", FIX);
   assert.equal(s.mode, "all");
   assert.deepEqual(names(s.options), names(FIX).slice().sort());
-  assert.equal(F.resolve(s, -1), null);
-  assert.equal(F.complete("/", s, -1), null);
+  assert.equal(F.resolve(s, -1), names(s.options)[0]);
+  assert.equal(F.complete("/", s, -1), "/" + names(s.options)[0]);
   assert.equal(F.resolve(s, 2), names(s.options)[2]);
 });
 
