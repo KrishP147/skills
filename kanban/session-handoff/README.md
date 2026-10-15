@@ -24,10 +24,24 @@ Ends an implementation session tied to a GitHub issue: writes the handoff docume
 
 Follows any handoff filename/section rules in the repo's `CLAUDE.md`/`AGENTS.md`. Commits the handoff only per [`handoff-auto/TRACKING.md`](../../handoff-auto/TRACKING.md) (never on a fork), so it can't leak into the task's PR.
 
-## Related
+## Design principles
 
-- Next step: [`update-progress`](../update-progress/) in a fresh session, with the printed path.
-- Wraps [`handoff-auto`](../../handoff-auto/); preloaded by the `implementer` agent.
+- **Record reality, not hope.** Only a complete session moves the card to In Review; partial or blocked work stays In Progress, and a blocked one gets an issue comment saying why.
+- **Wrap, don't duplicate.** The document itself comes from `handoff-auto`; this skill only adds board status and the card move.
+- **Path last.** The handoff path is the final line, so the `implementer` agent's caller can parse it.
+
+## Use cases
+
+- Ending a manual session that started from `/next` and an issue.
+- The `implementer` agent's last step, so a manager or orchestrator gets a parseable handoff.
+- Stopping partway through a task: the board shows it is still In Progress, and the handoff says what is left.
+
+## Tips
+
+- Pass the issue number (or URL) so the handoff and the card move target the right issue.
+- Next, open a fresh session and run [`update-progress`](../update-progress/) with the printed path; that is what verifies and closes the issue.
+- Deviations listed under `## Board status` are what `update-progress` later sends to `consult-plan`, so name them plainly in the session.
+- A board error doesn't block: the handoff is still written and the error is noted.
 
 ## Example
 
@@ -35,4 +49,25 @@ Follows any handoff filename/section rules in the repo's `CLAUDE.md`/`AGENTS.md`
 /session-handoff 31
 ```
 
-Writes the handoff to `skilleddocs/handoffs/` with "Board status: #31 partial — export works, tests for large files missing; deviation: used streaming writer", moves #31's card to In Progress, prints the path.
+1. `handoff-auto` writes `skilleddocs/handoffs/2026-10-15-csv-export.md` and prints its path.
+2. Appended to it:
+
+```markdown
+## Board status
+
+- #31 Add CSV export: partial. Export works; tests for files over 1 GB missing.
+- Deviation: used a streaming writer instead of building the file in memory.
+- New idea: an `--gzip` option (not in the issue).
+```
+
+3. Partial, so the card stays In Progress (no comment, since it isn't blocked).
+4. Prints the handoff's absolute path as the last line.
+
+## Related
+
+- Next step: [`update-progress`](../update-progress/) in a fresh session, with the printed path.
+- Wraps [`handoff-auto`](../../handoff-auto/); preloaded by the `implementer` agent.
+
+## Prereqs
+
+`gh`, authenticated with the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)). [`handoff-auto`](../../handoff-auto/) installed.
