@@ -175,8 +175,9 @@
     return state.exact ? s + ". Enter opens /" + state.exact.name : s;
   }
 
-  // Index Tab/Enter act on: the highlighted option, else the first one
-  // (never for the bare "/" list, where nothing is chosen yet).
+  // Index Tab/Enter act on: the highlighted option, else the first one.
+  // app.js highlights the first row whenever a list opens (bare "/" too), so
+  // the fallback only covers callers that pass no index.
   function pick(state, active) {
     if (typeof active === "number" && active >= 0) return active;
     return state.options.length ? 0 : -1;

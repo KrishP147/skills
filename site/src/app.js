@@ -20,7 +20,7 @@
 
   var buffer = "/";
   var state = F.search(buffer, items);
-  var active = -1;
+  var active = firstRow(state);
   var open = false; // menu shows only once the user engages the prompt
   var composing = false; // IME composition: never touch value/caret mid-word
 
@@ -31,9 +31,23 @@
       caretToEnd();
     }
     state = F.search(buffer, items);
-    active = state.mode === "results" || state.mode === "suggest" || state.mode === "all" ? 0 : -1;
+    active = firstRow(state);
     if (engage) open = true;
     render(true);
+  }
+
+  // Row highlighted whenever a list is (re)shown: the first, bare "/" included,
+  // so Enter/Tab always act on a visible highlight.
+  function firstRow(s) { return s.options.length ? 0 : -1; }
+
+  // Single entry for every path that opens a closed menu (click, "/", Enter,
+  // arrows): highlight the first row before rendering.
+  function openMenu() {
+    if (open) return false;
+    open = true;
+    active = firstRow(state);
+    render(true);
+    return true;
   }
 
   function caretToEnd() {
@@ -86,8 +100,7 @@
 
   function move(delta) {
     var n = state.options.length;
-    if (!n) return;
-    open = true;
+    if (!n || openMenu()) return;
     active = active < 0 ? (delta > 0 ? 0 : n - 1) : (active + delta + n) % n;
     render(false);
     var el = document.getElementById("opt-" + active);
@@ -138,7 +151,7 @@
         e.preventDefault();
         var name = open ? F.resolve(state, active) : null;
         if (name) go(name);
-        else if (!open) { open = true; render(true); }
+        else openMenu();
         return;
       case "Escape":
         if (buffer !== "/") { e.preventDefault(); setBuffer("/", false); close(); }
@@ -149,7 +162,7 @@
         return;
       case "/":
         // "/" on the bare prompt shows everything (nothing to type: it is there).
-        if (buffer === "/") { e.preventDefault(); open = true; render(true); }
+        if (buffer === "/") { e.preventDefault(); openMenu(); }
         return;
       case "ArrowLeft":
       case "Home":
@@ -169,7 +182,7 @@
   term.addEventListener("click", function (e) {
     if (e.target.closest && e.target.closest("a, li[role=option], .note")) return;
     input.focus();
-    if (!open) { open = true; render(true); }
+    openMenu();
   });
 
   // "/" anywhere on the page jumps into the terminal.

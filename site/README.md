@@ -40,9 +40,10 @@ optional `aliases` from `meta.json`) in `#skill-data`.
   suggestions: OSA (Damerau-Levenshtein) distance over names, name parts and
   aliases, normalized by length, then summary words (`/review` finds `/pr-watch`).
   Nothing close: `No matches. Type / to see all.`
-- **Keys:** Up/Down highlight, Tab fills the highlighted name (the first row is
-  highlighted by default, bare `/` included; when it changes nothing, Tab moves focus), Enter
-  or click opens it, Esc clears to `/` (again: closes the menu), `/` anywhere on
+- **Keys:** the first row is highlighted every time the menu opens (prompt
+  click, `/`, Enter or Up/Down on a closed menu, bare `/` included) and every
+  time the text changes. Up/Down move the highlight, Tab fills the highlighted
+  name (when that changes nothing, Tab moves focus), Enter or click opens it, Esc clears to `/` (again: closes the menu), `/` anywhere on
   the page focuses the prompt. An exact name shows a dim `↵ to open`; typing
   never navigates by itself.
 - **ARIA:** input `role=combobox` with `aria-expanded` / `aria-activedescendant`,
