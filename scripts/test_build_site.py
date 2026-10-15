@@ -65,21 +65,25 @@ class BuildSiteTest(unittest.TestCase):
             self.assertTrue(os.path.isfile(path), path)
         with open(os.path.join(self.out, "pair", "index.html"), encoding="utf-8") as f:
             self.assertIn("/pair", f.read())
-        for fn in ("404.html", "style.css", "filter.js", "app.js", "black-square.png"):
+        for fn in ("404.html", "style.css", "filter.js", "app.js", "favicon.svg"):
             self.assertTrue(os.path.isfile(os.path.join(self.out, fn)), fn)
 
-    def test_png_copied_byte_for_byte(self):
-        with open(os.path.join(ROOT, "site", "src", "black-square.png"), "rb") as f:
+    def test_favicon_svg_copied(self):
+        with open(os.path.join(ROOT, "site", "src", "favicon.svg"), encoding="utf-8") as f:
             src = f.read()
-        with open(os.path.join(self.out, "black-square.png"), "rb") as f:
-            self.assertEqual(f.read(), src)
+        with open(os.path.join(self.out, "favicon.svg"), encoding="utf-8") as f:
+            out = f.read()
+        self.assertEqual(out, src)
+        self.assertTrue(out.lstrip().startswith("<svg"))
+        self.assertFalse([fn for fn in os.listdir(self.out) if fn.endswith(".png")])
 
     def test_icons_and_robots_default_base(self):
         for fn in ["index.html", "404.html"] + [os.path.join(e["name"], "index.html") for e in self.data]:
             with open(os.path.join(self.out, fn), encoding="utf-8") as f:
                 page = f.read()
-            self.assertIn('<link rel="icon" href="/black-square.png">', page, fn)
-            self.assertIn('<link rel="apple-touch-icon" href="/black-square.png">', page, fn)
+            self.assertIn('<link rel="icon" type="image/svg+xml" href="/favicon.svg">', page, fn)
+            self.assertNotIn("apple-touch-icon", page, fn)
+            self.assertNotIn(".png", page, fn)
             self.assertEqual('<meta name="robots" content="noindex">' in page, fn == "404.html", fn)
 
     def test_list_links_server_rendered(self):
@@ -211,8 +215,8 @@ class BaseBuildTest(unittest.TestCase):
 
     def test_icons_and_robots_prefixed_base(self):
         for label, page in self.pages():
-            self.assertIn('<link rel="icon" href="/skills/black-square.png">', page, label)
-            self.assertIn('<link rel="apple-touch-icon" href="/skills/black-square.png">', page, label)
+            self.assertIn('<link rel="icon" type="image/svg+xml" href="/skills/favicon.svg">', page, label)
+            self.assertNotIn("apple-touch-icon", page, label)
             self.assertEqual('<meta name="robots" content="noindex">' in page, label == "404.html", label)
 
     def test_displayed_names_unchanged(self):
