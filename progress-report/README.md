@@ -14,7 +14,7 @@ Turns a run's ledger into a short progress report (1–2 pages) covering **only 
 ## How to invoke
 
 ```
-/progress-report <reports folder> [docx] [full]
+/progress-report [reports folder] [docx] [full]
 ```
 
 - `docx` — Word file instead of Markdown (uses the `docx` skill if available, else `python-docx`).
@@ -41,7 +41,7 @@ Reads: `skilleddocs/orchestrator/ledger.md`, `.last-reported`, git/gh. Writes: t
 ## Example
 
 ```
-/progress-report ./reports
+/progress-report skilleddocs/reports/
 ```
 
-Watermark says 5; ledger is at 22. Writes `reports/002-2026-09-23-auth-and-export.md` covering entries 6–22 (Done table with 4 merged PRs, one flaky-CI item under "What didn't", two decisions made on your behalf), sets `.last-reported` to 22, appends a `report` ledger entry, prints the path.
+Watermark says 5; ledger is at 22. Writes `skilleddocs/reports/002-2026-09-23-auth-and-export.md` covering entries 6–22 (Done table with 4 merged PRs, one flaky-CI item under "What didn't", two decisions made on your behalf), sets `.last-reported` to 22, appends a `report` ledger entry, prints the path.

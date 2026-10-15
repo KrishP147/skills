@@ -39,8 +39,8 @@ slash command.
    working directory path with every character other than letters and
    digits replaced by `-`. Says plainly, and stops, if no target is found.
 2. **Read-only snapshot.** Via `ListAgents`/`SendMessage` if reachable
-   directly, or by parsing the other session's transcript with a small
-   inline stdlib script — never a raw `cat`/dump of the `.jsonl` file.
+   directly, or by parsing the other session's transcript with the
+   bundled `scripts/snapshot.py` — never a raw `cat`/dump of the `.jsonl` file.
    Extracts only the last user ask, the last N actions, and any
    branches/PRs/files mentioned. Also checks `git`, `gh pr`, and that
    repo's `skilleddocs/` for its handoff/ledger. Redacts anything that
