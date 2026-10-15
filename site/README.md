@@ -80,7 +80,7 @@ The site is built inside the portfolio site's Vercel build into `public/skills`
 and served at <https://krishpunjabi.com/skills>. From the portfolio root:
 
 ```sh
-git clone --depth 1 <skills repo url> /tmp/skills && \
+git clone --depth 1 https://github.com/KrishP147/skills /tmp/skills && \
   python3 /tmp/skills/scripts/build_site.py --base /skills --out public/skills
 ```
 
