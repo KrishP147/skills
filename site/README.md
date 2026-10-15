@@ -65,23 +65,6 @@ source, readme), `<name>/index.html` detail page per skill/agent (so `/pair` res
 statically), `404.html`, `style.css`, `filter.js`, `app.js`. The build is
 deterministic.
 
-## Deploy (Vercel free tier) — manual steps
+## Deploy
 
-Config lives in the repo-root [`vercel.json`](../vercel.json)
-(`buildCommand: python3 scripts/build_site.py`, `outputDirectory: site/dist`,
-`cleanUrls`). It is at the root because the build needs files outside `site/`.
-
-1. vercel.com → Add New → Project → import `KrishP147/skills`.
-2. Leave **Root Directory** as the repo root (`./`). Framework preset: Other.
-   Build/output settings come from `vercel.json`; don't override them.
-3. Deploy. Check `/`, `/pair`, and a bad path (404 page).
-4. Domain: Project → Settings → Domains → add `skills.krishpunjabi.com`.
-   At the DNS provider for `krishpunjabi.com` add a `CNAME` record
-   `skills` → `cname.vercel-dns.com` (use whatever target Vercel shows).
-   Wait for Vercel to mark it valid (HTTPS is automatic).
-
-Fallback, if Root Directory must be `site/`: move the config to
-`site/vercel.json` with `"buildCommand": "python3 ../scripts/build_site.py"`
-and `"outputDirectory": "dist"`, and keep "Include source files outside of
-the Root Directory" enabled (Vercel's default) so `scripts/` and the skill
-dirs are available at build time.
+Deploy config: repo-root [`vercel.json`](../vercel.json).
