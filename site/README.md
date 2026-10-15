@@ -8,7 +8,7 @@ home with a locked slash input, a plain list of every skill and agent, and a
 
 | Path | What |
 |---|---|
-| `src/index.html` | home template (`{{COUNT}}`, `{{LIST}}`, `{{DATA}}` filled at build): welcome + catalog scroll in `.feed`, slash prompt pinned to the viewport bottom in `.dock` (menu opens upward), fixed GitHub link top right, fixed avatar link to krishpunjabi.com top left (also on 404; inline in the detail topbar). Under 600px an opaque 66px band sits behind the corner links on non-detail pages so feed text scrolls under it. Intro animation (≤1.5s, any key/click skips) runs only when the inline head script adds `html.intro`, never under `prefers-reduced-motion` |
+| `src/index.html` | home template (`{{COUNT}}`, `{{LIST}}`, `{{DATA}}` filled at build): welcome + catalog scroll in `.feed`, slash prompt pinned to the viewport bottom in `.dock` (menu opens upward), fixed GitHub link top right, fixed Rocky image link to krishpunjabi.com top left (also on 404; inline in the detail topbar). Under 600px an opaque 66px band sits behind the corner links on non-detail pages so feed text scrolls under it. Intro animation (≤1.5s, any key/click skips) runs only when the inline head script adds `html.intro`, never under `prefers-reduced-motion` |
 | `src/detail.html` | `/<name>` detail page template (sticky slash prompt, header card + chips, sections, prev/next, `#comments` giscus block) |
 | `data/meta.json` | per-name author + battle-tested level (`levels_source` says where levels come from); names not listed get level `new`, author defaults to Krish |
 | `src/404.html`, `src/style.css` | not-found page (`noindex`), all styles |
