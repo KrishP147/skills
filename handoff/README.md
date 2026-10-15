@@ -26,10 +26,24 @@ Compacts the current conversation into a handoff document so a fresh session can
 
 Output: one handoff file under `skilleddocs/handoffs/`.
 
-## Related
+## Design principles
 
-- [`handoff-auto`](../handoff-auto/) — same, model-invocable, prints the path last.
-- [`session-handoff`](../kanban/session-handoff/) — kanban-aware wrapper (uses `handoff-auto`).
+- **Fresh session over a long one.** Quality drops as context grows; a short document that a new session reads beats carrying the old context forward.
+- **Point, don't copy.** Specs, plans, ADRs, issues, commits and diffs are referenced by path or URL, so the handoff stays short and can't drift from them.
+- **One commit rule for everything.** Whether the file is committed comes from [`TRACKING.md`](../handoff-auto/TRACKING.md), shared with every skill that writes under `skilleddocs/`.
+
+## Use cases
+
+- Ending a long debugging session before the context fills up.
+- Stopping for the day mid-task and resuming tomorrow in a clean session.
+- Passing a task to another person's session or another agent.
+
+## Tips
+
+- Pass the next session's focus as the argument (`/handoff write the migration tests`); the doc is tailored to it.
+- Start the next session with "read `<path>` and continue"; the "suggested skills" section tells it which skills to load.
+- On a fork, or a repo that doesn't track `skilleddocs/`, the file stays untracked and the folder is git-excluded, so it won't show up in your diffs.
+- A repo's `AGENTS.md` or `CLAUDE.md` can set a different folder or filename prefix.
 
 ## Example
 
@@ -38,3 +52,12 @@ Output: one handoff file under `skilleddocs/handoffs/`.
 ```
 
 Writes a Markdown file under `skilleddocs/handoffs/` with state, open questions, file references, and "suggested skills". Start a fresh session and point it at that file.
+
+## Related
+
+- [`handoff-auto`](../handoff-auto/) — same, model-invocable, prints the path last.
+- [`session-handoff`](../kanban/session-handoff/) — kanban-aware wrapper (uses `handoff-auto`).
+
+## Prereqs
+
+None.

@@ -19,8 +19,6 @@ Scans a GitHub repo's **full git history** for secrets and oversized files, lets
 
 Defaults to the current repo. User-invoked only (`disable-model-invocation: true`) because it rewrites history and force-pushes.
 
-Prereqs: `gh` (authenticated), [`gitleaks`](https://github.com/gitleaks/gitleaks), [`git-filter-repo`](https://github.com/newren/git-filter-repo). Install commands are in the [top README](../README.md#install). No separate sizing tool — before/after repo size comes from `git count-objects -vH`.
-
 ## How it works
 
 0. Confirms the target repo and that you accept a history rewrite + force-push.
@@ -41,9 +39,28 @@ Prereqs: `gh` (authenticated), [`gitleaks`](https://github.com/gitleaks/gitleaks
 
 Bails out on Git LFS repos (step 3). Never scans or rewrites your working clone.
 
-## Related
+## Design principles
 
-Standalone; no other skills or agents.
+- **Going public is one-way.** Forks, caches and scrapers copy history within minutes and GitHub has no hook on the visibility toggle, so every cleanup happens before the flip, and the flip is its own gate.
+- **Rotation before rewrite.** A rewrite doesn't un-leak a secret that was ever pushed; rotating at the source is what protects you, the history rewrite is hygiene.
+- **Complete report, no raw values.** Every finding is shown, including ones you keep, but secrets appear only as fingerprints; the helper scripts never print a value.
+- **Throwaway clones only.** Scanning and rewriting happen in fresh clones under a temp work dir, never your working clone.
+
+## Use cases
+
+- Open-sourcing a repo that started private.
+- Removing a committed `.env` or API key from every commit before publishing.
+- Stripping large binaries (demo videos, datasets) out of history to shrink the repo, while optionally keeping the current file.
+- A pre-publish audit where you scrub nothing: the full report still tells you what is in history.
+
+## Tips
+
+- Have rotation access ready (cloud console, API dashboards) before you start; the rewrite waits on it. [`ROTATE.md`](ROTATE.md) has the checklist by secret type.
+- Selecting nothing is not "scrub everything": you pick per ID or in bulk ("all secrets", "over 50MB", a path glob) and Claude echoes the final lists.
+- Collaborators and open PRs need to re-clone or recreate after the force-push; let Claude draft the notice before the push.
+- Old commits can stay reachable on GitHub (`refs/pull/*`, direct SHA, cached views) until GitHub Support garbage-collects them.
+- Repos using Git LFS are out of scope: it stops before scanning.
+- Want the working tree tidied first (README, stale docs)? Run [`repo-showcase`](../repo-showcase/) before this.
 
 ## Example
 
@@ -52,3 +69,11 @@ Standalone; no other skills or agents.
 ```
 
 Finds `S1` (an API key in `config/dev.env`, 3 commits) and `L1` (a 340 MB demo video, accumulated across history). You scrub both; Claude tells you to rotate the API key first and waits for confirmation, then warns about 1 open PR, you approve, it rewrites clone #2, verifies gitleaks is clean, force-pushes, lists the PR to recreate, asks separately before making the repo public, then deletes the work dir holding the gitleaks report and findings.json.
+
+## Related
+
+- [`repo-showcase`](../repo-showcase/) tidies the working tree first, then hands off here for history and visibility.
+
+## Prereqs
+
+`gh` (authenticated), [`gitleaks`](https://github.com/gitleaks/gitleaks), [`git-filter-repo`](https://github.com/newren/git-filter-repo), and Python for the helper scripts. Install commands are in the [top README](../README.md#install); the skill also prints the right one if a tool is missing. No separate sizing tool: before/after repo size comes from `git count-objects -vH`.

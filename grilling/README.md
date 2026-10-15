@@ -27,11 +27,24 @@ Interviews you, one round at a time, until a plan or decision has no unexamined 
 
 Reads/writes no files by itself.
 
-## Related
+## Design principles
 
-- [`grill-me`](../grill-me/) — alias.
-- [`consult-plan`](../kanban/consult-plan/) — calls this with the repo's plan as context.
-- `verifier` agent — may answer its questions on your behalf when authorized (see [`agents/README.md`](../agents/README.md)).
+- **Design tree, asked by frontier.** A question is only asked once everything it depends on is settled, so you never answer a hypothetical that a later answer would undo.
+- **Facts are Claude's job, decisions are yours.** Anything the environment can answer gets looked up; only real choices reach you.
+- **Recommend, don't just ask.** Each question carries a recommended answer worded so "yes" accepts it, which keeps rounds fast.
+
+## Use cases
+
+- Stress-testing a design before writing code (a migration, a new service boundary, an API change).
+- Turning a vague idea into a list of settled decisions.
+- Testing a proposed change against a repo's existing plan, via `consult-plan`.
+
+## Tips
+
+- Answer by number ("1 yes, 2 no: keep sessions, 3 yes"); anything you skip stays on the frontier.
+- A fact lookup only holds back the questions that depend on it; the rest of the round is asked anyway.
+- Nothing is written down. Use [`grill-docs`](../grill-docs/) when the answers need a record.
+- It acts on nothing until you confirm a shared understanding, so say so explicitly when you're done.
 
 ## Example
 
@@ -40,3 +53,13 @@ Reads/writes no files by itself.
 ```
 
 Round 1 asks ~4 numbered questions (token lifetime, refresh strategy, revocation, migration of live sessions), each with a recommendation. You answer; round 2 follows up on revocation storage because you chose short-lived tokens. Stops when nothing is left open.
+
+## Related
+
+- [`grill-me`](../grill-me/) — alias.
+- [`consult-plan`](../kanban/consult-plan/) — calls this with the repo's plan as context.
+- `verifier` agent — may answer its questions on your behalf when authorized (see [`agents/README.md`](../agents/README.md)).
+
+## Prereqs
+
+None.

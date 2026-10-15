@@ -34,11 +34,26 @@ Model-invocable, so "pair on issue 12" also works.
 
 Writes: a worktree + branch; commits (via agents); `skilleddocs/HANDOFF.md` in the worktree if unfinished (untracked unless the repo tracks `skilleddocs/`; never pushed).
 
-## Related
+## Design principles
 
-- Spawns the [`manager`](../agents/README.md#manager) agent, which spawns [`implementer`](../agents/README.md#implementer).
-- [`meta-orchestrator`](../meta-orchestrator/) runs the same manager per issue in `execution: pair` mode.
-- Needs `gh` and the agents installed.
+- **Only your session touches the remote.** The manager and implementer never push, merge or open a PR (the guard hook enforces it); push and PR happen in your session, on `--push` or your go. Nothing ever merges.
+- **Isolation by worktree.** Each task gets its own worktree and branch, so your main checkout stays usable and the agents need no other isolation.
+- **Implementation stays out of your context.** The manager owns briefing, review and retries; you see one report, verbatim.
+
+## Use cases
+
+- Implementing one issue on your own repo without a board or an orchestrator.
+- Contributing to an OSS fork: it syncs upstream first and checks the files the issue names still exist.
+- Addressing PR review comments later: rerun the delegate step in the same worktree with the comments as the task.
+- A free-text task with no issue at all ("pair on adding a `--dry-run` flag").
+
+## Tips
+
+- Set your branch prefix in your `CLAUDE.md`; otherwise branches start with `feat/`.
+- An **INTERIM** report means the implementer is still running; wait for the real one.
+- Leave the worktree alone while the manager runs.
+- Tear down only after the PR merges, and remove the `node_modules`/`.venv` link before `git worktree remove`: a recursive delete through the link wipes the main checkout's copy.
+- Unfinished after 3 rounds? Accept the offer of another round; it restarts from `skilleddocs/HANDOFF.md`.
 
 ## Example
 
@@ -47,3 +62,13 @@ Writes: a worktree + branch; commits (via agents); `skilleddocs/HANDOFF.md` in t
 ```
 
 Reads issue #42, creates `../_worktrees/myrepo-issue-42-fix-date-parsing` on `feat/issue-42-fix-date-parsing`, the manager's implementer fixes it in 1 round, the manager reruns tests (`pytest 118/118`), you see the report, then the branch is pushed and a PR opened with `Closes #42`.
+
+## Related
+
+- Spawns the [`manager`](../agents/README.md#manager) agent, which spawns [`implementer`](../agents/README.md#implementer).
+- [`meta-orchestrator`](../meta-orchestrator/) runs the same manager per issue in `execution: pair` mode.
+- Needs `gh` and the agents installed.
+
+## Prereqs
+
+`gh`, authenticated. The [`manager`](../agents/README.md#manager) and [`implementer`](../agents/README.md#implementer) agents installed (the install scripts do this), with their guard-hook needs: Python 3.8+, and Git Bash on Windows.

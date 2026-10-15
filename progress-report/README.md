@@ -33,10 +33,25 @@ Model-invocable, so asking for "an update doc" works too.
 
 Reads: `skilleddocs/orchestrator/ledger.md`, `.last-reported`, git/gh. Writes: the report, `.last-reported`, a ledger entry.
 
-## Related
+## Design principles
 
-- [`meta-orchestrator`](../meta-orchestrator/) writes the ledger it reads.
-- `docx` skill (optional) for Word output.
+- **Never overlapping.** A watermark (`.last-reported`) means each report covers only new ledger entries; anything earlier reappears only under "Revisions to earlier reports" when it changed.
+- **Readable in two minutes.** Fixed sections, bullets with one idea each, numbers in a table, 1 to 2 pages.
+- **Every reference is a link, every time is real.** Issues, PRs, commits and decision ids are linked; times come from the ledger, `git log` or API timestamps in your local zone, never estimated.
+
+## Use cases
+
+- Catching up after a `meta-orchestrator` run you left unattended.
+- A periodic update during a long run, each one picking up where the last stopped.
+- Writing up a long manual session with no ledger (it reconstructs one from git, PRs, issues and the conversation, and says so).
+- A Word document to send to someone else (`docx`).
+
+## Tips
+
+- Use `full` when you want everything in one document regardless of earlier reports; the watermark is ignored for that run.
+- Reports are numbered and never overwritten, so the folder is a running history.
+- The "Decided for you" and "Manual steps for you" sections are the ones to read first after an unattended run.
+- Pass a folder to keep reports outside `skilleddocs/reports/`; its `.last-reported` file lives in that folder.
 
 ## Example
 
@@ -45,3 +60,12 @@ Reads: `skilleddocs/orchestrator/ledger.md`, `.last-reported`, git/gh. Writes: t
 ```
 
 Watermark says 5; ledger is at 22. Writes `skilleddocs/reports/002-2026-09-23-auth-and-export.md` covering entries 6–22 (Done table with 4 merged PRs, one flaky-CI item under "What didn't", two decisions made on your behalf), sets `.last-reported` to 22, appends a `report` ledger entry, prints the path.
+
+## Related
+
+- [`meta-orchestrator`](../meta-orchestrator/) writes the ledger it reads.
+- `docx` skill (optional) for Word output.
+
+## Prereqs
+
+`gh` to resolve the repo URL for links. For `docx`: the `docx` skill or `python-docx`.

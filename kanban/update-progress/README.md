@@ -24,10 +24,26 @@ In a fresh session after [`session-handoff`](../session-handoff/). The `verifier
 6. **Escalate deviations:** if the handoff's `## Board status` lists deviations/innovations, calls [`consult-plan`](../consult-plan/).
 7. Ends by calling (or telling you to call) [`next`](../next/).
 
-## Related
+## Design principles
 
-- Input from [`session-handoff`](../session-handoff/); calls `code-review`, [`consult-plan`](../consult-plan/), [`next`](../next/).
-- Preloaded by the `verifier` agent (which can skip step 3 with `review-done=yes`).
+- **Every claim is unverified until checked.** "Tests pass" in a handoff means nothing until `git log` and a real test run agree.
+- **Fresh session.** Verification runs in a new context, not the one that did the work.
+- **Update only what exists.** It ticks boxes and adds rows in the docs the repo already has; it never invents doc structure.
+- **Drift is fixed here.** A merged capability missing from the README or status summary gets added, and a "current phase" marker follows where merges land.
+
+## Use cases
+
+- Closing the loop after `/session-handoff`: verify, update docs, move the card to Done.
+- Checking a handoff someone (or an agent) else wrote before you trust it.
+- Inside the `verifier` agent at the end of each task in a `meta-orchestrator` run.
+- Routing a session's deviations to `consult-plan` instead of letting them silently change the plan.
+
+## Tips
+
+- Run it in a fresh session; with no argument it picks the newest file in `skilleddocs/handoffs/`, so pass the path if several sessions ended recently.
+- Only complete and verified work goes to Done and closes the issue; anything else is set to where it really stands.
+- Code review only runs when product code changed; the `verifier` agent skips it with `review-done=yes`.
+- It ends with `next`, so the following task is already on screen.
 
 ## Example
 
@@ -35,4 +51,19 @@ In a fresh session after [`session-handoff`](../session-handoff/). The `verifier
 /update-progress
 ```
 
-Finds the latest handoff for #31, sees 3 commits, runs `npm test` (green), reviews the diff, ticks #31 in `ROADMAP.md`, comments on #31 and moves it to Done, runs `consult-plan` on the "streaming writer" deviation, then shows `next`.
+1. Picks the newest handoff, `skilleddocs/handoffs/2026-10-15-csv-export.md`, for #31.
+2. `git log` since the session's start commit shows 3 commits; runs `npm test` (green), matching the handoff.
+3. Product code changed, so it runs `code-review` on those commits.
+4. Ticks #31 in `ROADMAP.md` and adds a `CHANGELOG.md` entry, both already present in the repo; the README's feature list lacked CSV export, so it adds it.
+5. Comments a summary on #31, moves the card to Done and closes the issue.
+6. `## Board status` lists a "streaming writer" deviation, so it calls `consult-plan` on it.
+7. Runs `next`, which suggests #28.
+
+## Related
+
+- Input from [`session-handoff`](../session-handoff/); calls `code-review`, [`consult-plan`](../consult-plan/), [`next`](../next/).
+- Preloaded by the `verifier` agent (which can skip step 3 with `review-done=yes`).
+
+## Prereqs
+
+`gh`, authenticated with the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)). `consult-plan` and `next` installed; a `code-review` skill for the review step.
