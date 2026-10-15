@@ -60,7 +60,18 @@ class DetailPagesTest(unittest.TestCase):
 
     def test_no_script_from_markdown(self):
         for name, page in self.pages.items():
-            self.assertEqual(page.count("<script"), 3, name)  # data + filter.js + app.js
+            # data + filter.js + app.js + giscus
+            self.assertEqual(page.count("<script"), 4, name)
+            self.assertEqual(page.count("<script src="), 3, name)
+
+    def test_giscus_embed(self):
+        for name, page in self.pages.items():
+            self.assertIn('<script src="https://giscus.app/client.js"', page, name)
+            self.assertIn('data-term="%s"' % build_site.esc(name), page, name)
+            self.assertEqual(page.count("data-term="), 1, name)
+            self.assertIn('data-strict="1"', page, name)
+            self.assertIn('data-mapping="specific"', page, name)
+            self.assertIn("Use cases &amp; tips from the community", page, name)
 
     def test_sections_ordered_none_empty(self):
         titles = [t for _k, t in site_detail.SECTIONS] + ["Source"]
