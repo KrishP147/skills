@@ -182,8 +182,8 @@ class BuildSiteTest(unittest.TestCase):
             with open(os.path.join(self.out, n, "index.html"), encoding="utf-8") as f:
                 page = f.read()
             self.assertIn("giscus.app/client.js", page, n)
-            self.assertIn('data-term="%s"' % n, page, n)
-            self.assertIn('data-strict="1"', page, n)
+            self.assertIn('"data-term": "%s"' % n, page, n)
+            self.assertIn('"data-strict": "1"', page, n)
         with open(os.path.join(self.out, "404.html"), encoding="utf-8") as f:
             nf = f.read()
         for page in (self.index, nf):
@@ -358,8 +358,8 @@ class BaseBuildTest(unittest.TestCase):
                 self.assertNotIn("giscus", page, label)
             else:
                 self.assertIn("giscus.app/client.js", page, label)
-                self.assertIn('data-term="%s"' % label, page, label)
-                self.assertIn('data-strict="1"', page, label)
+                self.assertIn('"data-term": "%s"' % label, page, label)
+                self.assertIn('"data-strict": "1"', page, label)
 
     def test_icons_and_robots_prefixed_base(self):
         for label, page in self.pages():

@@ -54,7 +54,31 @@
   </nav>
   <section id="comments" class="comments" aria-label="Comments">
     <h2 class="comments-h">Use cases &amp; tips from the community</h2>
-    <script src="https://giscus.app/client.js" data-repo="KrishP147/skills" data-repo-id="R_kgDOUnmd3w" data-category="General" data-category-id="DIC_kwDOUnmd384DGan9" data-mapping="specific" data-term="{{NAME}}" data-strict="1" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="transparent_dark" data-lang="en" data-loading="lazy" crossorigin="anonymous" async></script>
+    <script>
+    /* giscus, themed from the OS scheme before client.js loads; follows later changes. */
+    (function () {
+      var here = document.currentScript, mq = null;
+      try { mq = window.matchMedia("(prefers-color-scheme: light)"); } catch (e) { /* old browser: dark */ }
+      function theme() { return mq && mq.matches ? "light" : "transparent_dark"; }
+      var attrs = {
+        "src": "https://giscus.app/client.js", "data-repo": "KrishP147/skills", "data-repo-id": "R_kgDOUnmd3w",
+        "data-category": "General", "data-category-id": "DIC_kwDOUnmd384DGan9",
+        "data-mapping": "specific", "data-term": "{{NAME}}", "data-strict": "1",
+        "data-reactions-enabled": "1", "data-emit-metadata": "0", "data-input-position": "top",
+        "data-theme": theme(), "data-lang": "en", "data-loading": "lazy", "crossorigin": "anonymous"
+      };
+      var s = document.createElement("script");
+      for (var k in attrs) s.setAttribute(k, attrs[k]);
+      s.async = true;
+      here.parentNode.insertBefore(s, here.nextSibling);
+      function sync() {
+        var f = document.querySelector("iframe.giscus-frame");
+        if (f && f.contentWindow) f.contentWindow.postMessage({ giscus: { setConfig: { theme: theme() } } }, "https://giscus.app");
+      }
+      if (mq && mq.addEventListener) mq.addEventListener("change", sync);
+      else if (mq && mq.addListener) mq.addListener(sync);
+    })();
+    </script>
   </section>
   <footer class="foot dim">
     <a href="{{BASE}}/">&larr; all skills</a> · <a href="https://github.com/KrishP147/skills">source on GitHub</a> · MIT

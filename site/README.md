@@ -55,8 +55,12 @@ optional `aliases` from `meta.json`) in `#skill-data`.
 
 ## Comments (giscus)
 
-Each detail page embeds [giscus](https://giscus.app) in `#comments` (plain
-script tag in `src/detail.html`). Setup for a repo:
+Each detail page embeds [giscus](https://giscus.app) in `#comments`: an
+inline script in `src/detail.html` creates the `client.js` tag with
+`data-theme` picked from `prefers-color-scheme` (`light` or
+`transparent_dark`) before giscus loads, and on a scheme change posts
+`{giscus: {setConfig: {theme}}}` to the giscus iframe. Built-in themes only,
+no external CSS URL. Setup for a repo:
 
 1. Install the giscus GitHub app on the repo and enable Discussions.
 2. Fetch the ids:

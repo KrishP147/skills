@@ -60,17 +60,22 @@ class DetailPagesTest(unittest.TestCase):
 
     def test_no_script_from_markdown(self):
         for name, page in self.pages.items():
-            # data + filter.js + app.js + giscus
+            # data + filter.js + app.js + inline giscus loader
             self.assertEqual(page.count("<script"), 4, name)
-            self.assertEqual(page.count("<script src="), 3, name)
+            self.assertEqual(page.count("<script src="), 2, name)
 
     def test_giscus_embed(self):
         for name, page in self.pages.items():
-            self.assertIn('<script src="https://giscus.app/client.js"', page, name)
-            self.assertIn('data-term="%s"' % build_site.esc(name), page, name)
-            self.assertEqual(page.count("data-term="), 1, name)
-            self.assertIn('data-strict="1"', page, name)
-            self.assertIn('data-mapping="specific"', page, name)
+            self.assertIn('"src": "https://giscus.app/client.js"', page, name)
+            self.assertIn('"data-term": "%s"' % build_site.esc(name), page, name)
+            self.assertEqual(page.count('"data-term"'), 1, name)
+            self.assertIn('"data-strict": "1"', page, name)
+            self.assertIn('"data-mapping": "specific"', page, name)
+            # theme from the OS scheme before load, live updates via postMessage, no external CSS
+            self.assertIn('"data-theme": theme()', page, name)
+            self.assertIn('matchMedia("(prefers-color-scheme: light)")', page, name)
+            self.assertIn("setConfig: { theme: theme() }", page, name)
+            self.assertNotRegex(page, r'theme[^,;]*https?://', name)
             self.assertIn("Use cases &amp; tips from the community", page, name)
 
     def test_sections_ordered_none_empty(self):
