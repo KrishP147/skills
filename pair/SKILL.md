@@ -48,14 +48,15 @@ Leave the worktree alone while it runs.
 1. **INTERIM** report → not a result; wait for the next handback.
 2. Show the report verbatim.
 3. Thin report or risky change → rerun the tests yourself. One-line fixes: commit them.
-4. Unfinished (`skilleddocs/HANDOFF.md`) → say what's left; offer another round from it.
-5. `--push` or the user says go:
+4. Unfinished (`skilleddocs/HANDOFF.md`, or the SHA that last held it) → say what's left; offer another round from it.
+5. Before any push: `git -C <worktree> diff --name-only <default>...HEAD` lists no `skilleddocs/HANDOFF.md`, and nothing under `skilleddocs/` when untracked ([TRACKING.md](../handoff-auto/TRACKING.md)). A hit → remove it in a commit.
+6. `--push` or the user says go:
    ```
    git -C <worktree> push -u origin <branch>
    gh pr create --head <branch> --title "<title>" --body "<summary>\n\nCloses #<n>"
    ```
    Never merge.
-6. Review comments later → step 3 again, comments as the task, same worktree.
+7. Review comments later → step 3 again, comments as the task, same worktree.
 
 ## 5. Print and teardown
 

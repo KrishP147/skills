@@ -50,7 +50,7 @@ Use the AskUserQuestion tool when available (≤4 questions per call, recommende
 | `interview` | `answer` (agents answer for me from the written plan) · `park` (deviations wait for me) | verifier + consult-plan |
 | `escalate` | multi-select: new dependency · schema/migration · deleting files · public API change · CI/config change · anything billable (always on) | pause and ask before merging such a change |
 | `docs` | multi-select: ledger (always on) · decisions register · per-issue handoffs · manager reports kept · CHANGELOG entries | what gets written under `skilleddocs/` |
-| `docs_commit` | `commit` (on default as written) · `uncommitted` | where the paper trail lives |
+| `docs_commit` | `commit` (on default as written) · `uncommitted`; default per [TRACKING.md](../handoff-auto/TRACKING.md), forced `uncommitted` on a fork | where the paper trail lives |
 | `reports` | `handoff` · `every N merges` · `end` · `on-request` | when `progress-report` runs |
 | `report_format` | markdown · docx | progress-report output |
 | `ledger_detail` | `standard` · `terse` · `verbose` | ledger entry size |
@@ -64,7 +64,7 @@ Use the AskUserQuestion tool when available (≤4 questions per call, recommende
 
 ## 4. Write the contract
 
-`skilleddocs/orchestrator/scope.md`: repo path, default branch, then every key above as `key: value` in a fenced `yaml` block, then free-text notes (exclusion reasons, who answers what). Commit it on the default branch: `docs(skilleddocs): orchestrator scope`. (`docs_commit: uncommitted` → leave it unstaged; the ledger then lives only on this machine. Say so.)
+`skilleddocs/orchestrator/scope.md`: repo path, default branch, then every key above as `key: value` in a fenced `yaml` block, then free-text notes (exclusion reasons, who answers what). Commit it on the default branch: `docs(skilleddocs): orchestrator scope`. (`docs_commit: uncommitted` → leave it untracked and git-excluded per TRACKING.md; the ledger then lives only on this machine. Say so.)
 
 ## 5. Offer to save as defaults
 

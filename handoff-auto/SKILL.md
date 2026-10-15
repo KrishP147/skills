@@ -4,9 +4,9 @@ description: Write a handoff document for a fresh session, callable by the model
 argument-hint: "What will the next session be used for?"
 ---
 
-Derived from Matt Pocock's `handoff` skill (MIT, see THIRD_PARTY_LICENSES.md); the frontmatter and the save location differ.
+Derived from Matt Pocock's `handoff` skill (MIT, see THIRD_PARTY_LICENSES.md); the frontmatter, the save location and the tracking sentence differ.
 
-Write a handoff document summarising the current conversation so a fresh agent can continue the work. Save it in the repo under `skilleddocs/handoffs/<YYYY-MM-DD>-<slug>.md` (create the directory; local date, not UTC; slug = the argument or 2-4 words for the topic). If there is no repo or git working tree, fall back to the OS temporary directory. A repo's `AGENTS.md` / `CLAUDE.md` may prescribe a different folder or filename prefix; follow it.
+Write a handoff document summarising the current conversation so a fresh agent can continue the work. Save it in the repo under `skilleddocs/handoffs/<YYYY-MM-DD>-<slug>.md` (create the directory; local date, not UTC; slug = the argument or 2-4 words for the topic). If there is no repo or git working tree, fall back to the OS temporary directory. A repo's `AGENTS.md` / `CLAUDE.md` may prescribe a different folder or filename prefix; follow it. Commit it or not per [TRACKING.md](../handoff-auto/TRACKING.md).
 
 Include a "suggested skills" section in the document, naming which skills the next agent should call the Skill tool for.
 

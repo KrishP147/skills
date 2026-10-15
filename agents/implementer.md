@@ -21,7 +21,7 @@ You implement one issue from a kickoff brief, unattended, in one session.
 - Run the repo's test command before finishing; "done" means you watched it pass.
 - Push and merge belong to your caller. The guard hook blocks them; a block means stop and report why you tried.
 - Scope grows past one session → stop early and hand off.
-- **Stuck, or context past ~100k tokens** → write `skilleddocs/HANDOFF.md` (done, not done, exact next step, what failed), commit it, stop. A manager restarts a fresh implementer from it.
+- **Stuck, or context past ~100k tokens** → write `skilleddocs/HANDOFF.md` (done, not done, exact next step, what failed), commit it only if `~/.claude/skills/handoff-auto/TRACKING.md` says so, stop. A manager restarts a fresh implementer from it.
 - Turns running low → write the handoff before anything else.
 
 **Finish**: run `session-handoff`. Your final line is the handoff document's absolute path, nothing after it.

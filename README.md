@@ -28,7 +28,7 @@ Each tier builds on the one above: `pair` is one orchestrator loop without the b
 | [`grilling`](grilling/README.md) *(Matt Pocock)* | Interviews you relentlessly, one round of questions at a time with a recommendation attached to each, until a plan or decision is fully stress-tested. | none |
 | [`grill-me`](grill-me/README.md) *(Matt Pocock)* | Short alias for `grilling`. User-invoked only (`/grill-me`); Claude auto-invokes `grilling` instead. | none |
 | [`grill-docs`](grill-docs/README.md) | `grilling` with a paper trail: writes the Q→A transcript to `skilleddocs/grills/` as each round settles and appends every decision to `skilleddocs/decisions.md`, so planners, verifiers and teammates can read what was decided and why. | none |
-| [`handoff`](handoff/README.md) *(Matt Pocock, save path modified)* | Compacts the current conversation into a handoff document so a fresh session can pick up where it left off; saved under `skilleddocs/handoffs/`. User-invoked only (`/handoff`). | none |
+| [`handoff`](handoff/README.md) *(Matt Pocock, save path modified, commit rule added)* | Compacts the current conversation into a handoff document so a fresh session can pick up where it left off; saved under `skilleddocs/handoffs/`. User-invoked only (`/handoff`). | none |
 | [`handoff-auto`](handoff-auto/README.md) *(derived from Pocock's `handoff`)* | Same document, but callable by the model, so other skills and subagents can end a session unattended. Prints the file path as its last line. | none |
 | [`pair`](pair/README.md) | Runs one task in an isolated git worktree: resolves the issue (syncs upstream first on a fork, checks the cited files still exist), spawns the `manager` agent, shows its report, and only then pushes and opens the PR itself. Agents never touch the remote. | `gh`; `manager` + `implementer` agents installed |
 | [`meta-orchestrator`](meta-orchestrator/README.md) | Runs a repo's backlog unattended: spawns `planner` → `manager` (or `implementer`, `execution: flat`) → `verifier` in a loop, holds the merge gate itself (tests + CI green or no merge), reads `skilleddocs/` for the design record, appends every event to `skilleddocs/orchestrator/ledger.md` (committed in the repo, unless `docs_commit: uncommitted`), and writes `orchestrator-handoff.md` after a budget of merges so `/meta-orchestrator <repo> resume` continues in a fresh session. | `gh`; the four agents installed; a kanban board, `status:*` labels, or a roadmap doc (whatever `next` finds) |
@@ -73,11 +73,11 @@ Not auto-installed. [`smartzone.py`](hooks/smartzone.py) is a `UserPromptSubmit`
 
 Claude-Code-style terminal home (type `/` + a skill name) plus a plain list of every skill and agent, generated from this repo by [`scripts/build_site.py`](scripts/build_site.py) (stdlib only). Per-skill detail pages and comments are in progress. Build, test and deploy steps in [`site/README.md`](site/README.md).
 
-`grilling` and `grill-me` are by [Matt Pocock](https://github.com/mattpocock/skills) (MIT, see [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)), included verbatim; `handoff` is his with the save location changed to `skilleddocs/handoffs/`, and `handoff-auto` is that with one frontmatter line removed. `grill-docs` is original and only wraps his `grilling`. `npx skills add mattpocock/skills` pulls his full set directly if you want more than these. Everything else here is original.
+`grilling` and `grill-me` are by [Matt Pocock](https://github.com/mattpocock/skills) (MIT, see [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)), included verbatim; `handoff` is his with the save location changed to `skilleddocs/handoffs/` and one sentence added on whether to commit it, and `handoff-auto` is that with one frontmatter line removed. `grill-docs` is original and only wraps his `grilling`. `npx skills add mattpocock/skills` pulls his full set directly if you want more than these. Everything else here is original.
 
 ## Where skills write: `skilleddocs/`
 
-Every skill or agent here that produces a document writes it **inside the repo it is working on**, under one directory, so the paper trail is versioned with the code and any teammate or fresh session finds it in the same place:
+Every skill or agent here that produces a document writes it **inside the repo it is working on**, under one directory, so any teammate or fresh session finds it in the same place. Committed only if the repo already tracks `skilleddocs/` or opts in via `AGENTS.md`/`CLAUDE.md`, never on a fork; otherwise left untracked and git-excluded so it can't leak into a task PR. Full rule: [`handoff-auto/TRACKING.md`](handoff-auto/TRACKING.md):
 
 ```
 skilleddocs/
@@ -85,14 +85,14 @@ skilleddocs/
   decisions.md         append-only decision register (D1, D2, ...) — grill-docs, consult-plan, verifier
   grills/              one transcript per grill-docs session
   handoffs/            session handoffs — handoff, handoff-auto, session-handoff, implementer
-  HANDOFF.md           short "stuck" note an implementer leaves for a manager (deleted once picked up)
+  HANDOFF.md           short "stuck" note an implementer leaves for a manager (deleted once picked up; never in a pushed branch)
   orchestrator/        scope.md, ledger.md, orchestrator-handoff.md, reports/<manager reports> — meta-orchestrator
   reports/             progress reports + .last-reported watermark — progress-report
   spend.md             approval log (when, amount, purpose, price source, resource id) — spend-gate
   spend-approvals/     one-shot approval files consumed by hooks/spend-guard.py — spend-gate
 ```
 
-Rules: local dates in filenames, never UTC; the register is append-only (reverse a decision with a new row); nothing under `skilleddocs/` is a spec or a roadmap — plans live wherever the repo keeps docs, and `skilleddocs/` points at them. The orchestrator commits its files on the default branch as it goes (`docs(skilleddocs): ledger NNN`), unless `docs_commit: uncommitted`. A repo's `AGENTS.md` / `CLAUDE.md` can override any path, so older repos with `docs/decisions.md` or a `reports/` folder keep working. Skills that only read or act on GitHub (`next`, `divide`, `kanban-setup`, `pair`, `repo-scrub`) write nothing here.
+Rules: local dates in filenames, never UTC; the register is append-only (reverse a decision with a new row); nothing under `skilleddocs/` is a spec or a roadmap — plans live wherever the repo keeps docs, and `skilleddocs/` points at them. The orchestrator commits its files on the default branch as it goes (`docs(skilleddocs): ledger NNN`), unless `docs_commit: uncommitted` (always on a fork, per `TRACKING.md`). A repo's `AGENTS.md` / `CLAUDE.md` can override any path, so older repos with `docs/decisions.md` or a `reports/` folder keep working. Skills that only read or act on GitHub (`next`, `divide`, `kanban-setup`, `pair`, `repo-scrub`) write nothing here.
 
 Template for a repo's `skilleddocs/README.md`:
 
