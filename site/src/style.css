@@ -375,6 +375,17 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
   .topbar-in { padding: 4px 6px; gap: 8px; }
   .home { font-size: 0.85rem; }
   .me-fixed { left: 10px; }
+  /* opaque strip behind the fixed corner links: feed text scrolls under it, never beside them */
+  body:not(.detail)::before {
+    content: "";
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 66px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    z-index: 15;
+  }
+  body:not(.detail) .wrap { padding-top: 80px; }
   .menu li { flex-direction: column; gap: 0; }
   .menu li .ds {
     white-space: normal;

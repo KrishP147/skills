@@ -194,6 +194,13 @@ class BuildSiteTest(unittest.TestCase):
         for label, page in pages:
             check_avatar(self, page, "", label)
 
+    def test_mobile_corner_band(self):
+        with open(os.path.join(self.out, "style.css"), encoding="utf-8") as f:
+            css = f.read()
+        mobile = css[css.index("@media (max-width: 600px)"):]
+        self.assertIn("body:not(.detail)::before", mobile)
+        self.assertIn("position: fixed", mobile.split("body:not(.detail)::before", 1)[1].split("}", 1)[0])
+
     def test_avatar_bytes_copied(self):
         with open(os.path.join(ROOT, "site", "src", "avatar.webp"), "rb") as f:
             src = f.read()
