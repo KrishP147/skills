@@ -218,7 +218,7 @@ Contributions welcome — new skills, fixes, better docs. See [`CONTRIBUTING.md`
 
 Several things here come from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT; notice in [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)). Checked against his repo with the GitHub API on 2026-10-15.
 
-- **Copied unmodified:** `grilling` and `grill-me`. His `skills/productivity/grill-me` is identical to ours. His `grilling` has since gained one line ("Word each question so "yes" accepts your recommended answer.") that ours does not have yet.
+- **Copied unmodified:** `grilling` and `grill-me`. His `skills/productivity/grill-me` and `skills/productivity/grilling` are identical to ours (grilling synced 2026-10-15).
 - **Modified:** `handoff` (his saves to the OS temp dir, not the workspace; ours saves under `skilleddocs/handoffs/` and adds a commit-or-not sentence), `handoff-auto` (that, plus its own frontmatter so the model can call it, and a last line printing the path), and [`dotfiles/CLAUDE.md`](dotfiles/CLAUDE.md) (adapted from his personal global `CLAUDE.md`, not part of that repo; see [My `CLAUDE.md`](#my-claudemd)).
 - **Builds on his principles:** how skills here are written follows his [`writing-for-agents`](https://github.com/mattpocock/skills/tree/main/skills/productivity/writing-for-agents) skill and the video linked from [`CONTRIBUTING.md` section 1](CONTRIBUTING.md#1-watch-this-first-mandatory).
 - **Divergences:**
