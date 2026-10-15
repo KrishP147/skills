@@ -15,6 +15,15 @@ import lint  # noqa: E402
 ROOT = lint.repo_root()
 
 
+def check_avatar(tc, page, base, label):
+    m = re.search(r'<a class="me[^"]*" href="https://www\.krishpunjabi\.com/" aria-label="([^"]+)">(.*?)</a>', page, re.S)
+    tc.assertIsNotNone(m, label)
+    tc.assertEqual(m.group(1), "Krish Punjabi — krishpunjabi.com", label)
+    tc.assertIn('<img src="%s/avatar.webp"' % base, m.group(2), label)
+    tc.assertIn(">krishpunjabi.com</span>", m.group(2), label)
+    tc.assertNotIn("back", m.group(0).lower(), label)
+
+
 class BuildSiteTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -177,6 +186,27 @@ class BuildSiteTest(unittest.TestCase):
             with open(os.path.join(self.out, fn), encoding="utf-8") as f:
                 self.assertRegex(f.read(), link, fn)
 
+    def test_avatar_link_all_pages_default_base(self):
+        pages = [("index", self.index)]
+        for fn in ["404.html", os.path.join("pair", "index.html")]:
+            with open(os.path.join(self.out, fn), encoding="utf-8") as f:
+                pages.append((fn, f.read()))
+        for label, page in pages:
+            check_avatar(self, page, "", label)
+
+    def test_mobile_corner_band(self):
+        with open(os.path.join(self.out, "style.css"), encoding="utf-8") as f:
+            css = f.read()
+        mobile = css[css.index("@media (max-width: 600px)"):]
+        self.assertIn("body:not(.detail)::before", mobile)
+        self.assertIn("position: fixed", mobile.split("body:not(.detail)::before", 1)[1].split("}", 1)[0])
+
+    def test_avatar_bytes_copied(self):
+        with open(os.path.join(ROOT, "site", "src", "avatar.webp"), "rb") as f:
+            src = f.read()
+        with open(os.path.join(self.out, "avatar.webp"), "rb") as f:
+            self.assertEqual(f.read(), src)
+
     def test_normalize_base(self):
         for raw in ("/skills", "/skills/", "skills", " /skills/ "):
             self.assertEqual(build_site.normalize_base(raw), "/skills")
@@ -225,6 +255,14 @@ class BaseBuildTest(unittest.TestCase):
         page = self.read(self.names[1], "index.html")
         self.assertIn('data-base="/skills"', page)
         self.assertIn('href="/skills/" aria-label', page)
+
+    def test_avatar_link_prefixed_base(self):
+        for label, page in self.pages():
+            check_avatar(self, page, "/skills", label)
+        with open(os.path.join(ROOT, "site", "src", "avatar.webp"), "rb") as f:
+            src = f.read()
+        with open(os.path.join(self.out, "avatar.webp"), "rb") as f:
+            self.assertEqual(f.read(), src)
 
     def test_prev_next_and_canonical(self):
         page = self.read(self.names[1], "index.html")

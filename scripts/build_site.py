@@ -29,6 +29,7 @@ import site_detail  # noqa: E402
 
 GROUPS = ("core", "kanban", "agents")
 STATIC_EXTS = (".css", ".js", ".svg")
+BINARY_EXTS = (".webp", ".png", ".jpg")  # copied byte for byte
 # Abbreviations that end in '.' but don't end a sentence.
 _ABBREV = ("e.g.", "i.e.", "etc.", "vs.")
 
@@ -187,6 +188,8 @@ def build(root, out, base=""):
     for fn in sorted(os.listdir(src)):
         if fn.endswith(STATIC_EXTS):
             write(os.path.join(out, fn), read_text(os.path.join(src, fn)))
+        elif fn.endswith(BINARY_EXTS):
+            shutil.copyfile(os.path.join(src, fn), os.path.join(out, fn))
     return entries
 
 
