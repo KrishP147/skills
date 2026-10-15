@@ -16,9 +16,13 @@ Modes, per manifest entry:
 Usage:
   python scripts/upstream_sync.py [--dry-run] [--out DIR] [--manifest PATH]
   python scripts/upstream_sync.py --mark-synced handoff/SKILL.md
+  python scripts/upstream_sync.py --out DIR --publish   # CI only
 
 --dry-run reports only and writes nothing (not even --out). --out DIR
-writes summary.json plus ready-made PR/issue body files for the workflow.
+writes summary.json plus ready-made PR/issue body files. --publish (used by
+.github/workflows/upstream-sync.yml) then opens one PR from branch
+upstream-sync/verbatim for verbatim changes and one issue titled
+"upstream-sync: <local_path>" per modified file, skipping any already open.
 Uses GITHUB_TOKEN or GH_TOKEN as a bearer token when set.
 """
 import argparse
@@ -272,6 +276,47 @@ def mark_synced(gh, manifest_path, local_path):
     return hits[0]["upstream_sha"]
 
 
+VERBATIM_BRANCH = "upstream-sync/verbatim"
+PR_TITLE = "upstream-sync: verbatim copies"
+
+
+def subprocess_run(args):
+    import subprocess
+    return subprocess.run(args, check=True, capture_output=True, text=True).stdout
+
+
+def publish(summary, manifest_rel, run_cmd=subprocess_run):
+    """Open one PR for verbatim changes and one issue per modified file via
+    git + gh, skipping any that already has an open PR/issue. Returns a list
+    of action strings. Needs --out (body files) and a non-dry run."""
+    actions = []
+    if summary["verbatim"]:
+        open_prs = json.loads(run_cmd(["gh", "pr", "list", "--head", VERBATIM_BRANCH,
+                                       "--state", "open", "--json", "number"]) or "[]")
+        if open_prs:
+            actions.append("skip PR: #%s already open" % open_prs[0]["number"])
+        else:
+            files = [it["local_path"] for it in summary["verbatim"]] + [manifest_rel]
+            run_cmd(["git", "checkout", "-B", VERBATIM_BRANCH])
+            run_cmd(["git", "add", "--"] + files)
+            run_cmd(["git", "commit", "-m", "chore: sync verbatim upstream copies"])
+            run_cmd(["git", "push", "--force", "origin", VERBATIM_BRANCH])
+            run_cmd(["gh", "pr", "create", "--head", VERBATIM_BRANCH, "--title", PR_TITLE,
+                     "--body-file", summary["pr_body_file"]])
+            actions.append("opened PR from %s" % VERBATIM_BRANCH)
+    for it in summary["modified"]:
+        found = json.loads(run_cmd(["gh", "issue", "list", "--state", "open", "--search",
+                                    '"%s" in:title' % it["title"], "--json", "number,title"])
+                           or "[]")
+        hit = [i for i in found if i["title"] == it["title"]]
+        if hit:
+            actions.append("skip issue: #%s already open for %s" % (hit[0]["number"], it["local_path"]))
+            continue
+        run_cmd(["gh", "issue", "create", "--title", it["title"], "--body-file", it["body_file"]])
+        actions.append("opened issue: %s" % it["title"])
+    return actions
+
+
 def report(summary):
     out = []
     tag = "would " if summary["dry_run"] else ""
@@ -296,6 +341,8 @@ def main(argv=None):
     ap.add_argument("--manifest", default=os.path.join(repo_root(), "upstream.json"))
     ap.add_argument("--mark-synced", metavar="LOCAL_PATH",
                     help="set that entry's upstream_sha to upstream HEAD (after porting)")
+    ap.add_argument("--publish", action="store_true",
+                    help="CI: open the verbatim PR and modified-file issues via git + gh")
     args = ap.parse_args(argv)
     gh = GitHub(token=os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN"))
     root = os.path.dirname(os.path.abspath(args.manifest))
@@ -303,8 +350,14 @@ def main(argv=None):
         sha = mark_synced(gh, args.manifest, args.mark_synced)
         print("%s marked synced at %s" % (args.mark_synced, sha))
         return 0
+    if args.publish and (args.dry_run or not args.out):
+        ap.error("--publish needs --out and no --dry-run")
     summary = run(gh, root, args.manifest, dry_run=args.dry_run, out_dir=args.out)
     print(report(summary))
+    if args.publish:
+        rel = os.path.relpath(os.path.abspath(args.manifest), root).replace(os.sep, "/")
+        for line in publish(summary, rel):
+            print(line)
     return 0
 
 
