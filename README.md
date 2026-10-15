@@ -92,7 +92,7 @@ skilleddocs/
   spend-approvals/     one-shot approval files consumed by hooks/spend-guard.py — spend-gate
 ```
 
-Rules: local dates in filenames, never UTC; the register is append-only (reverse a decision with a new row); nothing under `skilleddocs/` is a spec or a roadmap — plans live wherever the repo keeps docs, and `skilleddocs/` points at them. The orchestrator commits its files on the default branch as it goes (unless `docs_commit: uncommitted`) (`docs(skilleddocs): ledger NNN`). A repo's `AGENTS.md` / `CLAUDE.md` can override any path, so older repos with `docs/decisions.md` or a `reports/` folder keep working. Skills that only read or act on GitHub (`next`, `divide`, `kanban-setup`, `pair`, `repo-scrub`) write nothing here.
+Rules: local dates in filenames, never UTC; the register is append-only (reverse a decision with a new row); nothing under `skilleddocs/` is a spec or a roadmap — plans live wherever the repo keeps docs, and `skilleddocs/` points at them. The orchestrator commits its files on the default branch as it goes (`docs(skilleddocs): ledger NNN`), unless `docs_commit: uncommitted`. A repo's `AGENTS.md` / `CLAUDE.md` can override any path, so older repos with `docs/decisions.md` or a `reports/` folder keep working. Skills that only read or act on GitHub (`next`, `divide`, `kanban-setup`, `pair`, `repo-scrub`) write nothing here.
 
 Template for a repo's `skilleddocs/README.md`:
 
