@@ -11,7 +11,8 @@ home with a locked slash input, a plain list of every skill and agent, and a
 | `src/index.html` | home template (`{{COUNT}}`, `{{LIST}}`, `{{DATA}}` filled at build) |
 | `src/detail.html` | `/<name>` detail page template (sticky slash prompt, header card + chips, sections, prev/next, `#comments` giscus block) |
 | `data/meta.json` | per-name author + battle-tested level (`levels_source` says where levels come from); names not listed get level `new`, author defaults to Krish |
-| `src/404.html`, `src/style.css` | not-found page, all styles |
+| `src/404.html`, `src/style.css` | not-found page (`noindex`), all styles |
+| `src/black-square.png` | favicon + apple-touch-icon (same as the portfolio's), copied byte-for-byte |
 | `src/filter.js` | pure slash-input logic (browser global `SkillFilter`, CommonJS in node) |
 | `src/app.js` | DOM wiring: events, dropdown, navigation (shared by home and detail pages; `data-autofocus="false"` on the input skips autofocus) |
 | `test/filter.test.mjs` | node:test suite for `filter.js` |
@@ -80,14 +81,14 @@ python -m http.server -d site/dist 8000   # http://localhost:8000
 Options: `--base <prefix>` (default env `SITE_BASE`, else `/`) is the URL
 prefix the site is served under; `/skills`, `/skills/` and `skills` all mean
 `/skills`. Every root-relative link, asset URL and the home link get it; the
-canonical / `og:url` are absolute (`https://krishpunjabi.com/skills/<name>`)
+canonical / `og:url` are absolute (`https://www.krishpunjabi.com/skills/<name>`)
 and are not prefixed again. `--out <dir>` (default `<repo>/site/dist`) is
 resolved against the current directory and may be outside the repo; skill
 sources are always read from this repo, not the cwd.
 
 Output: `index.html`, `skills.json` (name, description, summary, group,
 source, readme), `<name>/index.html` detail page per skill/agent (so `/pair` resolves
-statically), `404.html`, `style.css`, `filter.js`, `app.js`. The build is
+statically), `404.html`, `style.css`, `filter.js`, `app.js`, `black-square.png`. The build is
 deterministic.
 
 ## Deploy
