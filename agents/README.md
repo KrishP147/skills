@@ -19,6 +19,10 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 - **You pass:** repo path + scope contract (exclusions such as gated issues / people tasks / labels, ordering rule).
 - **How it works:** runs `next` → drops excluded items → picks exactly one task → uses `divide` to *propose* a split if it looks multi-session → if nothing is left, says so and stops.
 - **You get back (≤40 lines):** issue + acceptance checklist, key files, decisions/ADRs to respect, branch name `<prefix>/issue-<n>-<slug>`, gotchas, recommended model (and why), divide yes/no + proposed split.
+- **Design principles:** read-only by construction (`disallowedTools`), so it can only propose, never change the board; exactly one task per brief; the ≤40-line cap keeps the brief cheap to pass verbatim to the next agent.
+- **Use cases:** briefing the next issue for a `meta-orchestrator` loop; asking on your own "use the planner agent to brief the next issue" before starting work by hand.
+- **Tips:** put gated issues, people tasks and labels to skip in the scope contract's `exclude`, or the planner may pick them. A proposed split is only a proposal; create the issues yourself (or with `divide`).
+- **Prereqs:** `gh` authenticated, plus the `project` scope for a kanban board (see [`kanban`](../kanban/README.md#prerequisite-the-project-oauth-scope)); the `next` and `divide` skills installed.
 
 ## manager
 
@@ -32,6 +36,10 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
   5. Retries with a **fresh** implementer + `skilleddocs/HANDOFF.md`/findings, up to `max_rounds`; deletes `HANDOFF.md` once picked up (in a commit if tracked).
 - **You get back:** branch + base/head SHA, commits, tests (command + counts) and lint run by it, review findings and who fixed each, rounds used, `skilleddocs/HANDOFF.md` path (or the last SHA that held it, if tracked) if unfinished, manual steps (e.g. the push).
 - **Guard:** same `guard-git.py` hook as the implementer. Never pushes, merges or opens PRs — the caller does. Never deletes links or worktrees either, and never a recursive delete through a linked `node_modules`/`.venv` — teardown is the caller's job.
+- **Design principles:** never implements, only briefs and reviews, treating the implementer's "pass" as a claim to rerun; review stays inline in its own context (no reviewer subagents, nested fan-out stalls); a stalled round restarts a fresh implementer from `HANDOFF.md` instead of stretching one context.
+- **Use cases:** one task inside a worktree for [`pair`](../pair/); each task of a `meta-orchestrator` run in `execution: pair` mode.
+- **Tips:** pass the working directory as an absolute path; it is handed to the implementer verbatim. Raise `max_rounds` only for tasks you expect to need several fresh starts. An **INTERIM** report means the implementer is still running, so don't act on it.
+- **Prereqs:** the `implementer` agent and `handoff-auto` skill installed; Python 3.8+ (and Git Bash on Windows) for the guard hook.
 
 ## implementer
 
@@ -40,6 +48,10 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 - **How it works:** branches `<prefix>/issue-<n>-<slug>` off a freshly pulled default; if it created the branch, marks the issue started (card → In Progress, or `status:todo` → `status:in-progress`, creating that label first if missing; skipped with no board) and comments "Started on branch …", fail-soft (an error goes in the handoff, never blocks); commits small; runs the repo's detected test command before claiming done. Multi-session task or low turns → writes the handoff early. Stuck or past ~100k tokens → writes `skilleddocs/HANDOFF.md` (done / not done / next step / failed attempts), commits it only if [`TRACKING.md`](../handoff-auto/TRACKING.md) says so (never on a fork), stops, so a manager can restart a fresh implementer from it.
 - **You get back:** calls `session-handoff` (which wraps `handoff-auto`); final message ends with the handoff document's absolute path on its own line.
 - **Guard:** `guard-git.py` hook (below).
+- **Design principles:** one issue, one session, small commits; "done" means it watched the tests pass; push and merge belong to the caller and the hook enforces it; board errors never block, they go in the handoff.
+- **Use cases:** the worker under a `manager` (via `pair`) or directly under `meta-orchestrator` with `execution: flat`; any well-specified issue you want implemented unattended.
+- **Tips:** give it a real kickoff brief (checklist, key files, branch prefix, protected branch); scope that grows past one session makes it stop early and hand off. A guard-hook block is reported, not worked around. Its last output line is the handoff path, which callers parse.
+- **Prereqs:** `handoff-auto` and `session-handoff` installed; `gh` (with the `project` scope) for the card move; Python 3.8+ (and Git Bash on Windows) for the guard hook.
 
 ## verifier
 
@@ -50,6 +62,10 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
   2. Deviations: if authorized, answers `consult-plan` itself from the written plan and lists every Q → A; if not, records the deviation and leaves the plan untouched.
   3. Calls `next`.
 - **You get back:** verified-by (tests + CI run id), findings fixed / issues filed, decided-for-you list, manual steps for you, then `next`'s output unedited.
+- **Design principles:** a claim is not evidence, so every handoff claim is checked against `git log`, tests and CI; code review is inline on two axes (standards + spec) with no reviewer subagents; a deviation changes the plan only when you authorized it to answer for you.
+- **Use cases:** closing the loop after an implementer or manager finishes in a `meta-orchestrator` run; checking a handoff by hand before you trust it.
+- **Tips:** pass `review-done=yes` when a manager already reviewed and reran tests, to skip a second review. Without permission to answer for you, deviations come back as manual steps rather than plan changes.
+- **Prereqs:** `update-progress`, `consult-plan` and `next` installed; `gh` authenticated, plus the `project` scope for a kanban board.
 
 ## hooks/guard-git.py
 
