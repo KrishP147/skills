@@ -201,8 +201,21 @@ def check_forbidden_words(root, failures):
 
 def readme_headings(text):
     headings = set()
+    fence = None  # (char, length) of the open fenced code block
     for line in text.splitlines():
         stripped = line.strip()
+        lead = line.lstrip()
+        if lead[:3] in ("```", "~~~"):
+            ch = lead[0]
+            n = len(lead) - len(lead.lstrip(ch))
+            if fence is None:
+                fence = (ch, n)
+                continue
+            if ch == fence[0] and n >= fence[1] and not lead[n:].strip():
+                fence = None
+                continue
+        if fence is not None:
+            continue
         if stripped.startswith("## "):
             headings.add(stripped[3:].strip())
     return headings
