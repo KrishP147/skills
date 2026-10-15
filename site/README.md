@@ -12,8 +12,8 @@ home with a locked slash input, a plain list of every skill and agent, and a
 | `src/detail.html` | `/<name>` detail page template (sticky slash prompt, header card + chips, sections, prev/next, `#comments` giscus block) |
 | `data/meta.json` | per-name author + battle-tested level (`levels_source` says where levels come from); names not listed get level `new`, author defaults to Krish |
 | `src/404.html`, `src/style.css` | not-found page (`noindex`), all styles |
-| `src/avatar.webp` | 128px avatar for the krishpunjabi.com link (downsized once from the owner's LinkedIn photo, no metadata); copied byte for byte |
-| `src/favicon.svg` | favicon: an orange ✻ drawn as plain SVG strokes (own drawing, not a brand asset) |
+| `src/rocky.webp` | 128px Rocky for the krishpunjabi.com corner link (owner's asset, cropped to the carapace, no metadata); copied byte for byte |
+| `src/favicon-32.png`, `src/apple-touch-icon.png` | favicon (32px) and iOS icon (180px, solid dark bg), same Rocky crop; copied byte for byte |
 | `src/filter.js` | pure slash-input logic (browser global `SkillFilter`, CommonJS in node) |
 | `src/app.js` | DOM wiring: events, dropdown, navigation, intro skip (shared by home and detail pages; `data-autofocus="false"` on the input skips autofocus and the home-only click-to-refocus) |
 | `test/filter.test.mjs` | node:test suite for `filter.js` |
@@ -89,7 +89,7 @@ sources are always read from this repo, not the cwd.
 
 Output: `index.html`, `skills.json` (name, description, summary, group,
 source, readme), `<name>/index.html` detail page per skill/agent (so `/pair` resolves
-statically), `404.html`, `style.css`, `filter.js`, `app.js`, `favicon.svg`, `avatar.webp`. Every
+statically), `404.html`, `style.css`, `filter.js`, `app.js`, `rocky.webp`, `favicon-32.png`, `apple-touch-icon.png`. Every
 `site/src/*.css|js|svg` is copied as text and every `*.webp|png|jpg` byte for byte. The build is
 deterministic.
 
