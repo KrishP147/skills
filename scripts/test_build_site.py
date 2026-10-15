@@ -161,6 +161,8 @@ class BuildSiteTest(unittest.TestCase):
         # Intro hidden state only via a class JS adds; never hard-coded.
         self.assertIn('classList.add("intro")', idx)
         self.assertNotRegex(idx, r'<html[^>]*class="[^"]*intro')
+        # .home styles the detail-page ~/skills link; page wrappers must not reuse it.
+        self.assertNotRegex(idx, r'<(html|body)[^>]*class="[^"]*home')
         with open(os.path.join(self.out, "style.css"), encoding="utf-8") as f:
             css = f.read()
         self.assertIn("100dvh", css)
