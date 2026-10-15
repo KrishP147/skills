@@ -15,7 +15,7 @@ import re
 from md_render import Renderer, safe_url, strip_inline
 
 REPO_URL = "https://github.com/KrishP147/skills"
-SITE_URL = "https://krishpunjabi.com/skills"
+SITE_URL = "https://www.krishpunjabi.com/skills"
 
 SECTIONS = (
     ("what", "What it does"),

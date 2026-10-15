@@ -37,7 +37,7 @@ class DetailPagesTest(unittest.TestCase):
             self.assertIn('<p class="detail-desc">%s</p>' % desc, page, e["name"])
             self.assertIn('<meta name="description" content="%s">' % desc, page)
             self.assertIn("<title>/%s · " % e["name"], page)
-            self.assertIn('<meta property="og:url" content="https://krishpunjabi.com/skills/%s">'
+            self.assertIn('<meta property="og:url" content="https://www.krishpunjabi.com/skills/%s">'
                           % e["name"], page)
             for prop in ("og:title", "og:description", "og:type"):
                 self.assertIn('property="%s"' % prop, page)
