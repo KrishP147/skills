@@ -67,4 +67,4 @@ Had the latest `main` run failed, the failing workflow would be listed first as 
 
 ## Prereqs
 
-`gh`, authenticated with the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)). Not needed for the label or roadmap fallback.
+`gh`, authenticated with the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)).

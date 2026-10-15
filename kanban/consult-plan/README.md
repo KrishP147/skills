@@ -41,7 +41,7 @@ Grills a proposed change, deviation or new idea against the repo's existing plan
 - State the idea in one line as the argument; the baseline supplies the context.
 - Earlier decisions are cited as `D<k>`, so a conflict with a past decision is visible in the questions.
 - A settled idea that needs work becomes a new issue at Todo; one that only refines existing work becomes a comment.
-- Want the full Q and A transcript kept too? Run [`grill-docs`](../../grill-docs/) on it instead; both write to the same register.
+- Want the full Q and A transcript kept too? Run [`grill-docs`](../../grill-docs/) on it instead; it also writes a transcript under `skilleddocs/grills/`.
 
 ## Example
 
