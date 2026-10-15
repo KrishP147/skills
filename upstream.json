@@ -1,0 +1,39 @@
+{
+  "_note": "Files derived from upstream repos, checked weekly by .github/workflows/upstream-sync.yml via scripts/upstream_sync.py. verbatim: kept byte-identical, auto-PR on change. modified: issue with the upstream diff on change; upstream_sha is bumped by a human after porting (python scripts/upstream_sync.py --mark-synced <local_path>).",
+  "excluded": [
+    {
+      "local_path": "dotfiles/CLAUDE.md",
+      "reason": "Adapted from Matt Pocock's personal global CLAUDE.md, which is not a file in mattpocock/skills, so there is nothing to track."
+    }
+  ],
+  "entries": [
+    {
+      "repo": "mattpocock/skills",
+      "upstream_path": "skills/productivity/grilling/SKILL.md",
+      "local_path": "grilling/SKILL.md",
+      "upstream_sha": "49dd158d1076134a641b33efb035946536778336",
+      "mode": "verbatim"
+    },
+    {
+      "repo": "mattpocock/skills",
+      "upstream_path": "skills/productivity/grill-me/SKILL.md",
+      "local_path": "grill-me/SKILL.md",
+      "upstream_sha": "49dd158d1076134a641b33efb035946536778336",
+      "mode": "verbatim"
+    },
+    {
+      "repo": "mattpocock/skills",
+      "upstream_path": "skills/productivity/handoff/SKILL.md",
+      "local_path": "handoff/SKILL.md",
+      "upstream_sha": "49dd158d1076134a641b33efb035946536778336",
+      "mode": "modified"
+    },
+    {
+      "repo": "mattpocock/skills",
+      "upstream_path": "skills/productivity/handoff/SKILL.md",
+      "local_path": "handoff-auto/SKILL.md",
+      "upstream_sha": "49dd158d1076134a641b33efb035946536778336",
+      "mode": "modified"
+    }
+  ]
+}
