@@ -2,7 +2,7 @@
 
 ## grilling, grill-me, handoff, handoff-auto
 
-Source: [mattpocock/skills](https://github.com/mattpocock/skills). `grilling` and `grill-me` are copied verbatim. `handoff` and `handoff-auto` are **modified**: one sentence changed so the document is saved under the repo's `skilleddocs/handoffs/` instead of the OS temp dir (`handoff-auto` additionally differs in frontmatter). `grill-docs` is original to this repo and only calls `grilling`. The same MIT notice applies to the copied and the modified files. Confirmed MIT-licensed (checked 2026-09-23 via the GitHub API against that repo's own `LICENSE` file). MIT permits reuse/redistribution as long as the copyright and permission notice travels with the copy — reproduced below in full, unmodified.
+Source: [mattpocock/skills](https://github.com/mattpocock/skills). `grilling` and `grill-me` are copied verbatim. `handoff` and `handoff-auto` are **modified**: one sentence changed so the document is saved under the repo's `skilleddocs/handoffs/` instead of the OS temp dir, and one sentence added pointing to `handoff-auto/TRACKING.md` (original to this repo) for whether to commit it (`handoff-auto` additionally differs in frontmatter). `grill-docs` is original to this repo and only calls `grilling`. The same MIT notice applies to the copied and the modified files. Confirmed MIT-licensed (checked 2026-09-23 via the GitHub API against that repo's own `LICENSE` file). MIT permits reuse/redistribution as long as the copyright and permission notice travels with the copy — reproduced below in full, unmodified.
 
 ```
 MIT License

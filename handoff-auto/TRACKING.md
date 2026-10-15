@@ -17,6 +17,8 @@ ex=$(git rev-parse --git-path info/exclude); mkdir -p "$(dirname "$ex")"
 grep -qxF 'skilleddocs/' "$ex" 2>/dev/null || echo 'skilleddocs/' >> "$ex"
 ```
 
+`meta-orchestrator`'s `docs_commit` picks this for its own files; it defaults to the rule above and is always `uncommitted` on a fork.
+
 ## `HANDOFF.md` never ships
 
 `skilleddocs/HANDOFF.md` is gone from a branch before it is handed back or pushed. Untracked: nothing to do; it stays on disk for the next round. Committed: delete it in a commit (`git rm`) and name the last SHA that held it.

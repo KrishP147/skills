@@ -60,7 +60,9 @@ Follow Matt Pocock's [`writing-for-agents`](https://github.com/mattpocock/skills
   documents (handoffs, reports, decisions, ...), write them into a repo's
   `skilleddocs/` convention rather than inventing a new location — see the
   root [`README.md`](README.md#where-skills-write-skilleddocs) for the
-  layout.
+  layout. Commit them only as
+  [`handoff-auto/TRACKING.md`](handoff-auto/TRACKING.md) allows (never on
+  a fork), and link that file rather than restating the rule.
 
 ## 5. Test locally before opening a PR
 
