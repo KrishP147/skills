@@ -720,6 +720,11 @@ def check_gh(args, ctx):
         check_gh_api(args[args.index("api") + 1:], ctx)
 
 
+def unreadable_ref(ref):
+    """`..` segments and %-escapes may resolve server-side to any branch."""
+    return "%" in ref or ".." in ref.split("/")
+
+
 def check_gh_api(args, ctx):
     method, has_fields, endpoint, i = None, False, None, 0
     while i < len(args):
@@ -754,11 +759,11 @@ def check_gh_api(args, ctx):
         ctx.block("gh api merge endpoint is not allowed.")
     m = re.search(r"(^|/)git/refs/heads/(.+)$", ep)
     ref = strip_ref(m.group(2)) if m else None
-    if m and write and (ctx.is_protected(ref) or is_dynamic(ref)):
+    if m and write and (ctx.is_protected(ref) or is_dynamic(ref) or unreadable_ref(ref)):
         ctx.block("gh api %s on a protected branch ref is not allowed." % method)
     m = re.search(r"(^|/)branches/(.+)/protection(/|$)", ep)
     ref = strip_ref(m.group(2)) if m else None
-    if m and write and (ctx.is_protected(ref) or is_dynamic(ref)):
+    if m and write and (ctx.is_protected(ref) or is_dynamic(ref) or unreadable_ref(ref)):
         ctx.block("gh api %s on branch protection is not allowed." % method)
     if re.fullmatch(r"repos/[^/]+/[^/]+", ep) and method == "DELETE":
         ctx.block("gh api DELETE on a repo is not allowed.")
@@ -953,6 +958,9 @@ CASES = [
     ("gh api -X POST repos/o/r/branches/main/protection/required_signatures", B, "feat"),
     ("gh api -X PUT repos/o/r/pulls//5/merge", B, "feat"),
     ("gh api -X DELETE repos/o/r/git/refs/heads//krish/x", A, "feat"),
+    ("gh api -X DELETE repos/o/r/git/refs/heads/krish/../main", B, "feat"),
+    ("gh api -X PATCH repos/o/r/git/refs/heads/%6Dain", B, "feat"),
+    ("gh api -X DELETE repos/o/r/branches/x/../main/protection", B, "feat"),
     ("gh api -X PUT repos/o/r/branches/krish/x/protection", A, "feat"),
     ("gh api repos/o/r/branches//main/protection", A, "feat"),
     ("gh api -X DELETE repos/o/r", B, "feat"),

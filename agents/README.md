@@ -66,7 +66,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 - `git send-pack` / `git http-push` with `--force`, `--all`, `--mirror`, `--stdin`, no refs (= matching branches), or any refspec the push rules above block
 - a push with no refspec (`git push`, `git push origin`) or `HEAD`/`$(git branch --show-current)` as refspec while the current branch is protected (`cd dir` and `git -C dir` are followed)
 - a refspec it can't read (`$BRANCH`, `$(…)`, `xargs`- or `find {}`-supplied): spell the branch name out
-- `gh pr merge`, `gh repo delete`; `gh api` on `pulls/N/merge` or `merges` (any method), writes (`-X`/`--method` non-GET, or `-f`/`-F` fields) to `git/refs/heads/<protected>` or `branches/<protected>/protection` (endpoint `//` and `/./` collapsed first, so `refs/heads//main` and `branches/./main/protection` count), `DELETE repos/o/r`, and graphql `mergePullRequest`/ref/repo-delete mutations
+- `gh pr merge`, `gh repo delete`; `gh api` on `pulls/N/merge` or `merges` (any method), writes (`-X`/`--method` non-GET, or `-f`/`-F` fields) to `git/refs/heads/<protected>` or `branches/<protected>/protection` (endpoint `//` and `/./` collapsed first, so `refs/heads//main` and `branches/./main/protection` count; a ref with a `..` segment or `%`-escape is unreadable, so a write to it is blocked), `DELETE repos/o/r`, and graphql `mergePullRequest`/ref/repo-delete mutations
 - `git branch -D/-d/--delete <protected>`
 - an unparseable command (unbalanced quotes) that mentions `push` alongside a protected name or a force/delete marker, and any internal error while analysing a command that mentions push/merge/delete (fail closed)
 
