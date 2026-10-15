@@ -1,17 +1,12 @@
 ---
 name: session-handoff
-description: End an implementation session tied to a GitHub kanban board — wraps the base handoff skill and additionally records progress against the issue/card, then moves the card. Use when wrapping up implementation work that started from a GitHub issue.
-argument-hint: "issue number or URL this session worked on"
+description: End an implementation session that started from a GitHub issue — writes the handoff, records progress against the issue, moves the card.
+argument-hint: "issue number or URL"
 ---
 
-1. Produce the base handoff document. Call the Skill tool with `"handoff-auto"`, passing the issue number/argument as the argument text. Take the path it prints as the resulting document before continuing to step 2.
+1. Call the Skill tool with `"handoff-auto"`, passing the argument. Keep the path it prints.
+2. Append `## Board status` to that document: issues touched; complete / partial / blocked; deviations from the issue; new ideas not in the issue.
+3. Move the card ([BOARD.md](../next/BOARD.md)): complete → In Review; partial or blocked → stays In Progress, plus an issue comment saying why if blocked.
+4. Print the handoff path as the last line.
 
-2. Add a `## Board status` section to that document covering: which issue(s)/card(s) this session touched, whether the task is complete / partial / blocked, any deviations from what the issue described, and any innovations or ideas discovered mid-session that aren't in the issue.
-
-3. Move the card to reflect reality. Locate the board the way `next` §1 does.
-   - Projects v2: `gh project item-edit --id <item-id> --field-id <status-field-id> --project-id <project-id> --single-select-option-id <option-id>` (look up the IDs via `gh project field-list` / `gh project item-list` first — they're opaque, don't guess them). `gh project item-list` is eventually consistent and can return empty for items genuinely on the board; if so, get the item id via: `gh api graphql -f query='query{repository(owner:"<owner>",name:"<repo>"){issue(number:<n>){projectItems(first:5){nodes{id project{id number}}}}}}'`
-   - Label fallback: create `status:in-review` first if missing (`gh label create status:in-review --color 5319E7 --force` — see `next` §1), then swap `status:in-progress` for it (complete) or leave as `status:in-progress` (partial/blocked), and add a comment explaining why if blocked.
-
-4. Print the handoff file path, same as the base skill.
-
-A repo's `CLAUDE.md`/`AGENTS.md` may prescribe a filename prefix or required sections for the handoff; follow them.
+A repo's `CLAUDE.md`/`AGENTS.md` may prescribe filename or required sections; follow it.

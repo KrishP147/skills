@@ -29,7 +29,18 @@ A skill submission is a directory containing:
   the skill's page and `scripts/lint.py` warns when one is missing, so don't
   rename or drop them (`## Invoke` is accepted for `How to invoke`).
 
-## 3. Rules
+## 3. Writing the SKILL.md
+
+Follow Matt Pocock's [`writing-for-agents`](https://github.com/mattpocock/skills/tree/main/skills/productivity/writing-for-agents). In short:
+
+- **Description = trigger.** It's loaded in every session, so it says what the skill is plus one phrase per distinct trigger. Collapse synonyms. User-only skills (`disable-model-invocation: true`) get a one-line human summary.
+- **Every line changes behaviour.** Cut instructions the model already follows ("be careful", "read the file first") and explanations that don't alter what it does. Keep the gotchas no config file would tell it.
+- **Inline what every run needs; disclose the rest.** Material only some runs reach (a fallback path, a rare branch, a long template) goes in a sibling file (`SETUP.md`, `ROTATE.md`) behind a link that says when to read it. Lint fails on a broken relative link.
+- **One source of truth.** Board operations live in [`kanban/next/BOARD.md`](kanban/next/BOARD.md); point at it instead of repeating it. Scripts beat inline code blocks the agent must retype.
+- **Say the target, not the taboo.** "Push belongs to the caller" over "NEVER push". Keep a hard prohibition only for real guardrails, paired with what to do instead.
+- **Gate** means: show the exact action, wait for an explicit yes to that action; anything vaguer is a no.
+
+## 4. Rules
 
 - **Generic and user-facing.** No project names, company names, or personal
   data — yours or anyone else's. `scripts/lint.py` runs a forbidden-word
@@ -51,7 +62,7 @@ A skill submission is a directory containing:
   root [`README.md`](README.md#where-skills-write-skilleddocs) for the
   layout.
 
-## 4. Test locally before opening a PR
+## 5. Test locally before opening a PR
 
 ```bash
 python scripts/lint.py
@@ -83,7 +94,7 @@ Both install scripts read `CLAUDE_SKILLS_DIR` / `CLAUDE_AGENTS_DIR` and fall
 back to the real `~/.claude/skills` and `~/.claude/agents` only when those
 are unset. Delete the temp directory when you're done.
 
-## 5. The site
+## 6. The site
 
 Every skill's `README.md` becomes a page at
 `skills.krishpunjabi.com/<name>`, built from the headings above. There's no
@@ -91,7 +102,7 @@ separate docs step — write the README once, well. Community tips, corrections,
 and "here's how I use this" notes belong in that page's comments (GitHub
 Discussions), not in the README itself.
 
-## 6. Opening the PR
+## 7. Opening the PR
 
 Use the pull request template's checklist. It asks you to confirm: you
 watched the video, `python scripts/lint.py` passes, your README follows the

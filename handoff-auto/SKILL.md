@@ -1,6 +1,6 @@
 ---
 name: handoff-auto
-description: Model-invocable variant of handoff — writes the handoff document without waiting for the user to type /handoff. Use from other skills or subagents that must end a session unattended.
+description: Write a handoff document for a fresh session, callable by the model. Use from skills or subagents that must end a session unattended.
 argument-hint: "What will the next session be used for?"
 ---
 

@@ -24,6 +24,7 @@ with one line per failure otherwise. WARN lines never affect exit code.
 """
 import glob
 import os
+import re
 import subprocess
 import sys
 
@@ -225,6 +226,32 @@ def warn_missing_readme_sections(skill_md_path):
         )
 
 
+LINK_RE = re.compile(r"\]\(([^)\s]+)\)")
+
+
+def check_relative_links(path, failures):
+    """Every relative Markdown link in a skill/agent prompt file must resolve,
+    so disclosed reference files (BOARD.md, SETUP.md, ...) can't go missing."""
+    with open(path, "r", encoding="utf-8") as f:
+        text = f.read()
+    for target in LINK_RE.findall(text):
+        if re.match(r"^[a-z][a-z0-9+.-]*:|^#|^~|^/", target, re.I):
+            continue
+        rel = target.split("#", 1)[0]
+        if rel and not os.path.exists(os.path.join(os.path.dirname(path), rel)):
+            failures.append("%s: broken relative link '%s'" % (path, target))
+
+
+def prompt_files(skill_files):
+    """SKILL.md plus every sibling .md except the human README."""
+    out = []
+    for sp in skill_files:
+        d = os.path.dirname(sp)
+        out += [p for p in glob.glob(os.path.join(d, "*.md"))
+                if os.path.basename(p).lower() != "readme.md"]
+    return sorted(set(out))
+
+
 def main():
     root = repo_root()
     failures = []
@@ -247,6 +274,9 @@ def main():
         if fm and str(fm.get("disable-model-invocation", "")).strip().lower() == "true":
             disabled_skills.add(parent_dir)
         warn_missing_readme_sections(path)
+
+    for path in prompt_files(skill_files) + agent_files:
+        check_relative_links(path, failures)
 
     agent_skill_lists = {}
     for path in agent_files:

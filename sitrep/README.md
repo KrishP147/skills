@@ -90,8 +90,8 @@ mid-flight work, saved under `skilleddocs/handoffs/`.
   favor of `Read` on the output file.) `TaskList` is the session to-do list, not background work; it
   only feeds the asked-vs-done line.
 - "Can I close this?" and "close this" are different asks: the former is a
-  read-only verdict (§6); only the latter (or an explicit "yes, stop them")
-  triggers the gated stop-and-handoff flow in §7.
+  read-only verdict (§2); only the latter (or an explicit "yes, stop them")
+  triggers the gated stop-and-handoff flow in §4.
 - Ask again after fixing a NOT SAFE reason — it's cheap and re-checks
   everything, not just the item you fixed.
 
