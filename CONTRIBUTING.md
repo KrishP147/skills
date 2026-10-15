@@ -55,7 +55,11 @@ Follow Matt Pocock's [`writing-for-agents`](https://github.com/mattpocock/skills
 - **Credit third-party work.** If your skill is copied or adapted from
   someone else's, add an entry to
   [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md) naming the source and
-  its license, the same way the existing entries do.
+  its license, the same way the existing entries do. If it tracks a file
+  in a public GitHub repo, also add an entry to
+  [`upstream.json`](upstream.json) (`verbatim` if byte-identical, else
+  `modified`) so the weekly `upstream-sync` workflow flags upstream
+  changes; see [`scripts/upstream_sync.py`](scripts/upstream_sync.py).
 - **Docs written by skills go under `skilleddocs/`.** If your skill produces
   documents (handoffs, reports, decisions, ...), write them into a repo's
   `skilleddocs/` convention rather than inventing a new location — see the
