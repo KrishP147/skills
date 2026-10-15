@@ -73,7 +73,7 @@ Not auto-installed. [`smartzone.py`](hooks/smartzone.py) is a `UserPromptSubmit`
 
 Claude-Code-style terminal home (type `/` + a skill name) plus a plain list of every skill and agent, generated from this repo by [`scripts/build_site.py`](scripts/build_site.py) (stdlib only). Per-skill detail pages and comments are in progress. Build, test and deploy steps in [`site/README.md`](site/README.md).
 
-`grilling` and `grill-me` are by [Matt Pocock](https://github.com/mattpocock/skills) (MIT, see [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)), included verbatim; `handoff` is his with the save location changed to `skilleddocs/handoffs/` and one sentence added on whether to commit it, and `handoff-auto` is that with one frontmatter line removed. `grill-docs` is original and only wraps his `grilling`. `npx skills add mattpocock/skills` pulls his full set directly if you want more than these. Everything else here is original.
+`grilling` and `grill-me` are by [Matt Pocock](https://github.com/mattpocock/skills) (MIT, see [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)), included verbatim; `handoff` is his with the save location changed to `skilleddocs/handoffs/` and one sentence added on whether to commit it, and `handoff-auto` is that with its own frontmatter (name, description, model-invocable), an attribution line, and a last line printing the file path. `grill-docs` is original and only wraps his `grilling`. `npx skills add mattpocock/skills` pulls his full set directly if you want more than these. Everything else here is original.
 
 ## Where skills write: `skilleddocs/`
 
