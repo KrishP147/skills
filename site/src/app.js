@@ -63,7 +63,7 @@
     nm.className = "nm";
     nm.textContent = "/" + entry.name;
     var kd = document.createElement("span");
-    kd.className = "kd";
+    kd.className = "kd kd-" + entry.kind;
     kd.textContent = entry.kind;
     var ds = document.createElement("span");
     ds.className = "ds";

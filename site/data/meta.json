@@ -29,7 +29,8 @@
     "repo-showcase": ["readme", "polish"],
     "teammate-brief": ["onboarding"],
     "divide": ["split"],
-    "next": ["todo", "board"]
+    "next": ["todo", "board"],
+    "smartzone": ["smart-zone", "context"]
   },
   "authors_note": "Default author is Krish. Third-party entries must match THIRD_PARTY_LICENSES.md.",
   "default_author": "Krish",

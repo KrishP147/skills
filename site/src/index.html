@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Krish's skills</title>
-<meta name="description" content="Claude Code skills and agents. Type / to browse.">
+<meta name="description" content="Claude Code skills, agents and hooks. Type / to browse.">
 <meta name="color-scheme" content="dark">
 <link rel="stylesheet" href="{{BASE}}/style.css">
 <link rel="icon" type="image/png" sizes="32x32" href="{{BASE}}/favicon-32.png">
@@ -20,12 +20,12 @@
 
     <div class="welcome">
       <p class="welcome-title"><span class="spark" aria-hidden="true">✻</span> Welcome to <strong>Krish's skills</strong>!</p>
-      <p class="dim">Type after the <kbd>/</kbd> to search skills and agents, <kbd>Tab</kbd> to fill, <kbd>Enter</kbd> to open.</p>
+      <p class="dim">Type after the <kbd>/</kbd> to search skills, agents and hooks, <kbd>Tab</kbd> to fill, <kbd>Enter</kbd> to open.</p>
       <p class="dim">cwd: ~/skills</p>
     </div>
 
     <section class="catalog" aria-labelledby="catalog-title">
-      <h2 id="catalog-title" class="catalog-title"><span class="bullet" aria-hidden="true">⏺</span> All skills and agents</h2>
+      <h2 id="catalog-title" class="catalog-title"><span class="bullet" aria-hidden="true">⏺</span> All skills, agents and hooks</h2>
       <p class="count">{{COUNT}}</p>
 {{LIST}}
     </section>
@@ -37,12 +37,12 @@
 
   <div class="dock term" id="term">
     <div class="dock-in">
-      <ul class="menu" id="menu" role="listbox" aria-label="Matching skills and agents" hidden></ul>
+      <ul class="menu" id="menu" role="listbox" aria-label="Matching skills, agents and hooks" hidden></ul>
       <div class="prompt-box" id="prompt-box">
         <span class="caret-sign" aria-hidden="true">&gt;</span>
         <span class="line" aria-hidden="true"><span id="echo"></span><span class="cursor"></span><span class="hint" id="hint">type to search, e.g. pair</span></span>
         <input id="cmd" class="cmd" type="text" role="combobox"
-               aria-label="Slash command. Type a skill or agent name after the slash."
+               aria-label="Slash command. Type a skill, agent or hook name after the slash."
                aria-autocomplete="list" aria-expanded="false" aria-controls="menu"
                autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
                enterkeyhint="go" inputmode="text" value="/">
