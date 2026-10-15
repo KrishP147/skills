@@ -1,130 +1,45 @@
 ---
 name: repo-showcase
-description: Make a repo public-facing — rewrite its README around outcome and demo, prune stale/internal docs, fix claims the code has outdated, scan for secrets and private names, propose GitHub metadata, then hand off to `/repo-scrub` for the history scan and visibility flip. Never changes repo visibility itself. Use when asked to "make this repo public-facing", "showcase this repo", "polish the README for public", "get this ready to open-source", or "prep this repo for a portfolio/public link".
-argument-hint: "[owner/repo] (defaults to current repo)"
+description: Make a repo public-facing on its working tree — README rewritten around outcome and demo, stale docs pruned, outdated claims fixed, secrets and private names found, GitHub metadata proposed — then hand off to /repo-scrub. Use for "showcase this repo", "polish the README for public", "prep for open-source or portfolio".
+argument-hint: "[owner/repo] (default: current repo)"
 ---
 
-You get a repo ready to be seen, on its working tree only. History and
-visibility are `/repo-scrub`'s job, not yours — never run `gh repo edit
---visibility` and never rewrite git history from here. Every outward action
-(secret redaction, README rewrite, metadata change, commit, push) is gated on
-an explicit yes.
+Working tree only. History and visibility belong to `/repo-scrub`. **Gate**: every redaction, README rewrite, metadata change, commit, and push needs an explicit yes.
 
-## 1. Ask up front — one batch
+## 1. Ask (one batch, each with its default)
 
-Ask all three together, each with a recommended default, before touching
-anything:
+1. **Outcome**: what a stranger should do after reading (default: try it in under 5 minutes).
+2. **Audience** (default: developers deciding whether to use or contribute).
+3. **Emphasis**: the one thing worth a look (default: the latest merged feature or current headline claim, confirmed rather than invented).
 
-1. **Outcome** — what should a stranger do after reading this? (recommended:
-   "try it in under 5 minutes")
-2. **Audience** — who's landing here? (recommended: other developers
-   evaluating whether to use or contribute)
-3. **What to emphasize** — the one thing that makes this worth a look
-   (recommended: whatever the most-recently-merged feature or the README's
-   current headline claim already emphasizes, confirmed rather than
-   invented).
+"go" → defaults.
 
-Proceed on their answers, or the recommended defaults if they just say "go".
+## 2. Doc inventory
 
-## 2. Inventory docs
+Every doc (`README*`, `docs/**`, `CONTRIBUTING*`, stray notes): table Path · keep / merge / delete · reason. Act on rows only after a yes, echoed back.
 
-List every doc in the repo (`README*`, `docs/**`, `CONTRIBUTING*`, stray
-`NOTES.md`/`TODO.md`/`*.txt`, etc). Build a table:
+## 3. Claims vs reality
 
-```
-Path              | Verdict | Reason
-docs/old-plan.md  | delete  | superseded by docs/architecture.md, last touched 2024
-docs/setup.md     | merge   | quickstart already covers this, fold the one extra step in
-docs/api.md       | keep    | still accurate, useful reference
-```
+Check every factual claim (languages, versions, install steps, commands, badges, "beta", architecture) against code, config and `git log`. Report `claim file:line` — `evidence file:line or SHA`. These feed §4 and the diff gate.
 
-Show the table. **Nothing gets deleted or merged without an explicit yes** —
-per-row or "all deletes", but always echoed back before acting.
+## 4. README draft (lean)
 
-## 3. Grep claims against reality
+1. One-line pitch. 2. Result: what using it produces. 3. Demo slot: `<!-- screenshot/GIF: paste path or URL -->` for the user to fill; media and metrics are never fabricated. 4. Quickstart, verified against §3. 5. Architecture, only if the audience needs it. 6. Credits and license.
 
-Claims rot faster than docs get updated. For every factual claim in the
-README and kept docs (supported languages, install steps, commands, badges,
-"currently in beta", version numbers, architecture descriptions), check it
-against the actual code, config files, and `git log` — not against what the
-doc says about itself. Report contradictions as `file:line` for the claim
-plus `file:line` (or commit) for the contradicting evidence, e.g.:
+Draft only; the file changes at §7.
 
-```
-README.md:12 claims "Python 3.8+" — pyproject.toml:3 sets requires-python = ">=3.11"
-README.md:40 says "no tests yet" — tests/ has 40 files, last commit 3 weeks ago
-```
+## 5. Secrets and private names
 
-Don't silently fix these yet — they feed the README rewrite in §4 and get
-shown in the diff gate (§7).
+Tracked files: key/token/connection-string patterns, un-ignored `.env`; emails and names that aren't authors (`git shortlog -sne`) or already public. Report `file:line`; redact per item on yes.
 
-## 4. Rewrite the README — lean by default
+## 6. Metadata
 
-Default to short; add a section only if this repo actually needs it. In
-order:
+Propose description, topics, homepage; show `gh repo edit <o/r> --description "…" --add-topic … --homepage …`; run on yes.
 
-1. **One-line pitch** — what it is, in a sentence a stranger understands.
-2. **Result** — what using it produces, before the how.
-3. **Demo media slot(s)** — a placeholder the user fills in themselves, e.g.
-   `<!-- screenshot: paste path/URL here -->` or `<!-- demo GIF/video: paste
-   path/URL here -->`. Never fabricate a screenshot, GIF, or video, and never
-   invent metrics/testimonials to fill the gap.
-4. **Quickstart** — the fewest steps from clone to the result in item 2,
-   verified against §3's findings rather than copied from the stale doc.
-5. **Architecture** — only if the audience from §1 needs it to evaluate or
-   contribute; a diagram slot is fine, same placeholder convention as item 3.
-6. **Credits** — authors, prior art, license.
+## 7. Gate: diff, commit, push
 
-Draft the full replacement text before the gate in §7; don't touch the file
-yet.
+Show the full README diff plus one line per doc change and redaction. Commit on yes, on a branch, one logical change per commit (`docs: rewrite README for public release`). Push on a separate yes.
 
-## 5. Scan for secrets and private names
+## 8. Hand off and record
 
-Working tree only (history is `/repo-scrub`'s job):
-
-- Secrets: grep for common patterns (API keys, tokens, connection strings,
-  `.env` files not gitignored) across tracked files.
-- Private people's names: emails and full names in docs/comments/config that
-  aren't repo authors (`git shortlog -sne`) or already public in the
-  license/credits — e.g. a teammate's name left in a code comment or a test
-  fixture.
-
-Report every hit as `file:line`. Redact only on an explicit yes, per-item or
-"redact all".
-
-## 6. GitHub metadata proposal
-
-Propose a repo description, topics, and homepage URL from what §1–§4
-established. Show the exact command before running it:
-
-```
-gh repo edit <owner/repo> --description "<one-line pitch>" --add-topic <topic> --homepage <url>
-```
-
-Apply only on explicit yes. Skip entirely if the user doesn't want it touched.
-
-## 7. GATE — diff, commit, push
-
-Show the diff: the README rewrite in full, plus a one-line-per-file summary
-of doc deletes/merges from §2 and redactions from §5.
-
-- Commit only on yes, one logical change per commit (e.g. `docs: rewrite
-  README for public release`, `chore: prune stale docs`, `chore: redact
-  private name in <file>`), on a branch — never straight to the default
-  branch.
-- Push only on a separate yes, even if the commit was just approved.
-
-## 8. Hand off to /repo-scrub
-
-Once the working tree is public-ready and pushed (or the user says to move
-on regardless), tell them the next step is `/repo-scrub` for the full git
-history scan and the actual private → public flip. State plainly: this skill
-never changes visibility and never rewrites history — that's `/repo-scrub`'s
-job, on purpose, so the destructive step stays a separate, explicit decision.
-
-## 9. Write the report
-
-Save the doc inventory (§2), contradicted-claims list (§3), and secret/name
-findings (§5) — plus what was actually done about each — to
-`skilleddocs/showcase/<local-date>.md` (local date, not UTC). This is the
-paper trail `/repo-scrub` and any teammate can read afterward.
+Next step: `/repo-scrub` for the history scan and the visibility flip, kept separate on purpose. Save inventory, claims, findings, and what was done to `skilleddocs/showcase/<local-date>.md`.

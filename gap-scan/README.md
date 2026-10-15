@@ -71,7 +71,7 @@ skill. Writes: `skilleddocs/gaps/<local-date>.md` only.
   ranking means the output adds to a backlog instead of duplicating it.
 - **Report, then stop.** Surveying and proposing is the whole job; turning
   a proposal into an issue or a PR is a separate, explicitly gated step
-  (or another skill's, via the hand-offs in §7).
+  (or another skill's, via the hand-offs at the end of the report).
 
 ## Use cases
 
@@ -139,7 +139,7 @@ Tests: ran (python unittest suite), 9 passed.
 Visual pass: skipped (the site is a sub-project; not in scope this pass).
 ```
 
-No issues were created — that needs an explicit yes per §7 of `SKILL.md`.
+No issues were created — that needs an explicit yes (the gate in `SKILL.md`).
 
 ## Related
 

@@ -19,7 +19,7 @@ Ends an implementation session tied to a GitHub issue: writes the handoff docume
 
 1. Calls [`handoff-auto`](../../handoff-auto/) with the issue as argument; takes the path it prints.
 2. Appends `## Board status` to that doc: issues/cards touched, complete / partial / blocked, deviations from the issue, new ideas found mid-session.
-3. Moves the card (board lookup as in `next` §1): Projects v2 via `gh project item-edit` with IDs looked up from `gh project field-list` / `item-list` (GraphQL fallback when the list is stale); label fallback creates `status:in-review` first if missing, then swaps `status:in-progress` → `status:in-review` when complete, otherwise leaves it and comments if blocked.
+3. Moves the card (board lookup per [`next/BOARD.md`](../next/BOARD.md)): Projects v2 via `gh project item-edit` with IDs looked up from `gh project field-list` / `item-list` (GraphQL fallback when the list is stale); label fallback creates `status:in-review` first if missing, then swaps `status:in-progress` → `status:in-review` when complete, otherwise leaves it and comments if blocked.
 4. Prints the handoff file path.
 
 Follows any handoff filename/section rules in the repo's `CLAUDE.md`/`AGENTS.md`.

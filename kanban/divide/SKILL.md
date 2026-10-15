@@ -1,21 +1,12 @@
 ---
 name: divide
-description: Split a GitHub issue (or a described task) into two or more session-sized issues, and update the kanban board. Use when a task is too big for one session, or context is running low and remaining work needs to be split off.
-argument-hint: "issue number or description of the task to divide"
+description: Split a GitHub issue or task into session-sized issues and put them on the board. Use when a task is too big for one session or remaining work must be split off.
+argument-hint: "issue number or task description"
 ---
 
-1. Read the target: `gh issue view <n>` if given a number, or take the user's description directly.
-
-2. Propose a split into 2+ session-sized pieces (or use the split the user specifies). Show the proposed breakdown before creating anything.
-
-3. On confirmation, create the sub-issues:
-   ```
-   gh issue create --title "<piece>" --body "Part of #<n>. <details>"
-   ```
-   Add a task-list checkbox for each new issue to the parent issue's body, so the parent becomes a tracking issue.
-
-4. Add each new issue to the board: Projects v2 → `gh project item-add`, then `gh project item-edit` to set Status=Todo (IDs from `gh project field-list`/item-add's own `--format json`, per `session-handoff` §3 — `item-add` alone leaves Status empty); label fallback → `status:todo` (create first if missing — see `next` §1). Match whatever the repo already uses.
-
-5. If a roadmap doc links the parent (`ROADMAP.md`, `docs/roadmap.md`), add the children inline next to it (`#n → #a, #b`) and commit that as `docs: divide #n into #a/#b`.
-
-6. If the parent issue is now purely a tracker (no remaining standalone work), say so and offer to relabel/close it once all children land.
+1. Read the target (`gh issue view <n>`, or the user's description).
+2. Propose 2+ session-sized pieces, each with a "done when". Show the split; create nothing yet.
+3. On yes: `gh issue create --title "<piece>" --body "Part of #<n>. <details>"` per piece, then add a task-list checkbox per child to the parent's body.
+4. Put each child on the board at Todo ([BOARD.md](../next/BOARD.md)).
+5. Roadmap doc links the parent → add `#n → #a, #b` beside it and commit `docs: divide #n into #a/#b`.
+6. Parent now only tracks children → say so; offer to close it once they land.

@@ -22,7 +22,7 @@ next  →  (you implement, in a fresh session)  →  session-handoff  →  updat
  └──────────────────── (prints "run next" when done) ───────────────────────┘
 ```
 
-Card status flow: todo (set explicitly by `gh project item-edit` when an issue is added — `item-add` alone leaves Status empty) → in-progress (`implementer`/`pair`, on branch create) → in-review (`session-handoff`) → done (`update-progress`). Label-mode `status:*` labels are created on first use (`gh label create --color <hex> --force`, colors in `next` §1), not assumed to exist.
+Card status flow: todo (set explicitly by `gh project item-edit` when an issue is added — `item-add` alone leaves Status empty) → in-progress (`implementer`/`pair`, on branch create) → in-review (`session-handoff`) → done (`update-progress`). Label-mode `status:*` labels are created on first use (`gh label create --color <hex> --force`, colors in [`next/BOARD.md`](next/BOARD.md)), not assumed to exist.
 
 - **[`next`](next/)** — what to work on, pulled from the board.
 - **[`session-handoff`](session-handoff/)** — run when you're wrapping up an implementation session.

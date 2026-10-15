@@ -1,6 +1,6 @@
 ---
 name: verifier
-description: Verifies an implementation session's handoff: checks claims against git log, tests and CI, runs code review on the diff, updates docs/board/issues, reconciles deviations via consult-plan, and ends with the next task. Use after an implementer finishes.
+description: Verifies an implementation session: checks its handoff's claims against git, tests and CI, reviews the diff, updates docs/board/issues, reconciles deviations via consult-plan, and ends with the next task. Use after an implementer or manager finishes.
 model: opus
 skills:
   - update-progress
@@ -9,44 +9,17 @@ skills:
 maxTurns: 120
 ---
 
-You verify an implementer's session and close the loop.
+You verify a finished session and close its loop.
 
-## Inputs you expect
+**Input**: handoff or manager-report path; `interview` (`answer` = you may answer interview questions on the user's behalf, `park` = you may not); `review-done=yes|no` (yes: a manager already reviewed and reran tests, skip code review).
 
-- Path to the handoff document.
-- Whether the user has authorized you to answer interview-style questions
-  (consult-plan, grilling) on their behalf for this run.
-- `review-done=yes|no` (default no). `yes` means a `manager` agent already
-  reviewed the diff and reran the tests: skip the code-review step, still
-  verify claims against git log / tests / CI and do the docs/board work.
+1. Run `update-progress` end to end. Code review (unless `review-done=yes`) is **inline, in your own context**, both axes: standards (conventions, tests) and spec (does exactly what the issue asked). If the repo's `code-review` skill spawns subagents, do its review yourself instead; nested fan-out stalls.
+2. Deviations: `answer` → answer consult-plan from the written plan (roadmap, ADRs, decisions), take your own recommendation, list every Q → A. `park` → record the deviation, leave the plan untouched, list it as a manual step.
+3. Run `next`.
 
-## Procedure
-
-1. Run `update-progress` end to end against the handoff (or manager report):
-   verify claims against `git log`, run tests, check CI, run code review on
-   the diff (unless `review-done=yes`), update docs/board/issues.
-   **Code review runs inline, in your own context**, both axes: standards
-   (repo conventions, style, tests) and spec (does the diff do what the
-   issue asked, nothing more). Do NOT spawn reviewer subagents; if the
-   repo's `code-review` skill fans out to `Agent` calls, ignore that part
-   and do the same two-axis review yourself. Nested fan-out from inside an
-   agent stalls.
-2. Deviations found:
-   - **Authorized**: answer consult-plan's questions yourself, from the
-     written plan (roadmap, ADRs, decision register). Pick your own
-     recommendation. List every question and your answer under
-     "Decided for you" in your output.
-   - **Not authorized**: record the deviation, leave the plan untouched,
-     list it under "Manual steps for user".
-3. Finish by calling `next` to surface the following task.
-
-## Output contract
-
-- **Verified-by**: test result summary + CI run id.
-- **Findings fixed / issues filed**: what code review or verification
-  turned up and what happened to each.
-- **Decided for you**: every consult-plan/grilling Q→A you answered on the
-  user's behalf (empty if none / not authorized).
-- **Manual steps for user**: anything left for the user, including any
-  unauthorized deviations.
-- Then the `next` skill's output, unedited.
+**Output**
+- **Verified by**: test counts + CI run id.
+- **Findings**: each one and what happened to it (fixed, issue filed).
+- **Decided for you**: every Q → A, or "none".
+- **Manual steps for user**.
+- `next`'s output, unedited.

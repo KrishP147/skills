@@ -1,105 +1,64 @@
 ---
 name: pair
-description: Run one task (a GitHub issue number or free text) in an isolated git worktree via a manager subagent that owns its own implementer and retry loop — you stay a single interactive session and only push / open the PR at the end. Use for one task on any repo, including OSS forks with no kanban board, when "implement issue #n with a manager + implementer" or "pair on this" is asked.
+description: Run one task (issue number or free text) in an isolated git worktree via a manager subagent that owns its implementer and retries; you push and open the PR at the end. Use for "implement issue #n", "pair on this", or one task on any repo, forks included.
 argument-hint: "<issue # | task text> [--no-worktree] [--push] [--model opus|sonnet]"
 ---
 
-You run **one task** through a `manager` subagent. The manager spawns and
-reviews an `implementer`; you never implement, and neither agent ever pushes.
-You are the only one who touches the remote.
+You run **one task** through a `manager` subagent. Neither you nor the agents implement in your context; you are the only one who touches the remote.
 
-Flags: `--no-worktree` (work in the current checkout on a new branch),
-`--push` (push + open the PR without asking), `--model` (implementer model
-override; default lets the manager choose, sonnet for mechanical work).
+Flags: `--no-worktree` (new branch in the current checkout), `--push` (push + PR without asking), `--model` (implementer model; default: the manager's call).
 
-## 1. Resolve the task
+## 1. Resolve
 
-- Number → `gh issue view <n>` (title, body, acceptance criteria, labels).
-  Text → use as-is; write a 3–6 item acceptance checklist yourself.
-- Repo facts: default branch, branch prefix (from the user's `CLAUDE.md`,
-  else `feat`), test command, `CONTRIBUTING.md` / `AGENTS.md` path if any.
-- **Fork?** (`git remote -v` shows `upstream`): `git fetch upstream`, fast-
-  forward the local default branch to `upstream/<default>` before branching,
-  and `ls`/`grep` every file or symbol the issue names. Stale trackers cite
-  code that has moved or gone; note what's missing in the brief instead of
-  letting the implementer chase it.
+- Number → `gh issue view <n>`. Text → write a 3–6 item acceptance checklist.
+- Repo facts: default branch, branch prefix (user's `CLAUDE.md`, else `feat`), test command, `CONTRIBUTING.md` / `AGENTS.md`.
+- **Fork** (`upstream` remote): `git fetch upstream`, fast-forward default to `upstream/<default>`, then confirm every file or symbol the issue names still exists. Put anything missing in the brief.
 
 ## 2. Isolate
 
-Default: worktree, so the manager can't disturb your checkout.
-
 ```
-slug = issue-<n>-<kebab-title>  (or kebab of the task text, ≤6 words)
+slug = issue-<n>-<kebab-title>   (or ≤6 kebab words of the task)
 git worktree add ../_worktrees/<repo>-<slug> -b <prefix>/<slug> <default>
 ```
 
-`--no-worktree`: `git switch -c <prefix>/<slug> <default>` in place.
-If the worktree or branch already exists, reuse it (say so).
+`--no-worktree`: `git switch -c <prefix>/<slug> <default>`. Existing worktree or branch → reuse it and say so.
 
-If the worktree needs deps (`node_modules`, `.venv`), link them from the main
-checkout instead of reinstalling: Windows `cmd //c mklink /J <wt>\node_modules
-<main>\node_modules`; mac/linux `ln -s <main>/node_modules <wt>/node_modules`.
-Never recursive-delete through the link later — see §5.
+Deps (`node_modules`, `.venv`): link from the main checkout. Windows `cmd //c mklink /J <wt>\node_modules <main>\node_modules`; mac/linux `ln -s <main>/node_modules <wt>/node_modules`.
 
-Creating the branch starts the work, so mark the issue started yourself (the
-manager comes later and won't). Issue number only; skip for free text, a
-repo with no board (roadmap doc only), or a reused worktree/branch (already
-marked). Projects v2: move the card to "In
-Progress" with `gh project item-edit` (IDs looked up as `session-handoff` §3
-does, never guessed); label fallback: create `status:in-progress` first if
-missing (`gh label create status:in-progress --color FBCA04 --force` —
-see `kanban/next` §1), then `gh issue edit <n> --remove-label status:todo --add-label
-status:in-progress`. Then one issue comment: "Started on branch `<branch>`".
-If the board update errors, say so and carry on — it never blocks the task.
+Issue number on a board, worktree/branch not reused → move it to In Progress and comment "Started on branch `<branch>`" (`~/.claude/skills/next/BOARD.md`). Board errors never block the task.
 
 ## 3. Delegate
 
-One call. Do not `fork` (ignores the model override and cannot nest).
+One blocking call, `subagent_type="manager"` (never `fork`: it ignores the model and can't nest):
 
 ```
-Agent(subagent_type="manager", prompt=
-  working directory: <absolute worktree path>
-  task: <issue #n: title> + body/acceptance checklist
-  key files (verified present): …   missing/moved: …
-  rules: prefix=<p>, protected=<default>, test cmd=<cmd>,
-         commit style=<from CLAUDE.md / CONTRIBUTING>, read <AGENTS.md path>
-  implementer model: <--model or "your call">
-  max_rounds: 3
-  never push, merge, or open a PR — the caller does.)
+working directory: <absolute worktree path>
+task: <#n: title> + acceptance checklist
+key files (verified): …   missing/moved: …
+rules: prefix=<p>, protected=<default>, test cmd=<cmd>, commit style=<…>, read <AGENTS.md>
+implementer model: <--model or "your call">
+max_rounds: 3
+never push, merge, or open a PR.
 ```
 
-While it runs, do nothing in the worktree.
+Leave the worktree alone while it runs.
 
 ## 4. On return
 
-0. A report titled **INTERIM** (implementer still running) is not a result.
-   Wait for the same manager's next handback; do not push, rerun, or judge
-   the branch from an interim report.
-1. Show the manager's report verbatim (branch, commits, tests, findings,
-   rounds, unfinished).
-2. Rerun the tests yourself in the worktree if the report is thin or the
-   task touched anything risky. One-line fixes: commit them.
-3. **Unfinished** (`skilleddocs/HANDOFF.md` present): say what's left; offer a second
-   `pair` round from the handoff, or leave the branch for the user.
-4. **Push** if `--push` or the user says go:
+1. **INTERIM** report → not a result; wait for the next handback.
+2. Show the report verbatim.
+3. Thin report or risky change → rerun the tests yourself. One-line fixes: commit them.
+4. Unfinished (`skilleddocs/HANDOFF.md`) → say what's left; offer another round from it.
+5. `--push` or the user says go:
    ```
    git -C <worktree> push -u origin <branch>
-   gh pr create --head <branch> --title "<issue title>" --body "<summary>\n\nCloses #<n>"
+   gh pr create --head <branch> --title "<title>" --body "<summary>\n\nCloses #<n>"
    ```
-   Some environments flag the push as destructive for subagents; that's why
-   it's yours. Never merge.
-5. Review feedback later ("address the PR comments") → step 3 again with the
-   comments as the task, same worktree.
+   Never merge.
+6. Review comments later → step 3 again, comments as the task, same worktree.
 
-## 5. Print
+## 5. Print and teardown
 
-Branch, worktree path, PR URL (or "not pushed"), test result, rounds used,
-`skilleddocs/HANDOFF.md` path if any. Then stop; don't offer to clean up the worktree
-until the PR is merged (`git worktree remove <path>`).
+Print: branch, worktree, PR URL or "not pushed", test result, rounds, HANDOFF.md path if any.
 
-**Teardown order** (once the PR is merged): remove any linked deps first —
-never a recursive delete (`rm -rf` / `Remove-Item -Recurse`) through a link,
-it follows the junction and wipes the main checkout's dir. Windows: `cmd //c
-rmdir <wt>\node_modules` (unlinks the junction only), or PowerShell
-`(Get-Item <link>).Delete()`; mac/linux: `rm <wt>/node_modules` (removes the
-symlink, not its target). Then `git worktree remove <path>`.
+Teardown only after the PR merges, **links first**: Windows `cmd //c rmdir <wt>\node_modules` (removes the junction only); mac/linux `rm <wt>/node_modules`. Then `git worktree remove <path>`. A recursive delete (`rm -rf`, `Remove-Item -Recurse`) through a link follows it and wipes the main checkout's copy.

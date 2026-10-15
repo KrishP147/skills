@@ -10,7 +10,7 @@ and *is* installed, into `~/.claude/agents/hooks/`.)
 `UserPromptSubmit` hook. Prints a one-line warning into the conversation when
 the session transcript passes ~1.5 MB (a rough proxy for ~100k tokens), so
 both you and Claude see it and can wrap up: `/divide` the rest, then
-`/session-handoff` (or, for an orchestrator, the §6 handoff cycle in
+`/session-handoff` (or, for an orchestrator, the rotation step (`ROTATION.md`) in
 `meta-orchestrator`). Heuristic only; `/context` is the precise check.
 
 How it works: on every prompt you submit, Claude Code passes the hook JSON

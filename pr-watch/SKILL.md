@@ -1,171 +1,57 @@
 ---
 name: pr-watch
-description: Watch the user's open pull requests until merged — pulls bot and human review threads (CodeRabbit, Copilot, maintainers), fixes the valid ones via `pair`, replies to or resolves the rest with evidence, and reports CI. Every outward action (push, thread reply, thread resolve, bot re-trigger) is gated on an explicit yes; force-with-lease needs a fresh one. Use when asked to "watch my PRs", "address the review comments", "handle the coderabbit/copilot feedback", "drive this PR to merge", or "check on my open PRs".
-argument-hint: "[PR # | repo] [--once]"
+description: Watch the user's open PRs to merge — read bot and human review threads, fix valid ones via pair, reply to or resolve the rest with evidence, report CI; every push, reply, and resolve gated on a yes. Use for "watch my PRs", "address the review comments", "drive this PR to merge".
+argument-hint: "[PR # | owner/repo] [--once]"
 ---
 
-You watch **open PRs** (own repo or fork→upstream) to merge. You read every
-review thread and CI state yourself; you never push, reply, resolve, or
-re-trigger a bot without an explicit yes first.
+You read every thread and check yourself. **Gate**: each push, reply, resolve, or bot re-trigger needs an explicit yes first; a force push needs `--force-with-lease` and its own fresh yes, every time.
 
-No argument: all of the user's open PRs, across repos. A PR # or `owner/repo`
-scopes to one. `--once`: one pass, then report and stop (no watch loop).
+No argument: all the user's open PRs. A PR # or `owner/repo` scopes it. `--once`: one pass, report, stop.
 
-## 1. List open PRs
+## 1. List
 
-```
-gh search prs --author @me --state open --json number,title,url,repository,isDraft
-```
+`gh search prs --author @me --state open --json number,title,url,repository,isDraft`, then per PR `gh pr view <n> --repo <o/r> --json headRefName,isCrossRepository`. Table: repo, #, title, branch, draft, fork.
 
-(`gh search prs` has no branch field; get `headRefName` per PR via `gh pr view`.)
-
-Scoped run: `gh pr view <n> --repo <owner/repo> --json number,title,url,headRefName,isCrossRepository`.
-Build a state table: repo, PR #, title, branch, draft?, fork (`isCrossRepository`)?
-
-## 2. Per PR: pull review threads
-
-Unresolved (and resolved, for the log) review threads via GraphQL:
+## 2. Threads
 
 ```
 gh api graphql -f query='
-query($owner:String!,$repo:String!,$pr:Int!){
-  repository(owner:$owner, name:$repo){
-    pullRequest(number:$pr){
-      reviewThreads(first:100){
-        nodes{
-          id
-          isResolved
-          isOutdated
-          path
-          line
-          comments(first:20){
-            nodes{ author{login} body url createdAt }
-          }
-        }
-      }
-    }
-  }
-}' -F owner=<owner> -F repo=<repo> -F pr=<n>
+query($owner:String!,$repo:String!,$pr:Int!,$after:String){
+  repository(owner:$owner,name:$repo){ pullRequest(number:$pr){
+    reviewThreads(first:100,after:$after){ pageInfo{hasNextPage endCursor}
+      nodes{ id isResolved isOutdated path line
+        comments(first:20){ nodes{ author{login} body url createdAt } } } } } } }' \
+  -F owner=<o> -F repo=<r> -F pr=<n>
 ```
 
-Paginate with `reviewThreads(first:100, after:$cursor)` if `pageInfo.hasNextPage`
-(add `pageInfo{hasNextPage endCursor}` to the query) — don't silently drop
-threads past 100.
+Page until `hasNextPage` is false. Classify each unresolved thread, citing its URL:
+- **valid**: the reviewer is right
+- **outdated**: code has since changed (read the diff; `isOutdated` is only a hint)
+- **disagree**: wrong or out of scope
+- **question**: needs an answer, not code
 
-Classify each unresolved thread:
-- **valid** — a real bug/style issue the bot or reviewer is right about.
-- **outdated** — code has since changed; `isOutdated: true` is a strong
-  signal, but read the diff yourself before calling it outdated.
-- **disagree** — the suggestion is wrong or out of scope for this PR.
-- **question** — needs an answer, not a code change.
+## 3. CI
 
-Cite the thread URL (from the first comment's `url`) for every claim you make
-about it.
+`gh pr checks <n> --repo <o/r> --json name,state,link,workflow`. A fork PR at `action_required` is waiting for maintainer approval, not failing; say so.
 
-## 3. CI state
+## 4. Fix
 
-```
-gh pr checks <n> --repo <owner/repo> --json name,state,link,workflow
-```
+One `pair` call per PR on its existing head branch, every **valid** thread (path, line, body) as the task. Tell it the PR exists: no new PR, no push. disagree/question threads get replies, not diffs.
 
-Fork PR stuck at `action_required` is **not failing** — it means a
-maintainer must approve the workflow run (GitHub docs: this is a genuine
-status-check state, distinct from `failure`). Say so explicitly in the
-report; don't call it broken.
+## 5. Gate, then push and reply
 
-## 4. Fix the valid threads
+Show diff summary, commits, test result, and each drafted reply. Push and replies are separate yeses unless the user combines them. Then push, and reply to each thread with the fixing SHA or the reasoning ([MUTATIONS.md](MUTATIONS.md)).
 
-One `pair` call per PR (not per thread) with every **valid** thread's path/
-line/body as the task text, on the PR's existing head branch (not a new
-one). Tell `pair` the PR already exists: no new PR, no push — pushing stays
-with §5/§6 here. Let `pair` rerun the repo's tests. Do not fix **disagree** or **question**
-threads — those get a reply, not a diff.
+Bot re-trigger (own fresh yes): [MUTATIONS.md](MUTATIONS.md).
 
-## 5. GATE — before any push or reply
+Resolve (separate gate, name each thread and why) only threads you fixed or proved outdated. disagree and question threads stay open for the reviewer.
 
-Show: diff summary (files, one-line-per-file), commit list, test result,
-and the drafted reply for each thread. Ask explicitly before pushing and
-before posting replies (one yes may cover both if the user says so). A force push needs `--force-with-lease` and
-its own fresh yes even if push was already approved this session — never
-reuse an earlier approval for it.
+## 6. Watch
 
-## 6. Push, reply, resolve
+Until merged/closed or told to stop: `gh pr view <n> --repo <o/r> --json state,mergedAt,mergeable` via the Monitor tool or a bounded poll, re-running §2–3 each pass.
 
-Push and reply only after §5's yes. Then, per thread:
+## 7. Log and end
 
-- **Reply** with the commit SHA that addresses it (or, for disagree/question,
-  the reasoning/answer):
+Each pass → `skilleddocs/pr-watch/<local-date>-<repo>.md`: local time, PR, threads seen/fixed/replied/resolved (URLs), CI, every gate and the user's answer.
 
-  ```
-  gh api graphql -f query='
-  mutation($id:ID!,$body:String!){
-    addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id, body:$body}){
-      comment{ url }
-    }
-  }' -F id=<threadId> -F body="Fixed in <sha>: <one line>"
-  ```
-
-  (`AddPullRequestReviewThreadReplyInput` takes `pullRequestReviewThreadId`
-  + `body`, not `id`.)
-
-- **GATE**, then **resolve** — only threads you just fixed, or proved
-  outdated by reading the current diff. Say which threads and why before
-  resolving any:
-
-  ```
-  gh api graphql -f query='
-  mutation($id:ID!){
-    resolveReviewThread(input:{threadId:$id}){
-      thread{ isResolved }
-    }
-  }' -F id=<threadId>
-  ```
-
-  Anyone who opened the PR, or has write access to the repo it was opened
-  in, can resolve (GitHub docs: "You can resolve a
-  conversation in a pull request if you opened the pull request or if you
-  have write access to the repository where the pull request was opened").
-  On a fork PR you almost always qualify as the opener; don't assume it
-  fails without trying, but if it does, say so and leave the thread for a
-  maintainer instead of guessing why.
-
-  Never resolve a **disagree** or **question** thread — reply only, and
-  leave it open for the reviewer.
-
-## 7. Optional bot re-trigger
-
-Only with a fresh yes:
-
-```
-gh pr comment <n> --repo <owner/repo> --body "@coderabbitai review"
-```
-
-Fork PRs may never get a bot re-run at all (bots are frequently disabled for
-first-time/external contributors) — say so instead of waiting on it forever.
-
-## 8. Watch
-
-Loop until merged/closed or the user says stop:
-
-```
-gh pr view <n> --repo <owner/repo> --json state,mergedAt,mergeable
-```
-
-Use the Monitor tool or a bounded poll loop, not a blind sleep chain. Re-run
-steps 2–3 each pass — new threads or a new CI run can appear between polls.
-
-## 9. Log
-
-Append every pass to `skilleddocs/pr-watch/<local-date>-<repo>.md` (local
-date, not UTC — `python -c "import datetime as d; print(d.date.today())"` or
-`date +%F`). One entry per pass: timestamp (local zone, named once at the
-top), PR #, threads seen/fixed/replied/resolved (with URLs), CI state, gate
-decisions and the user's answer to each.
-
-## 10. End
-
-One line per PR: **merged** (link to the merge commit) / **waiting-on-
-maintainer** (approval, review, or a bot that won't run — say which) /
-**needs-you** (an unresolved gate, a disagree/question thread awaiting the
-user's own answer, or a failing check). Link every PR, thread, and CI run
-you mention.
+End with one line per PR, linked: **merged** (merge commit) / **waiting-on-maintainer** (approval, review, or a bot that won't run) / **needs-you** (open gate, a thread awaiting your answer, failing check).
