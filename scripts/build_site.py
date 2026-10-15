@@ -11,8 +11,11 @@ exactly what lint counts. Output (wiped + recreated every run):
   site/dist/404.html
   site/dist/*.css|*.js          copied from site/src/
 
-Usage: python scripts/build_site.py [--out DIR]
+Usage: python scripts/build_site.py [--base /prefix] [--out DIR]
+  --base  URL prefix the site is served under (default env SITE_BASE, else "/")
+  --out   output dir, relative to cwd (default <repo>/site/dist)
 """
+import argparse
 import html
 import json
 import os
@@ -113,7 +116,13 @@ def esc(s):
     return html.escape(s, quote=True)
 
 
-def render_list(entries):
+def normalize_base(base):
+    """"/skills", "/skills/", "skills" -> "/skills"; "/" or "" -> ""."""
+    base = (base or "").strip().strip("/")
+    return "/" + base if base else ""
+
+
+def render_list(entries, base=""):
     out = []
     for group in GROUPS:
         items = [e for e in entries if e["group"] == group]
@@ -124,9 +133,9 @@ def render_list(entries):
         out.append('<ul class="skill-list">')
         for e in items:
             out.append(
-                '<li><a href="/%s"><span class="nm">/%s</span>'
+                '<li><a href="%s/%s"><span class="nm">/%s</span>'
                 '<span class="ds">%s</span></a></li>'
-                % (esc(e["name"]), esc(e["name"]), esc(e["summary"])))
+                % (esc(base), esc(e["name"]), esc(e["name"]), esc(e["summary"])))
         out.append("</ul>")
         out.append("</section>")
     return "\n".join(out)
@@ -141,10 +150,10 @@ def nav_data(entries):
     return embed_json([{"name": e["name"], "summary": e["summary"], "group": e["group"]} for e in entries])
 
 
-def render_index(template, entries):
-    return (template
+def render_index(template, entries, base=""):
+    return (template.replace("{{BASE}}", esc(base))
             .replace("{{COUNT}}", esc(count_line(entries)))
-            .replace("{{LIST}}", render_list(entries))
+            .replace("{{LIST}}", render_list(entries, base))
             .replace("{{DATA}}", nav_data(entries)))
 
 
@@ -154,7 +163,8 @@ def write(path, text):
         f.write(text)
 
 
-def build(root, out):
+def build(root, out, base=""):
+    base = normalize_base(base)
     src = os.path.join(root, "site", "src")
     entries = collect(root)
     names = [e["name"] for e in entries]
@@ -165,12 +175,13 @@ def build(root, out):
         shutil.rmtree(out)
     os.makedirs(out)
 
-    write(os.path.join(out, "index.html"), render_index(read_text(os.path.join(src, "index.html")), entries))
+    write(os.path.join(out, "index.html"), render_index(read_text(os.path.join(src, "index.html")), entries, base))
     pages = site_detail.build_pages(root, entries, site_detail.load_meta(root),
-                                    read_text(os.path.join(src, "detail.html")), nav_data(entries))
+                                    read_text(os.path.join(src, "detail.html")), nav_data(entries), base)
     for e in entries:
         write(os.path.join(out, e["name"], "index.html"), pages[e["name"]])
-    write(os.path.join(out, "404.html"), read_text(os.path.join(src, "404.html")))
+    write(os.path.join(out, "404.html"),
+          read_text(os.path.join(src, "404.html")).replace("{{BASE}}", esc(base)))
     write(os.path.join(out, "skills.json"),
           json.dumps(public(entries), ensure_ascii=False, indent=2) + "\n")
     for fn in sorted(os.listdir(src)):
@@ -179,14 +190,24 @@ def build(root, out):
     return entries
 
 
+def display_path(path, root):
+    try:
+        return posix_rel(path, root)
+    except ValueError:  # different drive on Windows
+        return path.replace(os.sep, "/")
+
+
 def main(argv):
+    ap = argparse.ArgumentParser(description="Build the static skills site.")
+    ap.add_argument("--base", default=os.environ.get("SITE_BASE", "/"),
+                    help='URL prefix to serve under, e.g. /skills (default: $SITE_BASE or "/")')
+    ap.add_argument("--out", default=None, help="output dir, relative to cwd (default: <repo>/site/dist)")
+    args = ap.parse_args(argv)
     root = lint.repo_root()
-    out = os.path.join(root, "site", "dist")
-    if len(argv) >= 2 and argv[0] == "--out":
-        out = os.path.abspath(argv[1])
-    entries = build(root, out)
+    out = os.path.abspath(args.out) if args.out else os.path.join(root, "site", "dist")
+    entries = build(root, out, args.base)
     skills, agents = counts(entries)
-    print("Built %s: %d skills, %d agents" % (posix_rel(out, root), skills, agents))
+    print("Built %s: %d skills, %d agents" % (display_path(out, root), skills, agents))
 
 
 if __name__ == "__main__":

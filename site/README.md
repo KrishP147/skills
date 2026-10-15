@@ -55,10 +55,19 @@ Never add a file named `SKILL.md` under `site/`: lint globs `*/SKILL.md` and
 ```sh
 python scripts/lint.py
 python scripts/build_site.py              # wipes + writes site/dist/
+python scripts/build_site.py --base /skills --out /tmp/skills-site   # served under a prefix
 python -m unittest discover -s scripts -p "test_*.py"
 node --test site/test/filter.test.mjs   # list files; Node 22 on Windows rejects a dir arg
 python -m http.server -d site/dist 8000   # http://localhost:8000
 ```
+
+Options: `--base <prefix>` (default env `SITE_BASE`, else `/`) is the URL
+prefix the site is served under; `/skills`, `/skills/` and `skills` all mean
+`/skills`. Every root-relative link, asset URL and the home link get it; the
+canonical / `og:url` are absolute (`https://krishpunjabi.com/skills/<name>`)
+and are not prefixed again. `--out <dir>` (default `<repo>/site/dist`) is
+resolved against the current directory and may be outside the repo; skill
+sources are always read from this repo, not the cwd.
 
 Output: `index.html`, `skills.json` (name, description, summary, group,
 source, readme), `<name>/index.html` detail page per skill/agent (so `/pair` resolves
@@ -67,4 +76,13 @@ deterministic.
 
 ## Deploy
 
-Deploy config: repo-root [`vercel.json`](../vercel.json).
+The site is built inside the portfolio site's Vercel build into `public/skills`
+and served at <https://krishpunjabi.com/skills>. From the portfolio root:
+
+```sh
+git clone --depth 1 <skills repo url> /tmp/skills && \
+  python3 /tmp/skills/scripts/build_site.py --base /skills --out public/skills
+```
+
+No install step (stdlib Python only). Set `SITE_BASE=/skills` instead of
+`--base` if that is easier in the build config.

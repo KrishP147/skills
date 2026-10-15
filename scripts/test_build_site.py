@@ -1,7 +1,9 @@
 """Tests for scripts/build_site.py. Run: python -m unittest discover -s scripts -p "test_*.py" """
 import json
 import os
+import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -107,6 +109,85 @@ class BuildSiteTest(unittest.TestCase):
         # lint globs */SKILL.md and */*/SKILL.md; the site must not add any.
         for dirpath, _dirs, files in os.walk(os.path.join(ROOT, "site")):
             self.assertNotIn("SKILL.md", files, dirpath)
+
+
+    def test_default_base(self):
+        self.assertIn('href="/pair"', self.index)
+        self.assertIn('href="/style.css"', self.index)
+        self.assertIn('data-base=""', self.index)
+        self.assertNotIn("{{BASE}}", self.index)
+
+    def test_normalize_base(self):
+        for raw in ("/skills", "/skills/", "skills", " /skills/ "):
+            self.assertEqual(build_site.normalize_base(raw), "/skills")
+        for raw in ("/", "", None):
+            self.assertEqual(build_site.normalize_base(raw), "")
+
+
+class BaseBuildTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.out = tempfile.mkdtemp(prefix="site-base-")
+        cls.entries = build_site.build(ROOT, cls.out, "skills/")
+        cls.names = [e["name"] for e in cls.entries]
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.out, ignore_errors=True)
+
+    def read(self, *parts):
+        with open(os.path.join(self.out, *parts), encoding="utf-8") as f:
+            return f.read()
+
+    def pages(self):
+        yield "index.html", self.read("index.html")
+        yield "404.html", self.read("404.html")
+        for n in self.names:
+            yield n, self.read(n, "index.html")
+
+    def test_root_relative_urls_prefixed(self):
+        for label, page in self.pages():
+            urls = re.findall(r'(?:href|src)="(/[^"]*)"', page)
+            self.assertTrue(urls, label)
+            for u in urls:
+                self.assertTrue(u.startswith("/skills/"), (label, u))
+            self.assertNotIn("{{BASE}}", page)
+
+    def test_assets_home_and_data_base(self):
+        idx = self.read("index.html")
+        self.assertIn('href="/skills/style.css"', idx)
+        self.assertIn('src="/skills/app.js"', idx)
+        self.assertIn('href="/skills/pair"', idx)
+        self.assertIn('data-base="/skills"', idx)
+        nf = self.read("404.html")
+        self.assertIn('href="/skills/"', nf)
+        self.assertIn('href="/skills/style.css"', nf)
+        page = self.read(self.names[1], "index.html")
+        self.assertIn('data-base="/skills"', page)
+        self.assertIn('href="/skills/" aria-label', page)
+
+    def test_prev_next_and_canonical(self):
+        page = self.read(self.names[1], "index.html")
+        self.assertIn('href="/skills/%s" rel="prev"' % self.names[0], page)
+        self.assertIn('href="/skills/%s" rel="next"' % self.names[2], page)
+        url = "https://krishpunjabi.com/skills/%s" % self.names[1]
+        self.assertIn('<link rel="canonical" href="%s">' % url, page)
+        self.assertNotIn("/skills/skills", page)
+
+    def test_displayed_names_unchanged(self):
+        self.assertIn('<span class="nm">/pair</span>', self.read("index.html"))
+
+
+class CliTest(unittest.TestCase):
+    def test_out_outside_repo_other_cwd(self):
+        with tempfile.TemporaryDirectory(prefix="site-cwd-") as cwd:
+            r = subprocess.run(
+                [sys.executable, os.path.join(ROOT, "scripts", "build_site.py"),
+                 "--base", "/skills", "--out", "public/skills"],
+                cwd=cwd, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertTrue(os.path.isfile(os.path.join(cwd, "public", "skills", "index.html")))
+            self.assertIn("Built ", r.stdout)
 
 
 if __name__ == "__main__":
