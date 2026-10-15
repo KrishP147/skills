@@ -31,5 +31,6 @@ jobs:
       HOOK: ${{ secrets.PORTFOLIO_DEPLOY_HOOK }}
     steps:
       # Skipped (job stays green) when the secret is unset.
-      - if: env.HOOK != ''
+      - name: Trigger portfolio deploy
+        if: env.HOOK != ''
         run: curl -fsS -X POST "$HOOK" -o /dev/null
