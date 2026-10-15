@@ -7,44 +7,50 @@
 <meta name="description" content="Claude Code skills and agents. Type / to browse.">
 <meta name="color-scheme" content="dark">
 <link rel="stylesheet" href="{{BASE}}/style.css">
-<link rel="icon" href="{{BASE}}/black-square.png">
-<link rel="apple-touch-icon" href="{{BASE}}/black-square.png">
+<link rel="icon" type="image/svg+xml" href="{{BASE}}/favicon.svg">
+<script>try{if(!matchMedia("(prefers-reduced-motion: reduce)").matches)document.documentElement.classList.add("intro")}catch(e){}</script>
 </head>
-<body data-base="{{BASE}}">
-<main class="wrap">
-  <h1 class="sr-only">Krish's skills</h1>
+<body class="page-home" data-base="{{BASE}}">
+<a class="gh gh-fixed" href="https://github.com/KrishP147/skills" aria-label="Source on GitHub"><svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.06-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
+<div class="screen">
+  <main class="feed">
+    <h1 class="sr-only">Krish's skills</h1>
 
-  <div class="term" id="term">
     <div class="welcome">
       <p class="welcome-title"><span class="spark" aria-hidden="true">✻</span> Welcome to <strong>Krish's skills</strong>!</p>
       <p class="dim">Type <kbd>/</kbd> to browse skills and agents, <kbd>Tab</kbd> to complete, <kbd>Enter</kbd> to open.</p>
       <p class="dim">cwd: ~/skills</p>
     </div>
 
-    <div class="prompt-box" id="prompt-box">
-      <span class="caret-sign" aria-hidden="true">&gt;</span>
-      <span class="line" aria-hidden="true"><span id="echo"></span><span class="cursor"></span><span class="hint" id="hint">Try "/pair"</span></span>
-      <input id="cmd" class="cmd" type="text" role="combobox"
-             aria-label="Slash command. Type / then a skill or agent name."
-             aria-autocomplete="list" aria-expanded="false" aria-controls="menu"
-             autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-             enterkeyhint="go" inputmode="text">
-    </div>
-    <ul class="menu" id="menu" role="listbox" aria-label="Matching skills and agents" hidden></ul>
-    <p class="sr-only" id="status" role="status" aria-live="polite"></p>
-    <noscript><p class="dim">JavaScript is off: the terminal is inert, but every skill is linked below.</p></noscript>
-  </div>
-
-  <section class="catalog" aria-labelledby="catalog-title">
-    <h2 id="catalog-title" class="catalog-title">All skills and agents</h2>
-    <p class="count">{{COUNT}}</p>
+    <section class="catalog" aria-labelledby="catalog-title">
+      <h2 id="catalog-title" class="catalog-title"><span class="bullet" aria-hidden="true">⏺</span> All skills and agents</h2>
+      <p class="count">{{COUNT}}</p>
 {{LIST}}
-  </section>
+    </section>
 
-  <footer class="foot dim">
-    <a href="https://github.com/KrishP147/skills">source on GitHub</a> · MIT
-  </footer>
-</main>
+    <footer class="foot dim">
+      <a href="https://github.com/KrishP147/skills">source on GitHub</a> · MIT
+    </footer>
+  </main>
+
+  <div class="dock term" id="term">
+    <div class="dock-in">
+      <ul class="menu" id="menu" role="listbox" aria-label="Matching skills and agents" hidden></ul>
+      <div class="prompt-box" id="prompt-box">
+        <span class="caret-sign" aria-hidden="true">&gt;</span>
+        <span class="line" aria-hidden="true"><span id="echo"></span><span class="cursor"></span><span class="hint" id="hint">Try "/pair"</span></span>
+        <input id="cmd" class="cmd" type="text" role="combobox"
+               aria-label="Slash command. Type / then a skill or agent name."
+               aria-autocomplete="list" aria-expanded="false" aria-controls="menu"
+               autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+               enterkeyhint="go" inputmode="text">
+      </div>
+      <p class="keys dim" aria-hidden="true"><kbd>/</kbd> browse · <kbd>tab</kbd> complete · <kbd>enter</kbd> open · <kbd>esc</kbd> clear</p>
+      <p class="sr-only" id="status" role="status" aria-live="polite"></p>
+      <noscript><p class="dim">JavaScript is off: the prompt is inert, but every skill is linked above.</p></noscript>
+    </div>
+  </div>
+</div>
 <script type="application/json" id="skill-data">{{DATA}}</script>
 <script src="{{BASE}}/filter.js"></script>
 <script src="{{BASE}}/app.js"></script>
