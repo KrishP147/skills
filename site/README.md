@@ -8,10 +8,11 @@ home with a locked slash input, a plain list of every skill and agent, and a
 
 | Path | What |
 |---|---|
-| `src/index.html` | home template (`{{COUNT}}`, `{{LIST}}`, `{{DATA}}` filled at build): welcome + catalog scroll in `.feed`, slash prompt pinned to the viewport bottom in `.dock` (menu opens upward), fixed GitHub link top right. Intro animation (≤1.5s, any key/click skips) runs only when the inline head script adds `html.intro`, never under `prefers-reduced-motion` |
+| `src/index.html` | home template (`{{COUNT}}`, `{{LIST}}`, `{{DATA}}` filled at build): welcome + catalog scroll in `.feed`, slash prompt pinned to the viewport bottom in `.dock` (menu opens upward), fixed GitHub link top right, fixed avatar link to krishpunjabi.com top left (also on 404; inline in the detail topbar). Under 600px an opaque 66px band sits behind the corner links on non-detail pages so feed text scrolls under it. Intro animation (≤1.5s, any key/click skips) runs only when the inline head script adds `html.intro`, never under `prefers-reduced-motion` |
 | `src/detail.html` | `/<name>` detail page template (sticky slash prompt, header card + chips, sections, prev/next, `#comments` giscus block) |
 | `data/meta.json` | per-name author + battle-tested level (`levels_source` says where levels come from); names not listed get level `new`, author defaults to Krish |
 | `src/404.html`, `src/style.css` | not-found page (`noindex`), all styles |
+| `src/avatar.webp` | 128px avatar for the krishpunjabi.com link (downsized once from the owner's LinkedIn photo, no metadata); copied byte for byte |
 | `src/favicon.svg` | favicon: an orange ✻ drawn as plain SVG strokes (own drawing, not a brand asset) |
 | `src/filter.js` | pure slash-input logic (browser global `SkillFilter`, CommonJS in node) |
 | `src/app.js` | DOM wiring: events, dropdown, navigation, intro skip (shared by home and detail pages; `data-autofocus="false"` on the input skips autofocus and the home-only click-to-refocus) |
@@ -88,7 +89,8 @@ sources are always read from this repo, not the cwd.
 
 Output: `index.html`, `skills.json` (name, description, summary, group,
 source, readme), `<name>/index.html` detail page per skill/agent (so `/pair` resolves
-statically), `404.html`, `style.css`, `filter.js`, `app.js`, `favicon.svg`. The build is
+statically), `404.html`, `style.css`, `filter.js`, `app.js`, `favicon.svg`, `avatar.webp`. Every
+`site/src/*.css|js|svg` is copied as text and every `*.webp|png|jpg` byte for byte. The build is
 deterministic.
 
 ## Deploy
