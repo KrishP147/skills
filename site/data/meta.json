@@ -18,6 +18,19 @@
     ],
     "untested": ["grill-me", "grill-docs"]
   },
+  "aliases_note": "Extra search words per name for the slash prompt. Lowercase a-z, 0-9, -; never an existing name.",
+  "aliases": {
+    "pr-watch": ["review", "code-review"],
+    "verifier": ["qa", "check"],
+    "handoff": ["compact", "summarize"],
+    "sitrep": ["status"],
+    "spend-gate": ["cost", "budget"],
+    "repo-scrub": ["secrets"],
+    "repo-showcase": ["readme", "polish"],
+    "teammate-brief": ["onboarding"],
+    "divide": ["split"],
+    "next": ["todo", "board"]
+  },
   "authors_note": "Default author is Krish. Third-party entries must match THIRD_PARTY_LICENSES.md.",
   "default_author": "Krish",
   "authors": {
