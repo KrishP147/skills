@@ -1,10 +1,14 @@
 """Tests for upstream_sync.py. Fake HTTP and fake git/gh only: no network."""
+import contextlib
+import io
 import json
 import os
 import shutil
 import sys
 import tempfile
+import subprocess
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import upstream_sync as us  # noqa: E402
@@ -181,6 +185,26 @@ class OutDir(Base):
     def test_fence_longer_than_backticks_in_diff(self):
         self.assertEqual(us.fence("a ```` b"), "`````")
         self.assertEqual(us.fence("plain"), "```")
+
+
+class SubprocessRunErrors(unittest.TestCase):
+    def run_failing(self, args):
+        err = subprocess.CalledProcessError(3, args, output="out", stderr="boom")
+        buf = io.StringIO()
+        with mock.patch("subprocess.run", side_effect=err), contextlib.redirect_stderr(buf):
+            with self.assertRaises(subprocess.CalledProcessError):
+                us.subprocess_run(args)
+        return buf.getvalue()
+
+    def test_prints_command_stderr_stdout(self):
+        out = self.run_failing(["git", "push", "origin", "x"])
+        for want in ("git push origin x", "boom", "out", "3"):
+            self.assertIn(want, out)
+        self.assertNotIn("Allow GitHub Actions", out)
+
+    def test_pr_create_hint(self):
+        out = self.run_failing(["gh", "pr", "create", "--title", "t"])
+        self.assertIn("Allow GitHub Actions to create and approve pull requests", out)
 
 
 class Publish(unittest.TestCase):

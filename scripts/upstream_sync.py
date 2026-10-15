@@ -282,7 +282,16 @@ PR_TITLE = "upstream-sync: verbatim copies"
 
 def subprocess_run(args):
     import subprocess
-    return subprocess.run(args, check=True, capture_output=True, text=True).stdout
+    try:
+        return subprocess.run(args, check=True, capture_output=True, text=True).stdout
+    except subprocess.CalledProcessError as e:
+        print("command failed (exit %s): %s" % (e.returncode, " ".join(args)), file=sys.stderr)
+        print("stderr: %s" % (e.stderr or "").strip(), file=sys.stderr)
+        print("stdout: %s" % (e.stdout or "").strip(), file=sys.stderr)
+        if list(args[:3]) == ["gh", "pr", "create"]:
+            print('hint: enable repo setting "Allow GitHub Actions to create and approve '
+                  'pull requests" (Settings > Actions > General)', file=sys.stderr)
+        raise
 
 
 def publish(summary, manifest_rel, run_cmd=subprocess_run):
