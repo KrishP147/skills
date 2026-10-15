@@ -211,6 +211,17 @@ class BuildSiteTest(unittest.TestCase):
         self.assertIn("100vh", css)
         self.assertIn("prefers-reduced-motion", css)
 
+    def test_color_scheme_meta_both(self):
+        for n in ("index.html", "404.html", os.path.join("pair", "index.html")):
+            with open(os.path.join(self.out, n), encoding="utf-8") as f:
+                self.assertIn('<meta name="color-scheme" content="light dark">', f.read(), n)
+        with open(os.path.join(self.out, "style.css"), encoding="utf-8") as f:
+            css = f.read()
+        self.assertIn("@media (prefers-color-scheme: light)", css)
+        # colors live in :root tokens only (the two palettes at the top)
+        body = css.split("@media (prefers-color-scheme: light)", 1)[1].split("}\n}\n", 1)[1]
+        self.assertNotRegex(body, r"#[0-9a-fA-F]{3,8}\b|rgba?\(")
+
     def test_github_link(self):
         link = re.compile(r'<a class="gh[^"]*" href="https://github.com/KrishP147/skills" aria-label="[^"]+"><svg ')
         self.assertRegex(self.index, link)
