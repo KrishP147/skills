@@ -128,7 +128,7 @@
 
   input.addEventListener("focus", caretToEnd);
 
-  // Tap/click anywhere in the terminal focuses the input (opens phone keyboard).
+  // Tap/click in the terminal (home: the bottom dock) focuses the input.
   term.addEventListener("click", function (e) {
     if (e.target.closest && e.target.closest("a, li[role=option]")) return;
     input.focus();
@@ -146,8 +146,32 @@
 
   render(false);
   // Home autofocuses on desktop; detail pages opt out (data-autofocus="false").
-  if (input.getAttribute("data-autofocus") !== "false" &&
-      window.matchMedia && window.matchMedia("(pointer: fine)").matches) {
-    input.focus({ preventScroll: true });
+  var home = input.getAttribute("data-autofocus") !== "false";
+  var finePointer = window.matchMedia && window.matchMedia("(pointer: fine)").matches;
+  if (home && finePointer) input.focus({ preventScroll: true });
+
+  // Home on desktop: a click on empty space hands focus back to the prompt,
+  // like a terminal. Links, options and text selections are left alone.
+  if (home && finePointer) {
+    document.addEventListener("click", function (e) {
+      if (e.target.closest && e.target.closest("a, button, input, li[role=option]")) return;
+      var sel = window.getSelection && window.getSelection();
+      if (sel && String(sel)) return;
+      input.focus({ preventScroll: true });
+    });
+  }
+
+  // Intro (html.intro, set by an inline head script): any key or click ends it.
+  // The listener never cancels the event, so a first "/" still lands.
+  var root = document.documentElement;
+  if (root.classList.contains("intro")) {
+    var endIntro = function () {
+      root.classList.remove("intro");
+      document.removeEventListener("keydown", endIntro, true);
+      document.removeEventListener("pointerdown", endIntro, true);
+    };
+    document.addEventListener("keydown", endIntro, true);
+    document.addEventListener("pointerdown", endIntro, true);
+    setTimeout(endIntro, 1500);
   }
 })();

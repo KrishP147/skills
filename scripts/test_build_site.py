@@ -147,6 +147,34 @@ class BuildSiteTest(unittest.TestCase):
         for page in (self.index, nf):
             self.assertNotIn("giscus", page)
 
+    def test_home_layout_markers(self):
+        idx = self.index
+        # Catalog scrolls in .feed; the prompt dock comes after it (pinned bottom).
+        feed, dock = idx.index('<main class="feed">'), idx.index('<div class="dock term" id="term">')
+        self.assertLess(idx.index('class="catalog"'), dock)
+        self.assertLess(feed, dock)
+        self.assertLess(dock, idx.index('id="cmd"'))
+        # Menu sits above the prompt so it opens upward.
+        self.assertLess(idx.index('id="menu"'), idx.index('id="prompt-box"'))
+        for marker in ('id="echo"', 'id="hint"', 'role="combobox"', 'aria-controls="menu"'):
+            self.assertIn(marker, idx)
+        # Intro hidden state only via a class JS adds; never hard-coded.
+        self.assertIn('classList.add("intro")', idx)
+        self.assertNotRegex(idx, r'<html[^>]*class="[^"]*intro')
+        with open(os.path.join(self.out, "style.css"), encoding="utf-8") as f:
+            css = f.read()
+        self.assertIn("100dvh", css)
+        self.assertIn("100vh", css)
+        self.assertIn("prefers-reduced-motion", css)
+
+    def test_github_link(self):
+        link = re.compile(r'<a class="gh[^"]*" href="https://github.com/KrishP147/skills" aria-label="[^"]+"><svg ')
+        self.assertRegex(self.index, link)
+        self.assertIn('class="gh gh-fixed"', self.index)
+        for fn in ["404.html", os.path.join("pair", "index.html")]:
+            with open(os.path.join(self.out, fn), encoding="utf-8") as f:
+                self.assertRegex(f.read(), link, fn)
+
     def test_normalize_base(self):
         for raw in ("/skills", "/skills/", "skills", " /skills/ "):
             self.assertEqual(build_site.normalize_base(raw), "/skills")

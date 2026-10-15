@@ -8,13 +8,13 @@ home with a locked slash input, a plain list of every skill and agent, and a
 
 | Path | What |
 |---|---|
-| `src/index.html` | home template (`{{COUNT}}`, `{{LIST}}`, `{{DATA}}` filled at build) |
+| `src/index.html` | home template (`{{COUNT}}`, `{{LIST}}`, `{{DATA}}` filled at build): welcome + catalog scroll in `.feed`, slash prompt pinned to the viewport bottom in `.dock` (menu opens upward), fixed GitHub link top right. Intro animation (≤1.5s, any key/click skips) runs only when the inline head script adds `html.intro`, never under `prefers-reduced-motion` |
 | `src/detail.html` | `/<name>` detail page template (sticky slash prompt, header card + chips, sections, prev/next, `#comments` giscus block) |
 | `data/meta.json` | per-name author + battle-tested level (`levels_source` says where levels come from); names not listed get level `new`, author defaults to Krish |
 | `src/404.html`, `src/style.css` | not-found page (`noindex`), all styles |
 | `src/favicon.svg` | favicon: an orange ✻ drawn as plain SVG strokes (own drawing, not a brand asset) |
 | `src/filter.js` | pure slash-input logic (browser global `SkillFilter`, CommonJS in node) |
-| `src/app.js` | DOM wiring: events, dropdown, navigation (shared by home and detail pages; `data-autofocus="false"` on the input skips autofocus) |
+| `src/app.js` | DOM wiring: events, dropdown, navigation, intro skip (shared by home and detail pages; `data-autofocus="false"` on the input skips autofocus and the home-only click-to-refocus) |
 | `test/filter.test.mjs` | node:test suite for `filter.js` |
 | `dist/` | build output, git-ignored |
 
