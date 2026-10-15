@@ -1,0 +1,19 @@
+{
+  "_note": "Test fixture for scripts/test_upstream_sync.py.",
+  "entries": [
+    {
+      "repo": "owner/upstream",
+      "upstream_path": "skills/demo/SKILL.md",
+      "local_path": "demo/SKILL.md",
+      "upstream_sha": "1111111111111111111111111111111111111111",
+      "mode": "verbatim"
+    },
+    {
+      "repo": "owner/upstream",
+      "upstream_path": "skills/demo/SKILL.md",
+      "local_path": "demo-local/SKILL.md",
+      "upstream_sha": "1111111111111111111111111111111111111111",
+      "mode": "modified"
+    }
+  ]
+}
