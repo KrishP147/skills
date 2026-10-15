@@ -10,6 +10,7 @@ exactly what lint counts. Output (wiped + recreated every run):
   site/dist/<name>/index.html   detail page per skill/agent (site_detail.py)
   site/dist/404.html
   site/dist/*.css|*.js          copied from site/src/
+  site/dist/*.png               copied byte-for-byte from site/src/
 
 Usage: python scripts/build_site.py [--base /prefix] [--out DIR]
   --base  URL prefix the site is served under (default env SITE_BASE, else "/")
@@ -29,6 +30,7 @@ import site_detail  # noqa: E402
 
 GROUPS = ("core", "kanban", "agents")
 STATIC_EXTS = (".css", ".js")
+BINARY_EXTS = (".png",)  # copied as bytes, no text IO
 # Abbreviations that end in '.' but don't end a sentence.
 _ABBREV = ("e.g.", "i.e.", "etc.", "vs.")
 
@@ -187,6 +189,8 @@ def build(root, out, base=""):
     for fn in sorted(os.listdir(src)):
         if fn.endswith(STATIC_EXTS):
             write(os.path.join(out, fn), read_text(os.path.join(src, fn)))
+        elif fn.endswith(BINARY_EXTS):
+            shutil.copyfile(os.path.join(src, fn), os.path.join(out, fn))
     return entries
 
 
