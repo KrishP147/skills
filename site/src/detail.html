@@ -24,12 +24,12 @@
     <div class="prompt-wrap">
       <div class="prompt-box" id="prompt-box">
         <span class="caret-sign" aria-hidden="true">&gt;</span>
-        <span class="line" aria-hidden="true"><span id="echo"></span><span class="cursor"></span><span class="hint" id="hint">/ to jump</span></span>
+        <span class="line" aria-hidden="true"><span id="echo"></span><span class="cursor"></span><span class="hint" id="hint">type to jump</span></span>
         <input id="cmd" class="cmd" type="text" role="combobox" data-autofocus="false"
-               aria-label="Slash command. Type / then a skill or agent name to open it."
+               aria-label="Slash command. Type a skill or agent name after the slash to open it."
                aria-autocomplete="list" aria-expanded="false" aria-controls="menu"
                autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-               enterkeyhint="go" inputmode="text">
+               enterkeyhint="go" inputmode="text" value="/">
       </div>
       <ul class="menu" id="menu" role="listbox" aria-label="Matching skills and agents" hidden></ul>
     </div>

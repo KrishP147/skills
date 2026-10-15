@@ -1,72 +1,209 @@
 // Dependency-free: node --test site/test/filter.test.mjs
+// The "every real name" tests load nav data from scripts/build_site.py (same
+// code the build embeds), so they cannot drift from the real catalog.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 const require = createRequire(import.meta.url);
 const F = require("../src/filter.js");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-const NAMES = ["pair", "planner", "progress-report", "grilling", "grill-me", "grill-docs", "handoff", "handoff-auto", "next"];
+const e = (name, summary = "", extra = {}) => ({
+  name, kind: extra.kind || "skill", group: extra.group || "core", summary, ...extra,
+});
+const FIX = [
+  e("pair", "Run one task in a worktree."),
+  e("planner", "Picks the next issue.", { kind: "agent", group: "agents" }),
+  e("pr-watch", "Watch open PRs: read bot and human review threads."),
+  e("progress-report", "Write a short progress report."),
+  e("grilling", "Grill the user."),
+  e("grill-me", "A relentless interview."),
+  e("handoff", "Compact the conversation.", { aliases: ["compact"] }),
+  e("handoff-auto", "Write a handoff document."),
+  e("session-handoff", "End a session."),
+  e("next", "Show the next task.", { group: "kanban" }),
+  e("sitrep", "Live status.", { aliases: ["status"] }),
+];
+const names = (list) => list.map((x) => x.name);
+const opts = (buf, data = FIX) => names(F.search(buf, data).options);
 
-test("first key must be '/'", () => {
-  assert.equal(F.accept("", "x", NAMES), null);
-  assert.equal(F.accept("", "p", NAMES), null);
-  assert.equal(F.accept("", " ", NAMES), null);
-  assert.equal(F.accept("", "/", NAMES), "/");
+function loadReal() {
+  const code = [
+    "import sys, os",
+    "sys.path.insert(0, os.path.join(os.getcwd(), 'scripts'))",
+    "import build_site, lint, site_detail",
+    "r = lint.repo_root()",
+    "sys.stdout.buffer.write(build_site.nav_data(build_site.collect(r), site_detail.load_meta(r)).encode('utf-8'))",
+  ].join("\n");
+  for (const py of ["python3", "python"]) {
+    try {
+      const out = execFileSync(py, ["-c", code], { cwd: ROOT, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
+      return JSON.parse(out);
+    } catch (err) {
+      if (err.code !== "ENOENT" && !/not found|was not found|9009/i.test(String(err.message))) throw err;
+    }
+  }
+  throw new Error("python not found: needed to load real nav data");
+}
+const REAL = loadReal();
+
+test("buffer always starts with exactly one '/'", () => {
+  assert.equal(F.normalize(""), "/");
+  assert.equal(F.normalize("/"), "/");
+  assert.equal(F.normalize("pair"), "/pair");
+  assert.equal(F.normalize("//pair"), "/pair");
+  assert.equal(F.normalize(null), "/");
+  assert.equal(F.queryOf("/Pair "), "pair");
+  assert.equal(F.queryOf("/pr watch"), "pr-watch");
 });
 
-test("only keys keeping a name prefix are accepted", () => {
-  assert.equal(F.accept("/", "p", NAMES), "/p");
-  assert.equal(F.accept("/p", "a", NAMES), "/pa");
-  assert.equal(F.accept("/pa", "x", NAMES), null);
-  assert.equal(F.accept("/", "z", NAMES), null);
-  assert.equal(F.accept("/pair", "s", NAMES), null);
-  assert.equal(F.accept("/pa", "", NAMES), null);
+test("free typing: any text is a valid buffer (no rejection)", () => {
+  for (const b of ["/zzzz", "/x", "/!!", "/pairx"]) {
+    const s = F.search(b, FIX);
+    assert.ok(["results", "suggest", "none"].includes(s.mode), b);
+  }
 });
 
-test("isValid gates whole values (IME / paste rollback)", () => {
-  assert.equal(F.isValid("", NAMES), true);
-  assert.equal(F.isValid("/", NAMES), true);
-  assert.equal(F.isValid("/pai", NAMES), true);
-  assert.equal(F.isValid("x", NAMES), false);
-  assert.equal(F.isValid("pair", NAMES), false);
-  assert.equal(F.isValid("/pairx", NAMES), false);
-  assert.equal(F.isValid("//", NAMES), false);
+test("bare '/' lists everything A-Z with the first highlighted (D2)", () => {
+  const s = F.search("/", FIX);
+  assert.equal(s.mode, "all");
+  assert.deepEqual(names(s.options), names(FIX).slice().sort());
+  assert.equal(F.resolve(s, -1), names(s.options)[0]);
+  assert.equal(F.complete("/", s, -1), "/" + names(s.options)[0]);
+  assert.equal(F.resolve(s, 2), names(s.options)[2]);
 });
 
-test("'/pa' filters to pair", () => {
-  assert.deepEqual(F.matches("/pa", NAMES), ["pair"]);
-  assert.deepEqual(F.matches("/p", NAMES), ["pair", "planner", "progress-report"]);
-  assert.deepEqual(F.matches("", NAMES), []);
-  assert.equal(F.matches("/", NAMES).length, NAMES.length);
+test("tiers: exact > prefix > word-boundary prefix > substring > alias", () => {
+  assert.deepEqual(opts("/handoff"), ["handoff", "handoff-auto", "session-handoff"]);
+  // prefixes A-Z, then substring (sitrep); aliases never match mid-word
+  assert.deepEqual(opts("/p"), ["pair", "planner", "pr-watch", "progress-report", "sitrep"]);
+  assert.deepEqual(opts("/pact"), []);
+  // word-boundary prefix before plain substring
+  assert.deepEqual(opts("/re"), ["progress-report", "sitrep"]);
+  assert.deepEqual(opts("/report"), ["progress-report"]);
+  assert.deepEqual(opts("/ill"), ["grill-me", "grilling"]);
+  // alias last, after any name hit
+  assert.deepEqual(opts("/stat"), ["sitrep"]);
+  assert.deepEqual(opts("/comp"), ["handoff"]);
 });
 
-test("exact match sorts first", () => {
-  assert.deepEqual(F.matches("/handoff", NAMES), ["handoff", "handoff-auto"]);
+test("ties sort A-Z inside a tier", () => {
+  assert.deepEqual(opts("/gri"), ["grill-me", "grilling"]);
+  assert.deepEqual(opts("/h"), ["handoff", "handoff-auto", "session-handoff", "pr-watch"]);
 });
 
-test("tab completes unique name, else longest common prefix, else null", () => {
-  assert.equal(F.complete("/pa", NAMES), "/pair");
-  assert.equal(F.complete("/gr", NAMES), "/grill");
-  assert.equal(F.complete("/grill", NAMES), null);
-  assert.equal(F.complete("/pair", NAMES), null);
-  assert.equal(F.complete("", NAMES), null);
-  assert.equal(F.complete("/n", NAMES), "/next");
+test("exact match is flagged for the '↵ to open' hint", () => {
+  assert.equal(F.search("/pair", FIX).exact.name, "pair");
+  assert.equal(F.search("/pai", FIX).exact, null);
+  assert.match(F.statusText(F.search("/pair", FIX)), /Enter opens \/pair/);
 });
 
-test("enter resolution", () => {
-  assert.equal(F.resolve("/pa", NAMES, 0), "pair");
-  assert.equal(F.resolve("/pair", NAMES, -1), "pair");
-  assert.equal(F.resolve("/p", NAMES, 1), "planner");
-  assert.equal(F.resolve("/p", NAMES, -1), null);
-  assert.equal(F.resolve("/handoff", NAMES, 0), "handoff");
-  assert.equal(F.resolve("/handoff", NAMES, 1), "handoff-auto");
-  assert.equal(F.resolve("", NAMES, 0), null);
-  assert.equal(F.resolve("/p", NAMES, 99), null);
+test("osa distance", () => {
+  assert.equal(F.osa("", ""), 0);
+  assert.equal(F.osa("abc", ""), 3);
+  assert.equal(F.osa("nxet", "next"), 1);
+  assert.equal(F.osa("pair", "piar"), 1);
+  assert.equal(F.osa("kitten", "sitting"), 3);
+  assert.equal(F.osa("ca", "abc"), 3); // OSA, not full Damerau
 });
 
-test("commonPrefix", () => {
-  assert.equal(F.commonPrefix([]), "");
-  assert.equal(F.commonPrefix(["abc"]), "abc");
-  assert.equal(F.commonPrefix(["grill-me", "grilling"]), "grill");
+test("typos and transpositions suggest the right name", () => {
+  const s = F.search("/nxet", FIX);
+  assert.equal(s.mode, "suggest");
+  assert.equal(s.options[0].name, "next");
+  assert.equal(F.search("/hnadoff", FIX).options[0].name, "handoff");
+  assert.equal(F.search("/grilign", FIX).options[0].name, "grilling");
+  assert.equal(F.search("/sitrpe", FIX).options[0].name, "sitrep");
+  assert.equal(F.search("/sesion-handof", FIX).options[0].name, "session-handoff");
 });
+
+test("summary token match: /review -> /pr-watch", () => {
+  const s = F.search("/review", FIX);
+  assert.equal(s.mode, "suggest");
+  assert.deepEqual(names(s.options), ["pr-watch"]);
+  assert.equal(F.noMatchText(s), 'No command matches "/review". Did you mean /pr-watch?');
+});
+
+test("did-you-mean caps at 3, lists them, Tab/Enter take first", () => {
+  const data = ["aaab", "aaac", "aaad", "aaae"].map((n) => e(n));
+  const s = F.search("/aaaz", data);
+  assert.equal(s.mode, "suggest");
+  assert.equal(s.options.length, F.MAX_SUGGESTIONS);
+  assert.deepEqual(names(s.options), ["aaab", "aaac", "aaad"]);
+  assert.equal(F.noMatchText(s), 'No command matches "/aaaz". Did you mean /aaab, /aaac or /aaad?');
+  assert.equal(F.resolve(s, -1), "aaab");
+  assert.equal(F.complete("/aaaz", s, -1), "/aaab");
+  assert.equal(F.resolve(s, 2), "aaad");
+});
+
+test("nonsense and empty", () => {
+  for (const b of ["/zzzz", "/qwxv", "/zq", "/!!"]) {
+    const s = F.search(b, FIX);
+    assert.equal(s.mode, "none", b);
+    assert.deepEqual(s.options, [], b);
+    assert.equal(F.noMatchText(s), "No matches. Type / to see all.", b);
+    assert.equal(F.resolve(s, -1), null, b);
+    assert.equal(F.complete(b, s, -1), null, b);
+  }
+  assert.equal(F.search("/", []).options.length, 0);
+  assert.equal(F.search("/zzzz", REAL).mode, "none");
+});
+
+test("tab fills the highlighted name; null when nothing changes", () => {
+  const s = F.search("/pa", FIX);
+  assert.equal(F.complete("/pa", s, 0), "/pair");
+  assert.equal(F.complete("/pair", F.search("/pair", FIX), 0), null);
+  const h = F.search("/handoff", FIX);
+  assert.equal(F.complete("/handoff", h, 2), "/session-handoff");
+  assert.equal(F.resolve(h, 1), "handoff-auto");
+  assert.equal(F.resolve(h, 99), null);
+});
+
+test("status text counts matches", () => {
+  assert.equal(F.statusText(F.search("/gri", FIX)), "2 matching commands");
+  assert.equal(F.statusText(F.search("/sitr", FIX)), "1 matching command");
+});
+
+test("real nav data shape: kind derived from group, aliases optional", () => {
+  assert.ok(REAL.length > 10);
+  for (const x of REAL) {
+    assert.deepEqual(Object.keys(x).filter((k) => k !== "aliases"), ["name", "kind", "group", "summary"], x.name);
+    assert.equal(x.kind, x.group === "agents" ? "agent" : "skill", x.name);
+    if ("aliases" in x) assert.ok(Array.isArray(x.aliases) && x.aliases.length, x.name);
+  }
+  assert.ok(F.search("/review", REAL).options.some((x) => x.name === "pr-watch"));
+});
+
+function surfaces(buf, name) {
+  return names(F.search(buf, REAL).options).includes(name);
+}
+function swap(s, i) {
+  return s.slice(0, i) + s[i + 1] + s[i] + s.slice(i + 2);
+}
+
+for (const { name } of REAL) {
+  test(`every name surfaces: /${name}`, () => {
+    assert.equal(opts("/" + name, REAL)[0], name, "exact first");
+    const pre = name.slice(0, Math.max(2, Math.ceil(name.length / 2)));
+    assert.ok(surfaces("/" + pre, name), "prefix " + pre);
+    const mid = name.slice(1, -1);
+    assert.ok(surfaces("/" + mid, name), "mid fragment " + mid);
+    // 1-char typos: adjacent transposition and deletion inside the name.
+    const i = Math.floor(name.length / 2) - 1;
+    const t1 = name[i] === name[i + 1] ? swap(name, i - 1) : swap(name, i);
+    assert.ok(surfaces("/" + t1, name), "transposition " + t1);
+    const del = name.slice(0, i + 1) + name.slice(i + 2);
+    assert.ok(surfaces("/" + del, name), "deletion " + del);
+    const sub = name.slice(0, i + 1) + "q" + name.slice(i + 2);
+    assert.ok(surfaces("/" + sub, name), "substitution " + sub);
+    // 2-char typo on longer names.
+    if (name.length >= 7) {
+      const two = swap(name, 0).slice(0, -1);
+      assert.ok(surfaces("/" + two, name), "two edits " + two);
+    }
+  });
+}

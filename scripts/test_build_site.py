@@ -207,6 +207,39 @@ class BuildSiteTest(unittest.TestCase):
             self.assertEqual(f.read(), src)
         self.assertFalse(os.path.exists(os.path.join(self.out, "avatar.webp")))
 
+    def embedded(self, page):
+        m = re.search(r'<script type="application/json" id="skill-data">(.*?)</script>', page, re.S)
+        self.assertIsNotNone(m)
+        return json.loads(m.group(1))
+
+    def test_nav_data_kind_and_aliases(self):
+        nav = self.embedded(self.index)
+        self.assertEqual([n["name"] for n in nav], [e["name"] for e in self.data])
+        with open(os.path.join(ROOT, "site", "data", "meta.json"), encoding="utf-8") as f:
+            aliases = json.load(f).get("aliases", {})
+        self.assertIn("review", aliases.get("pr-watch", []))
+        for n in nav:
+            self.assertEqual(list(n)[:4], ["name", "kind", "group", "summary"], n["name"])
+            self.assertEqual(n["kind"], "agent" if n["group"] == "agents" else "skill", n["name"])
+            if n["name"] in aliases:
+                self.assertEqual(n["aliases"], aliases[n["name"]])
+            else:
+                self.assertNotIn("aliases", n)
+        with open(os.path.join(self.out, "pair", "index.html"), encoding="utf-8") as f:
+            self.assertEqual(self.embedded(f.read()), nav)
+
+    def test_aliases_validated(self):
+        entries = [{"name": "pair", "group": "core", "summary": "s"},
+                   {"name": "planner", "group": "agents", "summary": "s"}]
+        ok = build_site.aliases_of({"aliases": {"pair": ["worktree", "run-1"]}}, entries)
+        self.assertEqual(ok, {"pair": ["worktree", "run-1"]})
+        self.assertEqual(build_site.aliases_of({}, entries), {})
+        self.assertEqual(build_site.aliases_of(None, entries), {})
+        for bad in ({"nope": ["x"]}, {"pair": "worktree"}, {"pair": ["Work Tree"]},
+                    {"pair": [""]}, {"pair": ["planner"]}):
+            with self.assertRaises(SystemExit, msg=bad):
+                build_site.aliases_of({"aliases": bad}, entries)
+
     def test_normalize_base(self):
         for raw in ("/skills", "/skills/", "skills", " /skills/ "):
             self.assertEqual(build_site.normalize_base(raw), "/skills")

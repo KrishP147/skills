@@ -148,15 +148,44 @@ def embed_json(obj):
     return json.dumps(obj, ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c")
 
 
-def nav_data(entries):
-    return embed_json([{"name": e["name"], "summary": e["summary"], "group": e["group"]} for e in entries])
+ALIAS_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 
-def render_index(template, entries, base=""):
+def aliases_of(meta, entries):
+    """meta.json "aliases": {name: [alias, ...]}, validated against entries."""
+    raw = (meta or {}).get("aliases") or {}
+    names = {e["name"] for e in entries}
+    out = {}
+    for name, als in raw.items():
+        if name not in names:
+            raise SystemExit("meta.json aliases: unknown name %r" % name)
+        if not isinstance(als, list) or not all(isinstance(a, str) and ALIAS_RE.match(a) for a in als):
+            raise SystemExit("meta.json aliases[%r]: need a list of lowercase words (a-z, 0-9, -)" % name)
+        clash = sorted(set(als) & names)
+        if clash:
+            raise SystemExit("meta.json aliases[%r]: %s already a skill/agent name" % (name, clash))
+        out[name] = list(als)
+    return out
+
+
+def nav_entry(e, aliases):
+    d = {"name": e["name"], "kind": "agent" if e["group"] == "agents" else "skill",
+         "group": e["group"], "summary": e["summary"]}
+    if aliases.get(e["name"]):
+        d["aliases"] = aliases[e["name"]]
+    return d
+
+
+def nav_data(entries, meta=None):
+    aliases = aliases_of(meta, entries)
+    return embed_json([nav_entry(e, aliases) for e in entries])
+
+
+def render_index(template, entries, base="", meta=None):
     return (template.replace("{{BASE}}", esc(base))
             .replace("{{COUNT}}", esc(count_line(entries)))
             .replace("{{LIST}}", render_list(entries, base))
-            .replace("{{DATA}}", nav_data(entries)))
+            .replace("{{DATA}}", nav_data(entries, meta)))
 
 
 def write(path, text):
@@ -177,9 +206,11 @@ def build(root, out, base=""):
         shutil.rmtree(out)
     os.makedirs(out)
 
-    write(os.path.join(out, "index.html"), render_index(read_text(os.path.join(src, "index.html")), entries, base))
-    pages = site_detail.build_pages(root, entries, site_detail.load_meta(root),
-                                    read_text(os.path.join(src, "detail.html")), nav_data(entries), base)
+    meta = site_detail.load_meta(root)
+    write(os.path.join(out, "index.html"),
+          render_index(read_text(os.path.join(src, "index.html")), entries, base, meta))
+    pages = site_detail.build_pages(root, entries, meta,
+                                    read_text(os.path.join(src, "detail.html")), nav_data(entries, meta), base)
     for e in entries:
         write(os.path.join(out, e["name"], "index.html"), pages[e["name"]])
     write(os.path.join(out, "404.html"),

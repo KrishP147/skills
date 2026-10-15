@@ -1,8 +1,8 @@
 # site
 
 Static site for this repo's skills and agents: a Claude Code style terminal
-home with a locked slash input, a plain list of every skill and agent, and a
-`/<name>` detail page for each. No framework, no npm install, no runtime deps.
+home with a free-typing slash search, a plain list of every skill and agent,
+and a `/<name>` detail page for each. No framework, no npm install, no runtime deps.
 
 ## Layout
 
@@ -10,13 +10,13 @@ home with a locked slash input, a plain list of every skill and agent, and a
 |---|---|
 | `src/index.html` | home template (`{{COUNT}}`, `{{LIST}}`, `{{DATA}}` filled at build): welcome + catalog scroll in `.feed`, slash prompt pinned to the viewport bottom in `.dock` (menu opens upward), fixed GitHub link top right, fixed Rocky image link to krishpunjabi.com top left (also on 404; inline in the detail topbar). Under 600px an opaque 66px band sits behind the corner links on non-detail pages so feed text scrolls under it. Intro animation (≤1.5s, any key/click skips) runs only when the inline head script adds `html.intro`, never under `prefers-reduced-motion` |
 | `src/detail.html` | `/<name>` detail page template (sticky slash prompt, header card + chips, sections, prev/next, `#comments` giscus block) |
-| `data/meta.json` | per-name author + battle-tested level (`levels_source` says where levels come from); names not listed get level `new`, author defaults to Krish |
+| `data/meta.json` | per-name author + battle-tested level (`levels_source` says where levels come from); names not listed get level `new`, author defaults to Krish. `aliases` (`{name: [word, ...]}`) adds search words for the slash prompt: lowercase `a-z0-9-`, never an existing name; the build fails on unknown names or bad words. Aliases come only from here, never SKILL.md frontmatter |
 | `src/404.html`, `src/style.css` | not-found page (`noindex`), all styles |
 | `src/rocky.webp` | 128px Rocky for the krishpunjabi.com corner link (owner's asset, cropped to the carapace, no metadata); copied byte for byte |
 | `src/favicon-32.png`, `src/apple-touch-icon.png` | favicon (32px) and iOS icon (180px, solid dark bg), same Rocky crop; copied byte for byte |
-| `src/filter.js` | pure slash-input logic (browser global `SkillFilter`, CommonJS in node) |
+| `src/filter.js` | pure slash-search logic (browser global `SkillFilter`, CommonJS in node), see [Slash search](#slash-search) |
 | `src/app.js` | DOM wiring: events, dropdown, navigation, intro skip (shared by home and detail pages; `data-autofocus="false"` on the input skips autofocus and the home-only click-to-refocus) |
-| `test/filter.test.mjs` | node:test suite for `filter.js` |
+| `test/filter.test.mjs` | node:test suite for `filter.js`; loads the real nav data through `scripts/build_site.py` (needs `python3` or `python` on PATH) and checks every name surfaces from a prefix, a mid-word fragment and 1-2 char typos |
 | `dist/` | build output, git-ignored |
 
 Build script: [`../scripts/build_site.py`](../scripts/build_site.py) (stdlib
@@ -25,6 +25,29 @@ only), with [`site_detail.py`](../scripts/site_detail.py) for detail pages and
 escapes all raw HTML and drops non-http(s)/mailto link URLs. It reuses `scripts/lint.py`'s discovery, so the site lists exactly what
 lint counts. Groups: top-level skill dirs = core, `kanban/*` = kanban,
 `agents/*.md` (minus README) = agents.
+
+## Slash search
+
+The prompt (home dock and detail topbar) starts as `/`, which can't be deleted;
+everything after it is typed freely. Each page embeds the nav data
+(`name`, `kind` = `skill` | `agent` from the group, `group`, `summary`,
+optional `aliases` from `meta.json`) in `#skill-data`.
+
+- **Ranking:** exact name > name prefix > word-boundary prefix (`handoff` finds
+  `session-handoff`) > substring > alias; ties A-Z. A bare `/` lists everything
+  A-Z. About 8 rows show, the rest scroll.
+- **No match:** `No command matches "/x". Did you mean /y?` with up to 3
+  suggestions: OSA (Damerau-Levenshtein) distance over names, name parts and
+  aliases, normalized by length, then summary words (`/review` finds `/pr-watch`).
+  Nothing close: `No matches. Type / to see all.`
+- **Keys:** Up/Down highlight, Tab fills the highlighted name (the first row is
+  highlighted by default, bare `/` included; when it changes nothing, Tab moves focus), Enter
+  or click opens it, Esc clears to `/` (again: closes the menu), `/` anywhere on
+  the page focuses the prompt. An exact name shows a dim `↵ to open`; typing
+  never navigates by itself.
+- **ARIA:** input `role=combobox` with `aria-expanded` / `aria-activedescendant`,
+  `role=listbox` of `role=option`s, polite `#status` live region for the count
+  or the did-you-mean line.
 
 ## Comments (giscus)
 
