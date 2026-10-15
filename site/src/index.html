@@ -20,7 +20,7 @@
 
     <div class="welcome">
       <p class="welcome-title"><span class="spark" aria-hidden="true">✻</span> Welcome to <strong>Krish's skills</strong>!</p>
-      <p class="dim">Type <kbd>/</kbd> to browse skills and agents, <kbd>Tab</kbd> to complete, <kbd>Enter</kbd> to open.</p>
+      <p class="dim">Type after the <kbd>/</kbd> to search skills and agents, <kbd>Tab</kbd> to fill, <kbd>Enter</kbd> to open.</p>
       <p class="dim">cwd: ~/skills</p>
     </div>
 
@@ -40,14 +40,14 @@
       <ul class="menu" id="menu" role="listbox" aria-label="Matching skills and agents" hidden></ul>
       <div class="prompt-box" id="prompt-box">
         <span class="caret-sign" aria-hidden="true">&gt;</span>
-        <span class="line" aria-hidden="true"><span id="echo"></span><span class="cursor"></span><span class="hint" id="hint">Try "/pair"</span></span>
+        <span class="line" aria-hidden="true"><span id="echo"></span><span class="cursor"></span><span class="hint" id="hint">type to search, e.g. pair</span></span>
         <input id="cmd" class="cmd" type="text" role="combobox"
-               aria-label="Slash command. Type / then a skill or agent name."
+               aria-label="Slash command. Type a skill or agent name after the slash."
                aria-autocomplete="list" aria-expanded="false" aria-controls="menu"
                autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-               enterkeyhint="go" inputmode="text">
+               enterkeyhint="go" inputmode="text" value="/">
       </div>
-      <p class="keys dim" aria-hidden="true"><kbd>/</kbd> browse · <kbd>tab</kbd> complete · <kbd>enter</kbd> open · <kbd>esc</kbd> clear</p>
+      <p class="keys dim" aria-hidden="true"><kbd>↑↓</kbd> pick · <kbd>tab</kbd> fill · <kbd>enter</kbd> open · <kbd>esc</kbd> clear</p>
       <p class="sr-only" id="status" role="status" aria-live="polite"></p>
       <noscript><p class="dim">JavaScript is off: the prompt is inert, but every skill is linked above.</p></noscript>
     </div>

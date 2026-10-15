@@ -105,24 +105,33 @@ kbd {
   cursor: text;
 }
 
+/* dropdown: ~8 rows visible (--row each), the rest scrolls */
 .menu {
+  --row: 30px;
   list-style: none;
   margin: 6px 0 0;
   padding: 0;
-  max-height: 20em;
+  max-height: calc(8 * var(--row) + 10px);
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
-.menu li {
+.menu li[role="option"] {
   display: flex;
-  gap: 16px;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--row);
   padding: 2px 12px;
   border-radius: 4px;
   cursor: pointer;
 }
-.menu li .nm { flex: 0 0 auto; min-width: 11em; }
-.menu li .ds { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menu li[aria-selected="true"] { background: var(--accent-soft); }
+.menu li .nm { flex: 0 0 auto; min-width: 11em; white-space: nowrap; }
+.menu li .kd { flex: 0 0 3.6em; color: var(--dim); font-size: 0.78em; }
+.menu li .ds { flex: 1 1 auto; min-width: 0; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu li[role="option"]:hover { background: rgba(255, 255, 255, 0.04); }
+.menu li[aria-selected="true"], .menu li[aria-selected="true"]:hover { background: var(--accent-soft); }
 .menu li[aria-selected="true"] .nm { color: var(--accent); }
+.menu .note { padding: 6px 12px; color: var(--fg); overflow-wrap: anywhere; }
+.menu .note + li[role="option"] { margin-top: 2px; }
 
 /* home: Claude Code style screen, output scrolls above a prompt pinned to the bottom */
 .screen {
@@ -160,8 +169,8 @@ kbd {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 4px;
-  max-height: min(20em, 55vh);
-  max-height: min(20em, 55dvh);
+  max-height: min(calc(8 * var(--row) + 10px), 55vh);
+  max-height: min(calc(8 * var(--row) + 10px), 55dvh);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
 }
 .dock .keys { margin: 6px 0 0; font-size: 0.8rem; }
@@ -274,7 +283,7 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 4px;
-  max-height: 60vh;
+  max-height: min(calc(8 * var(--row) + 10px), 60vh);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
@@ -368,11 +377,13 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
   html, body { font-size: 14px; }
   .skill-list a { flex-direction: column; gap: 0; }
   .skill-list .nm { flex-basis: auto; }
-  .menu li .nm { min-width: 0; }
   .topbar { padding: 8px 10px; }
   .page-home .feed { padding-top: 80px; }
   .dock .keys { display: none; }
-  .topbar-in { padding: 4px 6px; gap: 8px; }
+  .topbar-in { padding: 4px 6px; gap: 8px; position: relative; }
+  /* the narrow prompt can't hold the dropdown: span the whole bar instead */
+  .topbar .prompt-wrap { position: static; }
+  .topbar .menu { top: calc(100% + 4px); }
   .home { font-size: 0.85rem; }
   .me-fixed { left: 10px; }
   /* opaque strip behind the fixed corner links: feed text scrolls under it, never beside them */
@@ -386,14 +397,18 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
     z-index: 15;
   }
   body:not(.detail) .wrap { padding-top: 80px; }
-  .menu li { flex-direction: column; gap: 0; }
-  .menu li .ds {
-    white-space: normal;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
+  /* two lines per option (name + kind, then a one-line summary), >=44px tap target */
+  .menu { --row: 48px; }
+  .menu li[role="option"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0 8px;
+    align-content: center;
+    padding: 3px 10px;
   }
+  .menu li .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .menu li .kd { text-align: right; }
+  .menu li .ds { grid-column: 1 / -1; font-size: 0.9em; }
 }
 
 /* intro: only when the inline head script adds html.intro (JS on, motion ok).
