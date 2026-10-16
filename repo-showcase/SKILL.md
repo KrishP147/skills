@@ -22,17 +22,17 @@ Every tracked doc (`README*`, `docs/**`, `CONTRIBUTING*`, stray notes): table Pa
 
 Check every factual claim (languages, versions, install steps, commands, badges, "beta", architecture) against code, config and `git log`. Report `claim file:line` — `evidence file:line or SHA`. These feed §4 and the diff gate.
 
-**License**: no `LICENSE*` file → flag it here and gate it. Offer the user the choice (name a few common ones); never pick one for them, and don't name a license in the README until they have.
+**License**: no `LICENSE*` file → flag it here and gate it. A license declared only in a manifest (`package.json` `license`, `pyproject.toml` `[project] license`, `Cargo.toml` `license`) is the user's stated pick: offer to add the matching `LICENSE` file (standard text, their name and year) and gate that. A `LICENSE` file that disagrees with the manifest → flag both `file:line`. Neither → offer the choice (name a few common ones); never pick one for them, and don't name a license in the README until they have.
 
 ## 4. README draft (lean)
 
-1. One-line pitch. 2. Result: what using it produces. 3. Demo slot: `<!-- screenshot/GIF: paste path or URL -->` for the user to fill; media and metrics are never fabricated. 4. Quickstart, actually run: in a scratch venv or a clean clone (`git clone . "$(mktemp -d)/x"`; a working tree with an untracked `skilleddocs/` can break `pip install .`, see [TRACKING.md](../handoff-auto/TRACKING.md)), execute each quickstart command and report pass/fail with the output; fix or drop what fails. 5. Architecture, only if the audience needs it. 6. Credits and license.
+1. One-line pitch. 2. Result: what using it produces. 3. Demo slot: `<!-- screenshot/GIF: paste path or URL -->` for the user to fill; media and metrics are never fabricated. 4. Quickstart, actually run: in a clean clone (`git clone . "$(mktemp -d)/x"`; a working tree with an untracked `skilleddocs/` can break `pip install .`, see [TRACKING.md](../handoff-auto/TRACKING.md)), with every install landing in a temp dir: `npm install -g . --prefix <tmp>`, `pip install .` in a fresh venv, `go install ./...` with `GOBIN=<tmp>`. Never a global or user-level install. A step that installs by registry name (`npm install -g <name>`, `pip install <name>`, `cargo install <name>`) runs only when the registry entry is this project: same name and its repository URL (`npm view <name> repository.url`, PyPI `project_urls`, crates.io `repository`) matches this repo's remote. Otherwise install from the clone instead and flag the README line: the name may belong to someone else. Report pass/fail with the output; fix or drop what fails. 5. Architecture, only if the audience needs it. 6. Credits and license.
 
 Draft only; the file changes at §7.
 
 ## 5. Secrets and private names
 
-Tracked files: key/token/connection-string patterns (`gitleaks dir .` if installed), un-ignored `.env`. Personal names: grep for email addresses, then read comments and docs for person names; flag any that aren't authors (`git shortlog -sne`) or already public. Report `file:line`; redact per item on yes.
+Tracked files: key/token/connection-string patterns (`gitleaks dir .` if installed), un-ignored `.env`. Personal names: grep for email addresses, then read comments and docs for person names; flag any that aren't authors (`git shortlog -sne`) or already public. Report `file:line`; redact per item on yes. Keep each redacted personal string (name, email) for §8: the tree edit leaves it in every old commit. Secrets go by `file:line` only, never the value.
 
 ## 6. Metadata
 
@@ -44,4 +44,4 @@ Show the full README diff plus one line per doc change and redaction. Commit on 
 
 ## 8. Hand off and record
 
-Next step: `/repo-scrub` for the history scan and the visibility flip, kept separate on purpose. Save inventory, claims, findings, and what was done to `skilleddocs/showcase/<local-date>.md`, uncommitted unless asked (and not counted among the files you commit in §7). Untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md) (it also covers the `pip install .` hazard).
+Next step: `/repo-scrub` for the history scan and the visibility flip, kept separate on purpose. Hand it each redacted personal string from §5; gitleaks has no rule for names or emails, so repo-scrub checks each with `git log -S` and scrubs it with a `literal:` rule. Save inventory, claims, findings, and what was done to `skilleddocs/showcase/<local-date>.md`, uncommitted unless asked (and not counted among the files you commit in §7). Untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md) (it also covers the `pip install .` hazard).
