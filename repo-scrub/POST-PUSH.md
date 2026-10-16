@@ -40,7 +40,7 @@ git for-each-ref refs/heads --format='%(refname:short) %(upstream:short)'
 Save each one, then list them all for the user with their commits:
 
 ```
-echo "<branch> <old base SHA>" >> <save>/bases.txt
+echo "<branch> <old base SHA> <base branch>" >> <save>/bases.txt    # base branch: <default>, or <b> for a <b>-local copy
 git bundle create <save>/branches.bundle <branch>...
 git format-patch -o <save>/<branch> <old base>..<branch>
 ```
