@@ -2,7 +2,7 @@
 
 Step 10's in-place path, for a clone the user keeps instead of re-cloning. Run it in that clone. Nothing is deleted until its copy is saved and checked, and every delete waits for a yes.
 
-`<save>` = a new `mktemp -d` **outside the repo and outside `<tmp>`** (step 12 deletes `<tmp>`), echoed to the user. It holds old content (the secret, if a stash or branch touched it); the user deletes it once satisfied.
+`<save>` = a new `mktemp -d` **outside the repo and outside `<tmp>`** (step 12 deletes `<tmp>`), echoed to the user. It holds old content (the secret, if a stash or branch touched it); step 11 offers to delete it.
 
 ## 1. Park the WIP, record everything
 
@@ -110,4 +110,20 @@ git cat-file -e <old SHA from refs-before.txt>   # must fail, unless a branch wa
 git log --all -S'<string>' --oneline             # each scrubbed personal string: no output
 ```
 
-Report all of it. The user deletes `<save>` when satisfied.
+Report all of it.
+
+## 10. Warn about what was kept
+
+Per branch or tag kept as is in step 3 (no answer included), print:
+
+```
+WARNING: <branch|tag> <name> was kept as is. It still holds the pre-rewrite history, including the scrubbed secret. Never push it.
+```
+
+## 11. Offer to delete `<save>`
+
+```
+du -sh <save>
+```
+
+Show the path and size. **Gate**: `rm -rf <save>` only on an explicit yes. Anything else → say `<save>` is kept at that path and still holds the old content, including the secret if a stash or branch touched it.

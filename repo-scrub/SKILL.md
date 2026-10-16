@@ -114,7 +114,7 @@ A hook or permission rule that blocks the push → show the user these exact com
 **Every local copy of this repo, the user's own included**, still holds the old commits (and the secret). A plain `git pull` would merge the old history back in and the next push would re-leak it. Per copy, either:
 
 - **Re-clone** (simplest): copy uncommitted work, stashes (`git stash show -p --include-untracked stash@{n}`) and unpushed branches (`git bundle create`) out of the old clone first, and keep it until they are carried over.
-- **Reset in place**: follow [POST-PUSH.md](POST-PUSH.md). It parks the WIP first, saves every stash entry (untracked parts included) and every local-only branch and tag outside the repo, resets the pushed branches, re-creates the stashes on the new history and checks them against the saved copies, and deletes a branch or tag only on a yes. Its `reflog expire` and `gc` run last. Never a bare `git reflog expire --all`: it wipes the stash list.
+- **Reset in place**: follow [POST-PUSH.md](POST-PUSH.md). It parks the WIP first, saves every stash entry (untracked parts included) and every local-only branch and tag outside the repo, resets the pushed branches, re-creates the stashes on the new history and checks them against the saved copies, and deletes a branch or tag only on a yes. Its `reflog expire` and `gc` run before its final steps: a warning per branch or tag kept as is (old history, secret included, never push it) and a gated offer to delete the save folder. Never a bare `git reflog expire --all`: it wipes the stash list.
 
 Tell collaborators the same (the step-6 notice).
 
