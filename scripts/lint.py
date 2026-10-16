@@ -325,6 +325,30 @@ def check_relative_links(path, failures):
             failures.append("%s: broken relative link '%s'" % (path, target))
 
 
+def check_group_escape(root, path, failures):
+    """A prompt file of a skill nested under a group dir (kanban/<skill>/) may
+    not link outside that group: the install flattens kanban/x to skills/x, so
+    a '../../other/FILE.md' link breaks. Refer to it in prose instead."""
+    parts = os.path.relpath(path, root).split(os.sep)
+    if len(parts) < 3:
+        return
+    group = os.path.join(root, parts[0])
+    with open(path, "r", encoding="utf-8") as f:
+        text = f.read()
+    for target in LINK_RE.findall(text):
+        if re.match(r"^[a-z][a-z0-9+.-]*:|^#|^~|^/", target, re.I):
+            continue
+        rel = target.split("#", 1)[0]
+        if not rel:
+            continue
+        resolved = os.path.normpath(os.path.join(os.path.dirname(path), rel))
+        if not resolved.startswith(group + os.sep):
+            failures.append(
+                "%s: link '%s' leaves the group dir '%s/' (breaks after flat install; use prose)"
+                % (path, target, parts[0])
+            )
+
+
 CHANGELOG_HEADING_RE = re.compile(r"^##\s+\[?v?([0-9][^\]\s]*)\]?")
 
 
@@ -396,6 +420,7 @@ def main():
 
     for path in prompt_files(skill_files) + agent_files:
         check_relative_links(path, failures)
+        check_group_escape(root, path, failures)
 
     agent_skill_lists = {}
     for path in agent_files:

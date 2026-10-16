@@ -172,5 +172,31 @@ class ChangelogVersion(unittest.TestCase):
         lint.check_changelog_version(root, failures)
         self.assertEqual(failures, [])
 
+class GroupEscape(unittest.TestCase):
+    def _run(self, rel, text):
+        with tempfile.TemporaryDirectory() as root:
+            path = os.path.join(root, *rel.split("/"))
+            os.makedirs(os.path.dirname(path))
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(text)
+            failures = []
+            lint.check_group_escape(root, path, failures)
+            return failures
+
+    def test_escape_fails(self):
+        f = self._run("kanban/x/SKILL.md", "see [T](../../handoff-auto/TRACKING.md)")
+        self.assertEqual(len(f), 1)
+        self.assertIn("leaves the group dir", f[0])
+
+    def test_sibling_in_group_ok(self):
+        self.assertEqual(self._run("kanban/x/SKILL.md", "[B](../next/BOARD.md)"), [])
+
+    def test_own_dir_and_anchor_and_url_ok(self):
+        self.assertEqual(self._run("kanban/x/SKILL.md", "[a](A.md) [b](#h) [c](https://e.com/../../x)"), [])
+
+    def test_top_level_skill_ignored(self):
+        self.assertEqual(self._run("x/SKILL.md", "[T](../handoff-auto/TRACKING.md)"), [])
+
+
 if __name__ == "__main__":
     unittest.main()
