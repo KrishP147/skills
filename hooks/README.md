@@ -121,7 +121,7 @@ a list of regexes; any other tool name is checked against a list of
 `fnmatch` globs (for MCP tool names like `mcp__runpod__create-pod`).
 Default billable patterns: `runpodctl create`, `vultr-cli instance create`,
 `aws ec2 run-instances`, `gcloud compute instances create`, `az vm create`,
-`modal deploy`, and MCP tools matching `mcp__*runpod*__create-*` /
+`modal deploy` (also as `.exe`/`.cmd`, quoted, or full-path forms), and MCP tools matching `mcp__*runpod*__create-*` /
 `mcp__*runpod*__deploy-*` / `__run-endpoint` / `__runsync-endpoint` /
 `__retry-job` / `__update-endpoint` / `__set-endpoint-gpus`, plus
 `__pod-action` only when its action is `start` or `resume` (read from
@@ -179,7 +179,7 @@ the hook exits 2 and prints this one line on stderr.
 
 ```transcript
 ⏺ Bash(runpodctl create pod --gpuType RTX4090)
-  ⎿ Blocked: command matches billable pattern '\brunpodctl\s+create\b'. Approve with ONE of: (1) drop a file into skilleddocs/spend-approvals/ (one-shot, consumed on use); (2) prefix the Bash command with SPEND_GATE_APPROVED=<label> (covers just that command), or start a PowerShell command with $env:SPEND_GATE_APPROVED='<label>'; <cmd>. MCP tool calls: use the file. See the spend-gate skill: estimate, check balance, get an explicit yes for this action, log it, before approving.
+  ⎿ Blocked: command matches billable pattern '\brunpodctl(?:\.exe|\.cmd)?["']?\s+create\b'. Approve with ONE of: (1) drop a file into skilleddocs/spend-approvals/ (one-shot, consumed on use); (2) prefix the Bash command with SPEND_GATE_APPROVED=<label> (covers just that command), or start a PowerShell command with $env:SPEND_GATE_APPROVED='<label>'; <cmd>. MCP tool calls: use the file. See the spend-gate skill: estimate, check balance, get an explicit yes for this action, log it, before approving.
 ```
 
 After an explicit yes, `SPEND_GATE_APPROVED=yes runpodctl create pod --gpuType RTX4090`
