@@ -195,10 +195,10 @@ git clone --depth 1 https://github.com/KrishP147/skills /tmp/skills && \
 No install step (stdlib Python only). Set `SITE_BASE=/skills` instead of
 `--base` if that is easier in the build config.
 
-Pushes to master touching site inputs (`site/**`, the build scripts and their imports
-(`scripts/build_site.py`, `scripts/site_*.py`, `md_render.py`, `flow_svg.py`, `lint.py`), `agents/**`,
-`hooks/*.py`,
-SKILL.md and README.md files, `CONTRIBUTING.md`, `THIRD_PARTY_LICENSES.md`) trigger
+Pushes to master touching site inputs (`site/**`, `scripts/build_site.py` and the
+modules it imports: `scripts/site_*.py`, `md_render.py`, `flow_svg.py`, `lint.py`;
+`hooks/*.py`, `agents/**`, SKILL.md and README.md files, `CONTRIBUTING.md`,
+`THIRD_PARTY_LICENSES.md`) trigger
 `.github/workflows/deploy-portfolio.yml`, which POSTs the portfolio's Vercel deploy hook
 stored in repo secret `PORTFOLIO_DEPLOY_HOOK`. It can also be run manually
 (`workflow_dispatch`). Without the secret the job skips and changes go live on the
