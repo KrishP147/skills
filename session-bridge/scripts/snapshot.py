@@ -27,6 +27,26 @@ SECRETS = [(re.compile(p), r) for p, r in (
     (r"\bhf_[A-Za-z0-9]{20,}", R),                     # Hugging Face
     (r"\bAIza[A-Za-z0-9_-]{30,}", R),                  # Google API key
     (r"\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*", R),  # JWT
+    (r"\bglpat-[A-Za-z0-9_-]{20,}", R),                # GitLab
+    (r"\b[sr]k_(?:live|test)_[A-Za-z0-9]{10,}", R),    # Stripe secret/restricted
+    (r"\bnpm_[A-Za-z0-9]{36}\b", R),                   # npm
+    (r"\bya29\.[A-Za-z0-9_-]{20,}", R),                # Google OAuth
+    (r"\bdop_v1_[a-f0-9]{64}", R),                     # DigitalOcean
+    (r"\bSK[0-9a-f]{32}\b", R),                        # Twilio
+    (r"\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}", R),  # SendGrid
+    # Discord bot token: 3 dot-separated parts, first starts M/N/O.
+    (r"\b[MNO][A-Za-z0-9_-]{23,25}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,38}", R),
+    # .npmrc: //registry/:_authToken=X, _auth=X, _password=X
+    (r"(_auth(?:Token|Password)?\s*=\s*)[^\s'\"]+", r"\1" + R),
+    # Password in a connection URL; keep scheme, user, host. Before the email rule.
+    (r"((?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|rediss?|amqps?)://"
+     r"[^\s:/@]*:)[^\s@]+(?=@)", r"\1" + R),
+    # curl basic-auth flag with user:secret (a bare "-u root" has no colon).
+    (r"(\bcurl\b[^\n|;&]*?\s(?:-u\s*|--user(?:\s+|=))['\"]?[^\s:'\"]+:)[^\s'\"]+",
+     r"\1" + R),
+    # mysql -psecret (attached; "-p 8080", "ssh -p 22", "mkdir -p d" are not).
+    (r"(\b(?:mysql|mysqldump|mysqladmin|mariadb)\b[^\n|;&]*?\s-p)(?=[^\s-])\S+",
+     r"\1" + R),
     # AWS secret key: 40 base64 chars of mixed case, only within 40 chars after
     # "aws" or "secret", so bare git SHAs and hashes are left alone.
     (r"((?i:\baws|secret)[^\n]{0,40}?)(?<![A-Za-z0-9/+])"

@@ -149,6 +149,17 @@ FAKES = {
     "slack": fake("xo", "xb-", "1" * 10, "-", "X" * 24),
     "hf": fake("h", "f_", "X" * 34),
     "google": fake("AI", "za", "X" * 35),
+    "anthropic": fake("s", "k-ant-api03-", "X" * 30),
+    "openai_proj": fake("s", "k-proj-", "X" * 30),
+    "gitlab": fake("glp", "at-", "X" * 20),
+    "stripe_sk": fake("s", "k_live_", "X" * 24),
+    "stripe_rk": fake("r", "k_test_", "X" * 24),
+    "npm": fake("n", "pm_", "X" * 36),
+    "oauth": fake("ya", "29.", "X" * 40),
+    "do": fake("do", "p_v1_", "a" * 64),
+    "twilio": fake("S", "K", "a" * 32),
+    "sendgrid": fake("S", "G.", "X" * 22, ".", "Z" * 43),
+    "discord": fake("M", "X" * 23, ".", "Z" * 6, ".", "X" * 27),
     "jwt": fake("ey", "J", "X" * 20, ".", "ey", "J", "Z" * 20, ".", "X" * 20),
 }
 AWS_SECRET = fake("Xx", "Zz" * 19)  # 40 chars, mixed case
@@ -186,6 +197,39 @@ class Redaction(unittest.TestCase):
         self.check("curl -H 'Authorization: Basic " + cred + "'", cred)
         self.check("Authorization: Bearer " + cred, cred)
 
+    def test_curl_user(self):
+        pw = fake("hun", "ter", "2")
+        c, u = fake("cu", "rl"), fake("-", "u")
+        cred = "admin:" + pw
+        self.check(c + " " + u + " " + cred + " https://h.test", pw)
+        self.check(c + " --user " + cred + " https://h.test", pw)
+        self.check(c + " -s " + u + " '" + cred + "' https://h.test", pw)
+        self.check(c + " " + u + cred + " https://h.test", pw)
+        self.assertIn("admin:", snap.red(c + " " + u + " " + cred + " x"))
+
+    def test_mysql_attached_password(self):
+        pw = fake("hun", "ter", "2")
+        for cmd in ("mysql -u root -p", "mysqldump -h db -p", "mariadb -uroot -p"):
+            self.check(cmd + pw + " mydb", pw)
+
+    def test_connection_url_password(self):
+        pw = fake("hun", "ter", "2")
+        for url in ("postgres://app:" + pw + "@db.test:5432/x",
+                    "postgresql://app:" + pw + "@db.test/x",
+                    "mysql://app:" + pw + "@db.test/x",
+                    "mongodb+srv://app:" + pw + "@c.test/x",
+                    "redis://:" + pw + "@cache.test:6379",
+                    "postgres://app:ab/" + pw + "@db.test/x"):
+            with self.subTest(url):
+                self.check("DB=" + url, pw)
+                self.assertIn("@", snap.red(url))
+        self.assertIn("db.test", snap.red("postgres://app:" + pw + "@db.test/x"))
+
+    def test_npmrc_auth(self):
+        tok = fake("XX", "xx", "YYyy" * 5)
+        self.check("//registry.npmjs.org/:_authToken=" + tok, tok)
+        self.check("_auth=" + tok, tok)
+
     def test_private_key(self):
         head = fake("-----BEGIN ", "RSA PRIVATE", " KEY-----")
         tail = fake("-----END ", "RSA PRIVATE", " KEY-----")
@@ -217,7 +261,17 @@ class Redaction(unittest.TestCase):
                      "secret sauce is " + "a" * 40,
                      "C:/Users/me/repo/hf_utils/rpa_tools/file.py",
                      "basic idea and the bearer-less path",
-                     "pdf_export ghost_town github_pages"):
+                     "pdf_export ghost_town github_pages",
+                     "curl -u root https://h.test", "git add -u", "curl -s -u",
+                     "mysql -p", "mysql -p 8080", "ssh -p 22", "mkdir -p dir/sub",
+                     "docker run -p 8080:80 img", "mysql -h db -P 3306",
+                     "npm_config_cache npm_package_name npm_" + "a" * 10,
+                     "pip install sk-learn", "SKILLS SK1234 SK" + "g" * 32,
+                     "dop_v1_abc glpat- sk_live_ ya29. SG.x.y",
+                     "https://example.com/a", "postgres://host/db",
+                     "redis://localhost:6379",
+                     "v1.2.3 1.0.0.beta example.co.uk Mod.Name.Space",
+                     "//registry.npmjs.org/ npmrc"):
             with self.subTest(text):
                 self.assertEqual(snap.red(text), text)
 
