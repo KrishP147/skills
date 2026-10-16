@@ -81,6 +81,25 @@ _RP = (r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:(?:--?\w[\w-]*(?:=\S*|\s+(?!-)(
        + _RP_NOUN
        + r""")(?:"[^"]*"|'[^']*'|[^\s"'-]\S*))?|--)\s+)*""")
 
+
+
+def _flags(stops):
+    """Global flags (with values, `--f=v`) as in _RP; a space-separated value
+    may not be one of `stops` (service/track words), so it can't swallow them."""
+    return (r"""(?:(?:--?\w[\w-]*(?:=\S*|\s+(?!-)(?!(?:""" + stops + r""")(?![\w-]))"""
+            r"""(?:"[^"]*"|'[^']*'|[^\s"'-]\S*))?|--)\s+)*""")
+
+
+def _cli(binary, stops):
+    """aws/gcloud/az binary plus global flags before the service (#202)."""
+    return r"""\b""" + binary + r"""(?:\.exe|\.cmd)?["']?\s+""" + _flags(stops)
+
+
+_GC_STOPS = "compute|alpha|beta|preview"
+_AWS = _cli("aws", "ec2")
+_GCLOUD = _cli("gcloud", _GC_STOPS) + r"""(?:(?:alpha|beta|preview)\s+""" + _flags(_GC_STOPS) + ")?"
+_AZ = _cli("az", "vm")
+
 DEFAULT_BASH_PATTERNS = [
     _RP + r"""(?:(?:pods?|serverless|sls|network-volume|nv)\s+)?(?:create|start)(?![\w-])""",
     _RP + r"""(?:network-volume|nv)\s+update\b[^\n]*--size\b""",
@@ -89,10 +108,10 @@ DEFAULT_BASH_PATTERNS = [
     _RP + r"""pods?\s+update\b[^\n]*--(?:volume-in-gb|container-disk-in-gb)\b""",
     _RP + r"""model\s+add\b""",
     r"""\bvultr-cli(?:\.exe|\.cmd)?["']?\s+instance\s+create\b""",
-    r"""\baws(?:\.exe|\.cmd)?["']?\s+ec2\s+(?:run-instances|request-spot-instances|request-spot-fleet"""
+    _AWS + r"""ec2\s+(?:run-instances|request-spot-instances|request-spot-fleet"""
     r"""|start-instances)\b""",
-    r"""\bgcloud(?:\.exe|\.cmd)?["']?\s+compute\s+instances\s+(?:create|start)\b""",
-    r"""\baz(?:\.exe|\.cmd)?["']?\s+vm\s+create\b""",
+    _GCLOUD + r"""compute\s+instances\s+(?:create|start|bulk\s+create)\b""",
+    _AZ + r"""vm\s+(?:create|start)\b""",
     r"""\bmodal(?:\.exe|\.cmd)?["']?\s+(?:deploy|run)\b""",
 ]
 
@@ -931,8 +950,8 @@ def _dynamic_arg_hit(text):
             if not t:
                 i += 1
                 continue
-            if t in (":::", "::::", ":::+"):
-                break  # GNU parallel: the args come after
+            if t in (":::", "::::", ":::+") or re.match(r"\d*[<>]", t):
+                break  # GNU parallel args / a redirect (`<<< 'pod create'`, `< f`): stdin, not args
             if t.startswith("-"):
                 nxt = toks[i + 1].strip("'\"") if i + 1 < len(toks) else ""
                 if "=" not in t and nxt[:1] in ("$", "@"):
@@ -1929,6 +1948,42 @@ def run_self_test():
                check(S, {"command": "alias r=runpodctl; r create pod"}, None, env=env)
                is None and not os.path.exists(os.path.join(tmp, "approved-1")))
 
+    # 17d. #202: global flags before the service, gcloud tracks, xargs stdin, new defaults
+    for cmd in ("aws --region us-east-1 ec2 run-instances --image-id x",
+                "aws --profile p ec2 start-instances --instance-ids i-1",
+                "aws --region=us-east-1 --output json ec2 run-instances",
+                "aws --debug ec2 run-instances",
+                "aws --no-verify-ssl --region x ec2 request-spot-instances",
+                "gcloud --project p compute instances create vm1",
+                "gcloud --project=p compute instances create vm1",
+                "gcloud alpha compute instances create vm1",
+                "gcloud beta compute instances create vm1",
+                "gcloud beta --project p compute instances start vm1",
+                "gcloud --verbosity debug alpha compute instances create vm1",
+                "gcloud compute instances bulk create --count 2",
+                "az --subscription s vm create -n v",
+                "az --subscription=s vm create -n v",
+                "az vm start -n v -g g",
+                "az --debug vm start -n v",
+                "xargs runpodctl <<< 'pod create'",
+                "xargs runpodctl < args.txt",
+                "xargs runpodctl pod < args.txt",
+                "cat args.txt | xargs runpodctl",
+                "xargs -a args.txt runpodctl"):
+        record("#202 blocks: %r" % cmd, check(S, {"command": cmd}, None, env=iso) is not None)
+    for cmd in ("aws --region x ec2 describe-instances",
+                "aws --profile p s3 ls",
+                "aws --region x ec2 stop-instances --instance-ids i-1",
+                "gcloud --project p compute instances list",
+                "gcloud alpha compute instances describe vm1",
+                "gcloud config set project p",
+                "az --subscription s vm list",
+                "az vm stop -n v -g g",
+                "az account show",
+                "xargs runpodctl pod list < ids.txt",
+                "runpodctl pod list | xargs -n1 runpodctl pod stop"):
+        record("#202 allows: %r" % cmd, check(S, {"command": cmd}, None, env=iso) is None)
+
     # 17c. perf: long lines through every rewrite stay well under 1 s
     n = 2000
     for label, tool, cmd in (
@@ -1944,6 +1999,7 @@ def run_self_test():
             ("eval", S, " ".join(["eval x"] * n) + " runpodctl"),
             ("b64", S, "echo " + " ".join(["cnVucG9kY3RsIGdldCBwb2Q="] * n) + " | base64 -d"),
             ("dollar-brace", S, "runpodctl " + "${" * n),
+            ("cli-flags", S, "gcloud " + "--f v " * n + "beta " + "--g=w " * n + "compute instances list"),
             ("spaces", S, "alias r=runpodctl;" + " " * 20000 + "$X")):
         dt = _best_time(lambda: check(tool, {"command": cmd}, None, env=iso))
         record("#160 perf %s %d chars < %.0fs (best of 3: %.3fs)" % (label, len(cmd), PERF_LIMIT, dt),
