@@ -20,7 +20,7 @@ Name `origin`: on a fork clone a bare `gh repo view`, and any `gh` call without 
 
 ## Find the board
 
-`gh project list --owner <owner> --format json` (`<owner>` per Target repo) returns every project the owner has. Match by title (`<repo> Board`, as `kanban-setup` names it) or by items linking this repo. One match: use it. Several: ask. None, in order:
+`gh project list --owner <owner> --format json` (`<owner>` per Target repo) returns every project the owner has. Match by title (`<repo> Board`, as `kanban-setup` names it) or by items linking this repo. One match: use it. Several: for one issue's card, the board the `## Boards` mapping in `AGENTS.md`/`CLAUDE.md` assigns (its labels, or the paths it names; `kanban-setup` writes it), else the only one already holding the issue (`gh issue view <n> -R <owner>/<repo> --json projectItems`); otherwise ask. Unattended with no answer → don't move the card; report the move as parked in the handoff. None, in order:
 
 1. **Labels**: `status:todo`, `status:in-progress`, `status:in-review`, `status:done`.
 2. **Roadmap doc** (`ROADMAP.md`, `docs/roadmap.md`): its execution-order section is the queue; no card to move.

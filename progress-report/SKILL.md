@@ -10,9 +10,10 @@ A document the user reads in two minutes.
 
 - **Folder**: the one given, else `skilleddocs/reports/` (untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md)).
 - **Ledger**: `skilleddocs/orchestrator/ledger.md` (older runs: `ledger.md` in the folder). None → reconstruct from `git log`, merged PRs, issues, and this conversation, and say so in the report.
-- **Watermark**: `.last-reported` in the folder, one line `<NNN> <report filename>` (e.g. `007 002-2026-10-16-x.md`): NNN = last ledger entry reported (no ledger → last reported commit SHA). The report number is that filename's number + 1. No file → report 001, covers everything.
+- **Watermark**: `.last-reported` in the folder, one line `<NNN> <report filename> <entry NNN's header timestamp>` (e.g. `007 002-2026-10-16-x.md 2026-10-16 14:05 EDT`): NNN = last ledger entry reported (no ledger → last reported commit SHA, no timestamp). The report number is that filename's number + 1. No file → report 001, covers everything.
+- **Ledger restart** (a new run numbers from 001 again): NNN > the latest entry, or entry NNN's timestamp differs from the stored one (no stored timestamp: the first check only) → cover the ledger from 001, keep the stored timestamp for the git scan below, and say "ledger restarted" in the Summary. A range still empty → write no report; say "nothing new since <report filename>".
 
-**No overlap**: cover entries `watermark+1 … latest` (no ledger: commits after the SHA). Ledger present → also scan `git log` and merged PRs since the watermark entry's timestamp; work with no ledger entry goes in the report marked "not in ledger" (skip commits touching only the reports folder, `.last-reported` or the ledger). Something already reported that later changed (revert, reversed decision, broken "done") goes under *Revisions*, citing the earlier report. `full` → ignore the watermark; title it "Full report".
+**No overlap**: cover entries `watermark+1 … latest` (no ledger: commits after the SHA). Ledger present → also scan `git log` and merged PRs since the watermark's timestamp; work with no ledger entry goes in the report marked "not in ledger" (skip commits touching only the reports folder, `.last-reported` or the ledger). Something already reported that later changed (revert, reversed decision, broken "done") goes under *Revisions*, citing the earlier report. `full` → ignore the watermark; title it "Full report".
 
 ## 2. Sections (this order; an empty one says "none")
 
@@ -44,8 +45,8 @@ Never link: heading lines (`#`–`######` then a space, incl. the report header)
 
 ## 4. Write
 
-`NNN-YYYY-MM-DD-<slug>.md` in the folder (local date; never overwrite). `docx` → same name `.docx`, via the `docx` skill or `python-docx`: heading styles, real bullets, a Done table, real hyperlinks. Read it back once to check nothing's empty.
+Commit mode on a protected `<default>` → first switch to the docs branch `docs/report-<NNN>` per [TRACKING.md](../handoff-auto/TRACKING.md#protected-default). `NNN-YYYY-MM-DD-<slug>.md` in the folder (local date; never overwrite). `docx` → same name `.docx`, via the `docx` skill or `python-docx`: heading styles, real bullets, a Done table, real hyperlinks. Read it back once to check nothing's empty.
 
 ## 5. Advance
 
-Write `.last-reported` (`<NNN> <filename>`; no ledger → last reported SHA), append a ledger `report` entry with the range (no ledger → skip it and say so), and print the report path + range. Commit the report, `.last-reported` and ledger entry only in commit mode per [TRACKING.md](../handoff-auto/TRACKING.md) and only on `<default>` (defined there); else leave them on disk.
+Write `.last-reported` (`<NNN> <filename> <timestamp>`; no ledger → last reported SHA), append a ledger `report` entry with the range (no ledger → skip it and say so), and print the report path + range. Commit the report, `.last-reported` and ledger entry only in commit mode per [TRACKING.md](../handoff-auto/TRACKING.md) and only on `<default>` (defined there) or §4's docs branch; else leave them on disk.

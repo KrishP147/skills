@@ -28,9 +28,15 @@ A handoff folder set by `AGENTS.md`/`CLAUDE.md` outside `skilleddocs/` gets the 
 
 `meta-orchestrator`'s `docs_commit` picks this for its own files; it defaults to the rule above and is always `uncommitted` on a fork.
 
+## Protected `<default>`
+
+Every skill that commits on `<default>` (`update-progress`, `progress-report`, `teammate-brief`) checks this before writing its files. **Protected** = a PR is required: `gh api repos/<owner>/<repo>/branches/<default>/protection` shows `required_pull_request_reviews`, or `gh api repos/<owner>/<repo>/rules/branches/<default>` lists a `pull_request` rule (`<owner>/<repo>` per the `next` skill's `BOARD.md`, Target repo section). Unprotected only when the rules call answers with no `pull_request` rule and the classic call answers 404 "Branch not protected" (a 403, or a 404 without that message, means no admin rights, not unprotected). Anything else → ask.
+
+Protected → `git fetch origin`, note the current branch, and switch to a docs branch off `origin/<default>` (never the local `<default>`, often stale): `docs/<what>`, prefix per the repo's or user's instructions, else `docs/`; `<what>` named by the calling skill. It exists and isn't an ancestor of `origin/<default>` → switch to it and add the commit; it's merged → suffix `-2`, `-3`, … Write and commit there, then switch back to the noted branch; `<default>` stays as it was. Push, and open the branch's PR, only on the user's yes to that action; no yes → leave the commit local and say so.
+
 ## Dated handoffs never ship in a task PR
 
-A dated handoff in the handoff folder (AGENTS.md/CLAUDE.md's, else `skilleddocs/handoffs/`) is not part of the task's change. Commit mode: commit it only when the current branch is `<default>`. On any other branch leave it uncommitted on disk; `update-progress` runs on `<default>` and commits it there after verifying. Untracked mode: nothing to do. Either mode, worktree teardown (`pair` §5 step 1) first moves it into the main checkout's handoff folder.
+A dated handoff in the handoff folder (AGENTS.md/CLAUDE.md's, else `skilleddocs/handoffs/`) is not part of the task's change. Commit mode: commit it only when the current branch is `<default>` or `update-progress`'s docs branch (Protected `<default>` above; it is headed for `<default>`, so the pre-push check below leaves the handoff there). On any other branch leave it uncommitted on disk; `update-progress` runs on `<default>` and commits it there after verifying. Untracked mode: nothing to do. Either mode, worktree teardown (`pair` §5 step 1) first moves it into the main checkout's handoff folder.
 
 ## `HANDOFF.md` never ships
 

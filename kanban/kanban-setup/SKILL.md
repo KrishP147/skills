@@ -21,7 +21,9 @@ The Status field needs an **In Review** option (`session-handoff` moves cards th
 
 ## 3. Candidates
 
-Scan whatever exists: README roadmap/TODO sections, `TODO`/`FIXME` comments, `CHANGELOG.md`, `docs/`, plan docs, and (retroactive) `git log`. Skip `skilleddocs/`, the handoff folder `AGENTS.md`/`CLAUDE.md` sets, `node_modules`, `.venv` and vendored dirs. In every mode, drop items that already have an issue, open or closed (`gh issue list -R <owner>/<repo> --state all --limit 1000`; the default is 30).
+Scan whatever exists: README roadmap/TODO sections, `TODO`/`FIXME` comments, `CHANGELOG.md`, `docs/`, plan docs, and (retroactive) `git log`. Skip `skilleddocs/`, the handoff folder `AGENTS.md`/`CLAUDE.md` sets, `node_modules`, `.venv` and vendored dirs. In every mode, drop items that already have an issue, open or closed, or a merged PR (`gh issue list -R <owner>/<repo> --state all --limit 1000`, `gh pr list -R <owner>/<repo> --state merged --limit 1000`; the default is 30). **Match**: the item names one of them by `#n` (incl. a squash subject's trailing `(#n)`), or its text minus a `TODO:`/`FIXME:` prefix equals a title, case-insensitive; a doubtful match → keep it, flagged in the preview.
+
+Open issues not yet on the board (label mode: no `status:*` label) are candidates too: added to Todo, not re-created.
 
 - **current**: planned/undone items.
 - **retroactive**: finished items, created then immediately closed, for a clean history.
@@ -29,6 +31,6 @@ Scan whatever exists: README roadmap/TODO sections, `TODO`/`FIXME` comments, `CH
 
 ## 4. Preview, then create
 
-Preview first the **board actions** that will run: create the board (`gh project create --owner <owner> --title "<repo> Board"`), link it (`gh project link <n> --owner <owner> --repo <owner>/<repo>`), add the In Review option, or in label mode create the four labels. Then every item: title, mode, target column.
+Preview first the **board actions** that will run: create the board (`gh project create --owner <owner> --title "<repo> Board"`), link it (`gh project link <n> --owner <owner> --repo <owner>/<repo>`), add the In Review option, or in label mode create the four labels. Then every item: title, mode, target column; existing open issues as a separate "add to board" group. This repo already has another board → ask which paths or labels go to which board and preview it as a `## Boards` section (`<path glob or label> → <board title>`, one per line; BOARD.md reads it) for `AGENTS.md`, or `CLAUDE.md` if that is the one the repo has.
 
-On yes, do the board actions first, then per item: `gh issue create -R <owner>/<repo>`, close it if retroactive, `item-add`, then `item-edit` Status to Todo or Done (BOARD.md). Label mode: `gh issue create -R <owner>/<repo> --label status:todo` (retroactive: `status:done`, then close), no `item-*`.
+On yes, do the board actions first (and write that `## Boards` section, left uncommitted for the user), then per item: `gh issue create -R <owner>/<repo>`, close it if retroactive, `item-add`, then `item-edit` Status to Todo or Done (BOARD.md); an existing issue gets only `item-add` + `item-edit` Todo. Label mode: `gh issue create -R <owner>/<repo> --label status:todo` (retroactive: `status:done`, then close), no `item-*`; an existing issue gets `gh issue edit <n> -R <owner>/<repo> --add-label status:todo`.
