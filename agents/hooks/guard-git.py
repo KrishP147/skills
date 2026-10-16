@@ -558,16 +558,19 @@ PS_BLOCK_RUNNERS = {"invoke-command", "icm", "start-job", "sajb", "start-threadj
                     "where-object", "?", "measure-command", "invoke-command", "register-engineevent"}
 
 
-def scan_config_env(toks, ctx):
+def scan_config_env(toks, ctx, git_env=None):
     """Leading `VAR=value` assignments can inject git config that redirects a
     push: GIT_CONFIG_PARAMETERS, or GIT_CONFIG_COUNT + GIT_CONFIG_KEY_n/VALUE_n.
-    Taint the context if any such key is push-redirecting."""
+    Taint the context if any such key is push-redirecting. GIT_DIR and
+    GIT_WORK_TREE (another repo) are recorded in `git_env`."""
     keys, vals = {}, {}
     for t in toks:
         if not ASSIGN_RE.match(t):
             break
         name, _, value = t.partition("=")
         up = name.upper()
+        if up in ("GIT_DIR", "GIT_WORK_TREE") and git_env is not None:
+            git_env[up] = value
         if up == "GIT_CONFIG_PARAMETERS":
             for item in shlex.split(value) if value else []:
                 k, eq, v = item.partition("=")
@@ -650,8 +653,18 @@ def start_process_cmd(rest):
 
 def run_segment(toks, ctx, subs, depth):
     """Analyse one simple command. Returns True if it is a shell that reads
-    its script from stdin: "posix" or "ps" (the script's language)."""
-    scan_config_env(toks, ctx)
+    its script from stdin: "posix" or "ps" (the script's language).
+    `GIT_DIR=x git ...` applies to this command only (ctx.seg_env)."""
+    saved = ctx.seg_env
+    ctx.seg_env = dict(saved)
+    try:
+        return _run_segment(toks, ctx, subs, depth)
+    finally:
+        ctx.seg_env = saved
+
+
+def _run_segment(toks, ctx, subs, depth):
+    scan_config_env(toks, ctx, ctx.seg_env)
     toks = strip_prefixes(list(toks), ctx, depth)
     if not toks:
         return False
@@ -666,6 +679,9 @@ def run_segment(toks, ctx, subs, depth):
         for t in toks:  # `$env:GIT_CONFIG_PARAMETERS = '...'`
             if re.match(r"(?i)^\$env:GIT_CONFIG(?!_NOSYSTEM)", t):
                 ctx.push_config_tainted = True
+        m = re.match(r"(?i)^\$env:(GIT_DIR|GIT_WORK_TREE)\s*=\s*(.*)$", " ".join(toks))
+        if m:  # `$env:GIT_DIR = '../other/.git'`
+            ctx.git_env[m.group(1).upper()] = m.group(2).strip() or DYNAMIC
         if re.search(r"(?i)\.invoke(returnasis|withcontext)?$|\.invokescript$", toks[0]):
             ctx.dynamic_exec("a scriptblock .Invoke()")  # `$sb.Invoke()`
         brace = next((k for k in range(1, len(toks)) if toks[k].startswith("{")), None)
@@ -701,7 +717,7 @@ def run_segment(toks, ctx, subs, depth):
             ctx.cwd = ctx.path(ctx.cwd, target)
         return False
     if head in ("export", "declare", "typeset", "readonly", "local"):
-        scan_config_env([t for t in rest if not t.startswith("-")], ctx)
+        scan_config_env([t for t in rest if not t.startswith("-")], ctx, ctx.git_env)
         return False
     if head in ("eval", "iex", "invoke-expression"):
         args = [t for t in rest if t.lower() not in ("-command", "-c")]
@@ -855,7 +871,7 @@ def strip_prefixes(toks, ctx, depth):
             toks.pop(0)
         elif b == "env":
             toks.pop(0)
-            scan_config_env([t for t in toks if not t.startswith("-")], ctx)
+            scan_config_env([t for t in toks if not t.startswith("-")], ctx, ctx.seg_env)
             while toks and (toks[0].startswith("-") or ASSIGN_RE.match(toks[0])):
                 o = toks.pop(0)
                 if o in ("-S", "--split-string") and toks:
@@ -974,8 +990,15 @@ GIT_KNOWN = {"push", "branch", "add", "commit", "status", "log", "diff", "show",
 def check_git(args, ctx, subs, depth, alias_depth=0):
     cwd = ctx.cwd
     i, inline_aliases = 0, {}
+    env = ctx.env()
+    repo = {"dir": env.get("GIT_DIR"), "tree": env.get("GIT_WORK_TREE")}
     while i < len(args) and args[i].startswith("-"):
         t = args[i]
+        for opt, k in (("--git-dir", "dir"), ("--work-tree", "tree")):
+            if t.startswith(opt + "="):
+                repo[k] = t[len(opt) + 1:]
+            elif t == opt and i + 1 < len(args):
+                repo[k] = args[i + 1]
         if t.startswith("--config-env="):  # --config-env=key=ENVVAR (value unseen)
             k = t[len("--config-env="):].split("=", 1)[0]
             if redirecting_config(k, None):
@@ -1017,9 +1040,9 @@ def check_git(args, ctx, subs, depth, alias_depth=0):
                 check_git((tokenize(alias) or alias.split()) + rest, ctx, subs, depth, alias_depth + 1)
             return
     if sub == "push":
-        check_push(rest, ctx, subs, cwd)
+        check_push(rest, ctx, subs, cwd, repo)
     elif sub in ("send-pack", "http-push"):
-        check_send_pack(rest, ctx, subs, cwd, sub)
+        check_send_pack(rest, ctx, subs, cwd, sub, repo)
     elif sub == "branch":
         check_branch_delete(rest, ctx)
         track_branch_rename(rest, ctx)
@@ -1180,7 +1203,7 @@ def is_current_branch_subst(tok, subs):
     return bool(m) and any(p.match(subs[int(m.group(1))]) for p in CURRENT_BRANCH_IDIOMS)
 
 
-def check_push(args, ctx, subs, cwd):
+def check_push(args, ctx, subs, cwd, repo=None):
     if ctx.push_config_tainted:
         ctx.block("git push with a config override (push.default/remote.*.push/"
                   "mirror) that can redirect the push; not allowed.")
@@ -1210,10 +1233,10 @@ def check_push(args, ctx, subs, cwd):
                 ctx.block("git push -d (delete) is not allowed.")
             if flags.endswith("o"):
                 i += 1
-    check_refspecs(positional[1:], ctx, subs, cwd)
+    check_refspecs(positional[1:], ctx, subs, cwd, repo)
 
 
-def check_send_pack(args, ctx, subs, cwd, sub):
+def check_send_pack(args, ctx, subs, cwd, sub, repo=None):
     """`git send-pack`/`http-push [opts] <remote> <ref>...`: plumbing push."""
     positional = []
     for t in args:
@@ -1224,10 +1247,32 @@ def check_send_pack(args, ctx, subs, cwd, sub):
             ctx.block("git %s %s is not allowed." % (sub, t.split("=")[0]))
     if len(positional) < 2:
         ctx.block("git %s without explicit refs updates matching branches; name them." % sub)
-    check_refspecs(positional[1:], ctx, subs, cwd)
+    check_refspecs(positional[1:], ctx, subs, cwd, repo)
 
 
-def check_refspecs(refspecs, ctx, subs, cwd):
+def current_branch(ctx, cwd, repo):
+    """Branch a bare push would push: the in-command override, else HEAD of
+    --git-dir/GIT_DIR (or cwd's repo), also checking a --work-tree/GIT_WORK_TREE
+    repo. Unreadable -> UNKNOWN_BRANCH."""
+    if ctx.branch_override is not None:
+        return ctx.branch_override
+    repo = repo or {}
+    git_dir, tree = repo.get("dir"), repo.get("tree")
+    if git_dir is not None:
+        if is_dynamic(git_dir):
+            return UNKNOWN_BRANCH
+        return ctx.gitdir_lookup(cwd, ctx.path(cwd, git_dir)) or UNKNOWN_BRANCH
+    branch = ctx.branch_lookup(cwd) or UNKNOWN_BRANCH
+    if tree is not None and branch != UNKNOWN_BRANCH and not ctx.is_protected(branch):
+        if is_dynamic(tree):
+            return UNKNOWN_BRANCH
+        other = ctx.branch_lookup(ctx.path(cwd, tree))
+        if not other or ctx.is_protected(other):
+            return other or UNKNOWN_BRANCH
+    return branch
+
+
+def check_refspecs(refspecs, ctx, subs, cwd, repo=None):
     needs_current = not refspecs
     for spec in refspecs:
         if spec.startswith("+"):
@@ -1250,11 +1295,8 @@ def check_refspecs(refspecs, ctx, subs, cwd):
         if dst in ("HEAD", "@"):
             needs_current = True
     if needs_current:
-        if ctx.branch_override is not None:
-            branch = ctx.branch_override
-        else:
-            branch = ctx.branch_lookup(cwd)
-        if branch is UNKNOWN_BRANCH or branch == UNKNOWN_BRANCH:
+        branch = current_branch(ctx, cwd, repo)
+        if branch == UNKNOWN_BRANCH:
             ctx.block("push of the current branch, which can't be determined; failing closed.")
         if not branch:
             # current branch unreadable (no repo, detached, bogus cwd) -> fail closed
