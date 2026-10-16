@@ -22,7 +22,7 @@ Splits an issue (or a described task) that's too big for one session into two or
 2. Target already fits one session? Says so and stops. Otherwise proposes 2+ pieces (or uses your split) and **shows it before creating anything**; if you revise the split, it shows it again.
 3. On confirmation: `gh issue create` per piece ("Part of #n"), and adds a task-list checkbox per child to the parent's body. A free-text target has no parent issue, so "Part of", the checkboxes and the roadmap link are skipped.
 4. Adds each child to the board: Projects v2 → `gh project item-add` then `gh project item-edit` to set Status=Todo (`item-add` alone leaves Status empty); label fallback → `status:todo` (created first if missing).
-5. If a roadmap doc links the parent, adds `#n → #a, #b` inline and commits `docs: divide #n into #a/#b/#c…` on the current branch (a new branch if you're on the default one). It never pushes without your yes.
+5. If a roadmap doc links the parent, adds `#n → #a, #b` inline and commits only the roadmap file as `docs: divide #n into #a/#b/#c…` on the current branch. On the default branch it branches first, reports the branch and SHA, asks whether to push and open a PR (never without your yes), then switches back.
 6. If the parent is now only a tracker, says so and offers to close it once children land.
 
 ## Design principles
