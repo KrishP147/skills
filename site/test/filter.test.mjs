@@ -252,7 +252,7 @@ test("hooks are in the real nav data and searchable", () => {
   }
 });
 
-test("site pages in the real nav data: /map opens the map", () => {
+test("site pages in the real nav data: /map and /workflows open", () => {
   const pages = REAL.filter((x) => x.kind === "page");
   assert.deepEqual(names(pages), ["map", "workflows"]);
   assert.equal(pages[0].group, "pages");

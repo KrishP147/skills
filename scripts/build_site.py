@@ -234,7 +234,7 @@ def nav_entry(e, aliases):
 PAGES = ({"name": site_map.SLUG, "kind": "page", "group": "pages",
           "summary": "Map of every skill, agent and hook, grouped by purpose, and how they connect."},
          {"name": site_workflows.SLUG, "kind": "page", "group": "pages",
-          "summary": "Step-by-step workflows that chain skills, agents and hooks, from kickoff to merge."})
+          "summary": "Common workflows, step by step: which skills, agents and hooks to chain and why."})
 
 
 def nav_data(entries, meta=None):
