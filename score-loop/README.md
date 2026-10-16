@@ -72,7 +72,7 @@ flowchart TD
 
 - Seed the Next ideas list yourself; the loop reads it fresh before every experiment, so you can append while it runs.
 - The margin is a percentage of the best, so a big win late in the run isn't lost as noise once the score has shrunk.
-- Memoised calls (`lru_cache`) can score ~0: the harness must use fresh inputs or one process per run, and a near-zero score is treated as invalid.
+- Memoised calls (`lru_cache`) can score ~0: the harness must use fresh inputs or one process per run, and a near-zero score is suspect: invalid unless correctness proves otherwise.
 - A noisy grader means a wide margin and few keeps. Cut the noise at its source (fixed seeds, warm-up runs, an idle machine) rather than lowering the margin.
 - `parallel` above 1 runs variants in separate worktrees, but graders that share a machine get noisier. Leave it at 1 unless the grader is remote or cheap.
 - Set the quota to 0 if every official submission should ask you first.
