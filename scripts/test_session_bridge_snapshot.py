@@ -264,6 +264,41 @@ class Redaction(unittest.TestCase):
             with self.subTest(text):
                 self.check(text, leak)
 
+    def test_more_shapes_hit_and_near_miss(self):
+        pw = fake("hun", "ter", "2")
+        b64 = fake("Ab", "Cd", "x" * 40, "==")
+        tg = fake("1234", "56789", ":", "AA", "Xy" * 16, "z")  # 35-char tail
+        cases = [  # (hit text, leaked value, near miss kept verbatim)
+            ("DefaultEndpointsProtocol=https;AccountName=a;AccountKey=" + b64
+             + ";EndpointSuffix=core.windows.net", b64, "AccountName=a;AccountKeyName=x"),
+            ("Endpoint=sb://n/;SharedAccessKeyName=k;SharedAccessSignature=" + b64,
+             b64, "SharedAccessKeyName=RootManageSharedAccessKey"),
+            ("https://a.blob.core.windows.net/c?sv=2022&sig=" + b64 + "&se=1",
+             b64, "https://h.test/?signal=1&sigma=2"),
+            ("sshpass -p " + pw + " ssh u@h", pw, "sshpass -f pw.txt ssh h"),
+            ("sshpass -p" + pw + " scp f h:", pw, "ssh -p 22 h"),
+            ("redis-cli -h db -a " + pw + " ping", pw, "redis-cli -h db ping"),
+            ("openssl enc -aes256 -pass pass:" + pw + " -in f", pw,
+             "openssl enc -pass env:PW -passin file:k"),
+            ("docker login -u bot -p " + pw + " reg.test", pw, "docker run -p 8080:80 img"),
+            ("curl -H 'Cookie: session=" + pw + "; id=1' h", pw, "cookie jar and --cookie-jar f"),
+            ("Set-Cookie: sid=" + pw, pw, "set cookies later"),
+            ("https://api.telegram.org/bot" + tg + "/getMe", tg, "at 12:34:56 and 1234567:short"),
+            ("token " + fake("shp", "at_", "a1" * 16), fake("shp", "at_", "a1" * 16),
+             "shpat_ and shpat_xyz"),
+            ("use " + fake("sq0", "atp-", "X" * 22), fake("sq0", "atp-", "X" * 22),
+             "sq0atp- and sq0atp-short"),
+            ("machine h.test login bot password " + pw, pw, "reset the password reset flow"),
+            ("machine h.test\n  login bot\n  password " + pw + "\n", pw,
+             "password is wrong for this user"),
+            ("vercel deploy --prod -t " + pw, pw, "vercel deploy --prod; tar -t f"),
+            ("vercel --token " + pw, pw, "vercel --target production"),
+        ]
+        for hit, leak, miss in cases:
+            with self.subTest(hit):
+                self.check(hit, leak)
+                self.assertEqual(snap.red(miss), miss)
+
     def test_no_false_positives(self):
         sha = "0123456789abcdef0123456789abcdef01234567"
         for text in ("<task-notification> done",
@@ -287,6 +322,32 @@ class Redaction(unittest.TestCase):
                      "//registry.npmjs.org/ npmrc"):
             with self.subTest(text):
                 self.assertEqual(snap.red(text), text)
+
+
+class Cli(unittest.TestCase):
+    def call(self, *args):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = snap.main(["snapshot.py", *args])
+        return rc, out.getvalue(), err.getvalue()
+
+    def test_help(self):
+        for flag in ("-h", "--help"):
+            rc, out, _ = self.call(flag)
+            self.assertEqual(rc, 0)
+            self.assertIn("Usage:", out)
+
+    def test_bad_n_and_missing_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "t.jsonl"
+            p.write_text("", encoding="utf-8")
+            for n in ("abc", "-1", "0"):
+                rc, _, err = self.call(str(p), n)
+                self.assertEqual(rc, 2, n)
+                self.assertIn("positive integer", err)
+            rc, _, err = self.call(str(Path(d) / "missing.jsonl"))
+            self.assertEqual(rc, 2)
+            self.assertIn("cannot read", err)
 
 
 class Robustness(unittest.TestCase):

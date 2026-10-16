@@ -52,6 +52,27 @@ SECRETS = [(re.compile(p), r) for p, r in (
     # mysql -psecret (attached; "-p 8080", "ssh -p 22", "mkdir -p d" are not).
     (r"(\b(?:mysql|mysqldump|mysqladmin|mariadb)\b[^\n|;&]*?\s-p)(?=[^\s-])\S+",
      r"\1" + R),
+    # Auth flags of CLIs where the letter alone is the secret flag
+    # ("ssh -p 22", "docker run -p 80:80", "tar -t" stay).
+    (r"(\bsshpass\b[^\n|;&]*?\s-p\s*)(?=[^\s-])\S+", r"\1" + R),
+    (r"(\bredis-cli\b[^\n|;&]*?\s-a\s+)(?!-)\S+", r"\1" + R),
+    (r"(\bdocker\s+login\b[^\n|;&]*?\s-p\s+)(?!-)\S+", r"\1" + R),
+    (r"(\bvercel\b[^\n|;&]*?\s-t\s+)(?!-)\S+", r"\1" + R),
+    # openssl -pass/-passin/-passout pass:X ("env:VAR", "file:x" stay).
+    (r"(\s-pass(?:in|out)?\s+pass:)\S+", r"\1" + R),
+    # Azure connection strings and SAS tokens.
+    (r"(\b(?:AccountKey|SharedAccessKey|SharedAccessSignature)\s*=\s*)[^;\s'\"]+",
+     r"\1" + R),
+    (r"([?&]sig=)[^&\s'\"]+", r"\1" + R),
+    # Cookie / Set-Cookie header value, to the end of the line or quote.
+    (r"((?i:\b(?:set-)?cookie)\s*:\s*)[^\n'\"]+", r"\1" + R),
+    # .netrc: "machine h login u password p", or a lone "password p" line.
+    (r"(\b(?:machine|login)\s+\S+\s+(?:login\s+\S+\s+)?password\s+)\S+", r"\1" + R),
+    (r"(?m)(^[ \t]*password[ \t]+)\S+(?=[ \t]*$)", r"\1" + R),
+    # Telegram bot token (also inside .../bot<token>/...).
+    (r"(?<!\d)\d{6,12}:[A-Za-z0-9_-]{35}(?![A-Za-z0-9_-])", R),
+    (r"\bshp(?:at|ss|ca|pa)_[a-fA-F0-9]{32}", R),           # Shopify
+    (r"\bsq0(?:atp|csp)-[A-Za-z0-9_-]{22,}", R),            # Square
     # AWS secret key: 40 base64 chars of mixed case, only within 40 chars after
     # "aws" or "secret", so bare git SHAs and hashes are left alone.
     (r"((?i:\baws|secret)[^\n]{0,40}?)(?<![A-Za-z0-9/+])"
@@ -144,10 +165,21 @@ def action_text(name, i):
 
 
 def main(argv):
+    usage = __doc__.strip().splitlines()[-1]
+    if len(argv) > 1 and argv[1] in ("-h", "--help"):
+        print(usage)
+        return 0
     if len(argv) < 2:
-        print(__doc__.strip().splitlines()[-1], file=sys.stderr)
+        print(usage, file=sys.stderr)
         return 2
-    path, n = argv[1], int(argv[2]) if len(argv) > 2 else 10
+    path = argv[1]
+    try:
+        n = int(argv[2]) if len(argv) > 2 else 10
+    except ValueError:
+        n = 0
+    if n < 1:
+        print("N must be a positive integer.\n" + usage, file=sys.stderr)
+        return 2
     # A Windows pipe defaults to the locale codepage (cp1252): one non-ASCII
     # char in a transcript would crash print, so replace what can't encode.
     try:
@@ -155,14 +187,18 @@ def main(argv):
     except (AttributeError, ValueError):
         pass
     entries = []
-    with open(path, encoding="utf-8", errors="replace") as f:
-        for line in f:
-            try:
-                obj = json.loads(line)
-            except ValueError:
-                continue
-            if isinstance(obj, dict):  # a list/str/number line is not an entry
-                entries.append(obj)
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                try:
+                    obj = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(obj, dict):  # a list/str/number line is not an entry
+                    entries.append(obj)
+    except OSError as e:
+        print(f"cannot read {path}: {e.strerror or e}", file=sys.stderr)
+        return 2
 
     asks = [t for e in entries if e.get("type") == "user" for t in [user_text(e)] if t]
     print("LAST USER ASK:", one_line(asks[-1], 500) if asks else "(none found)")
