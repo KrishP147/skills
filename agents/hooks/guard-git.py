@@ -17,7 +17,19 @@ interpreter code (`python -c`, `node -e`) and curl/wget/iwr/irm writes to the
 GitHub API. It cannot see into script files, profile aliases, or code built at
 runtime. Code it can't read (`eval $c`, `& $sb`, `git $a`, non-literal
 `iex (...)`) fails closed when the command mentions push/merge/delete or
-decodes base64/hex. Pair it with GitHub branch protection.
+decodes base64/hex.
+
+Fail-closed allowlist (#174): after parsing, anything that could push, merge
+or write refs/remote state must match a known-safe form: `git push [-u]
+<remote> <branch>[:<same branch>]` (literal, non-protected) or a bare/HEAD push
+on a readable non-protected branch; `gh pr create` and the GH_ALLOW reads;
+`gh api` GET (graphql: literal read query only); curl/wget/irm/iwr GET to the
+GitHub API; local git. Other push options/refspecs, send-pack, unknown git
+subcommands naming push/merge, gh commands outside GH_ALLOW (incl. aliases and
+extensions), non-GET API calls, and unreadable code that could run them
+(`function f {}` wrappers, `bash <(...)`, `script -c`, xargs into a shell,
+PowerShell `(expr)` args, .NET Process.Start) block. Enable GitHub branch
+protection on the default branch as the server-side backstop.
 
 Protected branches: env GUARD_PROTECTED_BRANCHES (comma list), default
 "main,master".
