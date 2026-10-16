@@ -4,9 +4,9 @@ Shared by every skill and agent that writes under `skilleddocs/` (handoffs, `HAN
 
 ## Commit or keep untracked
 
-`<default>` = the repo's default branch: `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`, else `git symbolic-ref --short refs/remotes/origin/HEAD` minus the `origin/` prefix, else whichever of `main` / `master` exists.
+`<default>` = the repo's default branch: `gh repo view "$(git remote get-url origin)" --json defaultBranchRef -q .defaultBranchRef.name`, else `git symbolic-ref --short refs/remotes/origin/HEAD` minus the `origin/` prefix, else whichever of `main` / `master` exists.
 
-**Fork** = `gh repo view "$(git remote get-url origin)" --json isFork -q .isFork` prints `true` (name origin: a bare `gh repo view` resolves to `upstream` when that remote exists); if `gh` can't answer, an `upstream` remote counts as a fork.
+**Fork** = `gh repo view "$(git remote get-url origin)" --json isFork -q .isFork` prints `true` (name origin: a bare `gh repo view` resolves to `upstream` when that remote exists); if `gh` can't answer, an `upstream` remote counts as a fork. Same resolution as the `next` skill's `BOARD.md`, Target repo section, which governs every `gh` write.
 
 **Commit** only when not a fork and either:
 - the repo already tracks `skilleddocs/`: `git ls-tree -r --name-only <default> -- skilleddocs` prints something, or
