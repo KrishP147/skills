@@ -2,6 +2,8 @@
 
 Shared by every skill and agent that writes under `skilleddocs/` (handoffs, `HANDOFF.md`, orchestrator files). Single source of truth: other files point here instead of repeating it.
 
+`skilleddocs/` is at the repo root (`git rev-parse --show-toplevel`), never relative to the working dir, so a session in a subfolder writes where root-level readers look.
+
 ## Commit or keep untracked
 
 `<default>` = the repo's default branch: `gh repo view "$(git remote get-url origin)" --json defaultBranchRef -q .defaultBranchRef.name`, else `git symbolic-ref --short refs/remotes/origin/HEAD` minus the `origin/` prefix, else whichever of `main` / `master` exists.
@@ -9,9 +11,9 @@ Shared by every skill and agent that writes under `skilleddocs/` (handoffs, `HAN
 **Fork** = `gh repo view "$(git remote get-url origin)" --json isFork -q .isFork` prints `true` (name origin: a bare `gh repo view` resolves to `upstream` when that remote exists); if `gh` can't answer, an `upstream` remote counts as a fork. Same resolution as the `next` skill's `BOARD.md`, Target repo section, which governs every `gh` write.
 
 **Commit** only when not a fork and either:
-- the repo already tracks `skilleddocs/`: `git ls-tree -r --name-only <default> -- skilleddocs` prints something, or
+- the repo already tracks `skilleddocs/`: `git ls-tree --full-tree -r --name-only <default> -- skilleddocs` prints something, or
 - its `AGENTS.md` / `CLAUDE.md` opts in, or
-- for the handoff folder only: that folder, set by `AGENTS.md`/`CLAUDE.md` outside `skilleddocs/`, already has tracked files on `<default>` (`git ls-tree -r --name-only <default> -- <folder>` prints something). Other `skilleddocs/` files still follow the two bullets above.
+- for the handoff folder only: that folder, set by `AGENTS.md`/`CLAUDE.md` outside `skilleddocs/`, already has tracked files on `<default>` (`git ls-tree --full-tree -r --name-only <default> -- <folder>` prints something; `<folder>` from the repo root). Other `skilleddocs/` files still follow the two bullets above.
 
 **Otherwise, and always on a fork**: leave the file untracked and exclude the folder (works in worktrees; appends only if missing):
 
