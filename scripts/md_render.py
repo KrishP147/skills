@@ -4,6 +4,9 @@ Supports what the repo's READMEs use: ATX headings (with id slugs),
 paragraphs, nested lists (ordered/unordered), fenced code, inline code,
 links, bold/italic, pipe tables, blockquotes, horizontal rules.
 
+A ```mermaid fence renders as an inline SVG flowchart (scripts/flow_svg.py;
+a strict subset, anything else raises flow_svg.FlowError).
+
 A ```transcript fence renders as a Claude Code style session (line grammar:
 parse_transcript); the tx_* helpers build the same markup for callers that
 assemble a transcript themselves.
@@ -217,10 +220,21 @@ class Renderer:
         if lang == "transcript":
             out.append(self.transcript("\n".join(body)))
             return i
+        if lang == "mermaid":
+            out.append(self.flow("\n".join(body)))
+            return i
         cls = ' class="language-%s"' % esc(lang) if lang else ""
         code = "\n".join(body)
         out.append("<pre><code%s>%s</code></pre>" % (cls, esc(code + ("\n" if body else ""))))
         return i
+
+    @staticmethod
+    def flow(text):
+        """HTML for a ```mermaid fence: an inline SVG (flow_svg subset).
+        Raises flow_svg.FlowError on anything outside the subset. The wrapper
+        scrolls on its own when the graph is wider than the page."""
+        import flow_svg
+        return '<div class="flow" tabindex="0">%s</div>' % flow_svg.render(text)
 
     def transcript(self, text):
         """HTML for a ```transcript fence body (grammar: parse_transcript).

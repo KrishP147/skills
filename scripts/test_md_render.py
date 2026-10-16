@@ -119,6 +119,28 @@ class TranscriptTest(unittest.TestCase):
         self.assertIn('<pre><code class="language-bash">', r("```bash\nls\n```"))
 
 
+class MermaidFenceTest(unittest.TestCase):
+    def test_mermaid_fence_becomes_svg(self):
+        out = r("before\n\n```mermaid\nflowchart TD\n  A[a] --> B[b & c]\n```\n\nafter")
+        self.assertIn('<div class="flow" tabindex="0"><svg class="flow-svg"', out)
+        self.assertIn('role="img"', out)
+        self.assertIn("b &amp; c", out)
+        self.assertNotIn("<pre>", out)
+        self.assertNotIn("language-mermaid", out)
+        self.assertTrue(out.startswith("<p>before</p>"))
+        self.assertTrue(out.endswith("<p>after</p>"))
+
+    def test_mermaid_fence_unsupported_raises(self):
+        import flow_svg
+        with self.assertRaises(flow_svg.FlowError):
+            r("```mermaid\nflowchart TD\n  A --- B\n```")
+        with self.assertRaises(flow_svg.FlowError):
+            r("```mermaid\nsequenceDiagram\n  A->>B: hi\n```")
+
+    def test_other_fences_untouched(self):
+        self.assertIn('<pre><code class="language-text">flowchart TD', r("```text\nflowchart TD\n```"))
+
+
 class InlineTest(unittest.TestCase):
     def test_emphasis(self):
         out = r("**bold** and *it* and _it2_ and snake_case_name")

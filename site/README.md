@@ -97,11 +97,20 @@ preview deploys.
   after the em dash), first letter capitalized and a period added like skill
   summaries; its description is that summary plus the section's first paragraph.
 - **Sections**, in order: What it does, When to use, How to invoke, How it
-  works, Design principles, Use cases, Tips, Example, Related, Prereqs, then
+  works, Flow, Design principles, Use cases, Tips, Example, Related, Prereqs, then
   any README sections that don't map (original heading kept), then Source.
-  Heading matching is tolerant (`Invoke`, `Examples`, `Prerequisite: …` all
-  map). Empty or missing sections are not rendered. A skill with no Prereqs
-  section inherits its parent group README's (e.g. `kanban/README.md`).
+  Heading matching is tolerant (`Invoke`, `Examples`, `Prerequisite: …`,
+  `The loop` all map). Empty or missing sections are not rendered. A skill
+  with no Flow or Prereqs section inherits its parent group README's (e.g.
+  `kanban/README.md`); its own section wins.
+- **Flow = diagram** (optional section). A ```` ```mermaid ```` fence renders
+  as an inline SVG at build time (`scripts/flow_svg.py`, no JS). Strict
+  subset, still valid mermaid so GitHub draws it too: `flowchart TD|LR`,
+  nodes `A[label]`, one edge per line `-->`, `-->|label|`, `-.->`. Anything
+  else fails the build. Layout is deterministic: loops are broken by
+  declaration order and the return edge climbs beside the nodes it skips.
+  Colours come from CSS classes over the theme tokens. Every node must trace
+  to the SKILL.md or agent `.md`.
 - **Links.** Relative links become
   `https://github.com/KrishP147/skills/blob/master/<path>` (anchors kept);
   links to another skill's dir or README become `/<name>`,

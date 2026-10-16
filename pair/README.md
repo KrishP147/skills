@@ -34,6 +34,19 @@ Model-invocable, so "pair on issue 12" also works.
 
 Writes: a worktree + branch; commits (via agents); `skilleddocs/HANDOFF.md` in the worktree if unfinished (untracked unless the repo tracks `skilleddocs/`; never pushed).
 
+## Flow
+
+```mermaid
+flowchart TD
+    resolve[Resolve: issue or task, checklist, repo facts] --> isolate[Isolate: worktree and branch]
+    isolate --> manager[Delegate to a manager subagent]
+    manager --> report[On return: show the report]
+    report -->|unfinished: another round| manager
+    report -->|your go| push[Push and open the PR]
+    push -.->|review comments| manager
+    push --> teardown[Teardown after merge, links first]
+```
+
 ## Design principles
 
 - **Only your session touches the remote.** The manager and implementer never push, merge or open a PR (the guard hook enforces it); push and PR happen in your session, on `--push` or your go. Nothing ever merges.

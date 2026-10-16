@@ -393,6 +393,22 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
 .table-wrap th { color: var(--accent); }
 .sec hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 
+/* Flow diagram: inline SVG from a ```mermaid fence (scripts/flow_svg.py).
+   Drawn at its natural size; a graph wider than the column scrolls inside
+   .flow, never the page. Colours only from tokens (tested contrast:
+   text >= 4.5:1, lines and borders >= 3:1 on --bg / --panel). */
+.flow { overflow-x: auto; max-width: 100%; margin: 0 0 12px; }
+.flow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.flow-svg { display: block; max-width: none; height: auto; }
+.flow-svg text { font-family: var(--mono); font-size: 13px; }
+.flow-node rect { fill: var(--panel); stroke: var(--accent-line); stroke-width: 1.5; }
+.flow-label { fill: var(--fg); }
+.flow-edge path { fill: none; stroke: var(--dim); stroke-width: 1.5; }
+.flow-edge polygon { fill: var(--dim); stroke: none; }
+.flow-dotted path { stroke-dasharray: 5 4; }
+.flow-elabel rect { fill: var(--bg); stroke: none; }
+.flow-etext { fill: var(--dim); }
+
 /* Example transcript: the home terminal's chrome; "> prompt", then
    "⏺" replies and collapsed "⏺ Tool(args)" calls with a "⎿" result. */
 .tx {

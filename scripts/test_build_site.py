@@ -88,11 +88,26 @@ class PaletteContrastTest(unittest.TestCase):
                 "accent on bg": (c["--accent"], bg),
                 "accent on panel": (c["--accent"], panel),
                 "dim on panel (transcript .tx-res/.tx-more)": (c["--dim"], panel),
-                "fg on panel (transcript text)": (c["--fg"], panel),
+                "fg on panel (transcript text, flow node label)": (c["--fg"], panel),
+                "dim on bg (flow edge label)": (c["--dim"], bg),
             }
             for label, (fg, back) in pairs.items():
                 r = _contrast(_over(fg, back), back)
                 self.assertGreaterEqual(r, 4.5, "%s %s: %.2f" % (theme, label, r))
+            # Non-text graphics (WCAG 1.4.11): flow diagram lines and node borders.
+            lines = {
+                "dim on bg (flow edge, arrowhead)": (c["--dim"], bg),
+                "accent-line on bg (flow node border)": (c["--accent-line"], bg),
+            }
+            for label, (fg, back) in lines.items():
+                r = _contrast(_over(fg, back), back)
+                self.assertGreaterEqual(r, 3.0, "%s %s: %.2f" % (theme, label, r))
+        flow_rules = css.split("/* Flow diagram", 1)[1].split("\n\n", 1)[0]
+        self.assertIn(".flow-edge path { fill: none; stroke: var(--dim);", flow_rules)
+        self.assertIn(".flow-node rect { fill: var(--panel); stroke: var(--accent-line);", flow_rules)
+        self.assertIn(".flow-label { fill: var(--fg); }", flow_rules)
+        self.assertIn(".flow-etext { fill: var(--dim); }", flow_rules)
+        self.assertIn(".flow-elabel rect { fill: var(--bg);", flow_rules)
 
 
 class BuildSiteTest(unittest.TestCase):

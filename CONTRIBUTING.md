@@ -27,7 +27,9 @@ A skill submission is a directory containing:
   `How to invoke`, `How it works`, `Design principles`, `Use cases`, `Tips`,
   `Example`, `Related`, `Prereqs`). The site parses these headings to build
   the skill's page and `scripts/lint.py` warns when one is missing, so don't
-  rename or drop them (`## Invoke` is accepted for `How to invoke`).
+  rename or drop them (`## Invoke` is accepted for `How to invoke`). One
+  optional extra: `## Flow` after `How it works`, a `mermaid` diagram the
+  site draws as an inline SVG (subset in [`site/README.md`](site/README.md#detail-pages)).
 
 ## 3. Writing the SKILL.md
 
