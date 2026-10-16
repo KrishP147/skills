@@ -87,7 +87,7 @@ class BlockScalarFrontmatter(unittest.TestCase):
         self.assertEqual(self.fm("d: |2\n  a\n    b\n")["d"], "a\n  b\n")
 
     def test_header_comment(self):
-        self.assertEqual(self.fm("d: > # c\na\n  b\nk: v\n")["d"], "a b\n")
+        self.assertEqual(self.fm("d: > # c\n  a\n  b\nk: v\n")["d"], "a b\n")
         self.assertEqual(self.fm("d: | # c\n  a\n  b\n")["d"], "a\nb\n")
         self.assertEqual(self.fm("d: >- # c\n  a\n  b\n")["d"], "a b")
         self.assertEqual(self.fm("d: |2 # c\n  a\n    b\n")["d"], "a\n  b\n")
