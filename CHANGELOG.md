@@ -11,3 +11,5 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 - `guard-git` gains `--plugin`: as a plugin hook it guards only the `implementer` and `manager` agents, so your own session can still push. Without Python 3.8+ the plugin hook blocks only those two agents, not your session.
 - `pair`, `meta-orchestrator`, `implementer` and `manager` name agents and skill files in a form that works under both installs.
 - `scripts/lint.py` checks this file's top version against `plugin.json`.
+- Skill evals under `evals/` (trigger, near-miss and behaviour cases in the `claude plugin eval` format); `python scripts/evals.py` validates them and prints the paid run command without running it.
+- Sample workflows: a `/workflows` page on the site and a Sample workflows section on each skill page, from `site/data/workflows.json`.

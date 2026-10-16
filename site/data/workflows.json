@@ -29,7 +29,7 @@
     "steps": [
       {"kind": "skill", "name": "gap-scan", "why": "Surveys docs vs code, commits, TODOs, tests and open issues and writes a ranked, evidence-cited report under skilleddocs/gaps/."},
       {"kind": "human", "why": "Pick the items worth doing; every issue, comment or label change needs your explicit yes."},
-      {"kind": "skill", "name": "grill-docs", "why": "Stress-tests a big call with the grilling interview, writing the transcript and each decision to skilleddocs/decisions.md as each round settles."},
+      {"kind": "skill", "name": "grill-docs", "why": "Stress-tests a big call with the grilling interview, writing the transcript to skilleddocs/grills/ and each decision to skilleddocs/decisions.md as each round settles."},
       {"kind": "human", "why": "Answer each round; \"yes\" accepts the recommended answer."},
       {"kind": "skill", "name": "divide", "why": "Splits a size-L item into session-sized issues and puts them on the board at Todo."},
       {"kind": "human", "why": "Approve the split before any issue is created."}
