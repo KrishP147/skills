@@ -597,6 +597,27 @@ def pwsh_path_arg(rest):
     return None
 
 
+def set_alias(rest, ctx):
+    """PowerShell `Set-Alias/New-Alias [-Name] gp [-Value] git`."""
+    named, pos, i = {}, [], 0
+    while i < len(rest):
+        t = rest[i].lower()
+        if t.startswith("-") and len(t) > 1:
+            opt = next((o for o in ("name", "value") if o.startswith(t[1:])), None)
+            if opt and i + 1 < len(rest):
+                named[opt] = rest[i + 1]
+                i += 2
+                continue
+            i += 2 if t in ("-scope", "-option", "-description") else 1
+            continue
+        pos.append(rest[i])
+        i += 1
+    name = named.get("name") or (pos.pop(0) if pos else None)
+    value = named.get("value") or (pos.pop(0) if pos else None)
+    if name and value:
+        ctx.shell_aliases[name.lower()] = DYNAMIC if (is_dynamic(value) or is_dynamic(name)) else value
+
+
 def start_process_cmd(rest):
     """Reconstruct the command a PowerShell `Start-Process git -ArgumentList
     'push','origin','main'` would run, as a string to re-analyse."""
@@ -655,6 +676,25 @@ def run_segment(toks, ctx, subs, depth):
         elif head in PS_BLOCK_RUNNERS and any(is_dynamic(t) for t in rest if not t.startswith("-")):
             ctx.dynamic_exec(head)  # `Start-Job $sb`, `% $sb`
 
+    key = toks[0].lower() if ctx.powershell else toks[0]
+    if key in ctx.shell_aliases:  # `alias gp='git push'; gp origin main`
+        value = ctx.shell_aliases.pop(key)  # popped: `alias ls='ls -la'` can't loop
+        try:
+            if value == DYNAMIC:
+                return run_segment([DYNAMIC] + rest, ctx, subs, depth + 1)
+            analyze(value + " " + " ".join(shlex.quote(r) for r in rest), ctx, depth + 1)
+        finally:
+            ctx.shell_aliases[key] = value
+        return False
+    if head == "alias" and not ctx.powershell:
+        for t in rest:
+            name, eq, value = t.partition("=")
+            if eq and name:
+                ctx.shell_aliases[name] = DYNAMIC if is_dynamic(value) else value
+        return False
+    if head in ("set-alias", "sal", "new-alias", "nal") and ctx.powershell:
+        set_alias(rest, ctx)
+        return False
     if head in CD_WORDS and rest:
         target = pwsh_path_arg(rest) if head != "cd" else rest[0]
         if target and not is_dynamic(target):
