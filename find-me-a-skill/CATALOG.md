@@ -17,7 +17,7 @@ prefix skills and agents with `krish:` (`/krish:next`).
 | grill-me | skill (user only) | opus | high | `/grill-me` | A relentless interview to sharpen a plan or design. | pitch-an-idea |
 | grilling | skill | opus | high | `/grilling` | Grill the user relentlessly about a plan, decision, or idea. | pitch-an-idea |
 | handoff | skill (user only) | sonnet | medium | `/handoff` | Compact the current conversation into a handoff document for another agent to pick up. | lazy-fix-handoff |
-| handoff-auto | skill | sonnet | medium | `/handoff-auto` | Write a handoff document for a fresh session, callable by the model. | safe-to-close |
+| handoff-auto | skill | sonnet | medium | `/handoff-auto` | Write a handoff document for a fresh session, callable by the model. | safe-to-close, climb-a-score |
 | lanes | skill | sonnet | medium | `/lanes` | Set, increase, or decrease the parallel lanes of a meta-orchestrator run by grouping queued issues into file-disjoint streams, with a cost line and a confirm step. | unattended-backlog |
 | meta-orchestrator | skill | opus | high | `/meta-orchestrator` | Run a repo's backlog unattended as the orchestrator — planner, manager/implementer and verifier subagents per issue, merge gated on tests + CI, a ledger, and handoff to a fresh orchestrator on a budget. | big-effort, unattended-backlog |
 | pair | skill | sonnet | medium | `/pair` | Run one task (issue number or free text) in an isolated git worktree via a manager subagent that owns its implementer and retries; you push and open the PR at the end. | pair-to-pr |
@@ -26,9 +26,10 @@ prefix skills and agents with `krish:` (`/krish:next`).
 | progress-report | skill | sonnet | low | `/progress-report` | Write a short progress report of what an orchestrated or long session did since the last report (never overlapping): done, what worked, what didn't, concerns, decisions made for the user, manual steps. | unattended-backlog, brief-a-teammate |
 | repo-scrub | skill (user only) | opus | high | `/repo-scrub` | Scan a GitHub repo's full history for secrets and large files, scrub what the user picks, rewrite history safely, then flip it private → public. | go-public |
 | repo-showcase | skill | sonnet | high | `/repo-showcase` | Make a repo public-facing on its working tree — README rewritten around outcome and demo, stale docs pruned, outdated claims fixed, secrets and private names found, GitHub metadata proposed — then hand off to /repo-scrub. | go-public |
+| score-loop | skill | opus | high | `/score-loop` | Run an unattended experiment loop that hill-climbs one rerunnable numeric score — local grader-mirroring harness, one hypothesis per commit, keep only gains beyond the noise margin, auto-revert the rest, append-only results ledger; stops on budget, deadline or plateau. | climb-a-score |
 | session-bridge | skill | sonnet | low | `/session-bridge` | Coordinate with another Claude Code session or agent on the same repo — snapshot its state, check for overlap, send it a gated message. | two-sessions |
 | sitrep | skill | haiku | low | `/sitrep` | Live status of this session in ≤10 lines — what's running, git state, PRs + CI, asked vs done, what needs the user, and a SAFE/NOT SAFE close verdict. | safe-to-close, two-sessions |
-| spend-gate | skill | sonnet | medium | `/spend-gate` | Gate any billable action (GPU pods/instances, paid APIs or tiers, cloud credits) behind a cost estimate, a live balance check, and an explicit yes for that action. | paid-tests |
+| spend-gate | skill | sonnet | medium | `/spend-gate` | Gate any billable action (GPU pods/instances, paid APIs or tiers, cloud credits) behind a cost estimate, a live balance check, and an explicit yes for that action. | paid-tests, climb-a-score |
 | teammate-brief | skill | sonnet | medium | `/teammate-brief` | Write an onboarding document for a person joining or picking up a project — what it is, setup steps verified by running them, env var names and where to get them, tasks with "done when", owners, don't-touch list. | brief-a-teammate |
 | wayfinder | skill (user only) | opus | high | `/wayfinder` | Plan an effort too big for one session as a map of decision tickets (GitHub issue + sub-issues) and resolve them one per session until the way is clear, then hand off to divide. | big-effort |
 | consult-plan | skill | opus | high | `/consult-plan` | Grill a proposed change, deviation, or new idea against a repo's existing plan (issues, board, roadmap, decisions), then record the outcome. | pitch-an-idea |
@@ -164,6 +165,15 @@ human-in-the-loop points: nothing continues without you.
 4. you: Say yes to this one action; a budget or an earlier go-ahead is context, not approval.
 5. spend-guard (hook, haiku · low): Blocks a known billable command or MCP call without an approval, and lets exactly one approved call through.
 6. you: Tear down anything that bills while idle; spend-gate gives the teardown and reminds you again.
+
+### climb-a-score: Push a score up until it plateaus
+
+1. /score-loop (skill, opus · high): Builds a local harness that mirrors the grader, measures the noise margin, and shows the setup header with every outward action.
+2. you: Say yes to the setup once: quota, spend cap, deadline; then it runs unattended.
+3. /spend-gate (skill, sonnet · medium): Gates each paid submission or compute step with a cost estimate and a live balance check; the spend cap is a ceiling, not approval.
+4. you: Say yes to that one paid action.
+5. /handoff-auto (skill, sonnet · medium): When the loop's context degrades, writes a handoff pointing at skilleddocs/experiments.md and /score-loop resume.
+6. you: Run /score-loop resume in a fresh session; at the deadline freeze, say yes to the final submission.
 
 ### brief-a-teammate: Hand the project to a teammate
 
