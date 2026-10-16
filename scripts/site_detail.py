@@ -18,6 +18,7 @@ import posixpath
 import re
 import sys
 
+from flow_svg import FlowError
 from md_render import Renderer, safe_url, strip_inline, tx_prompt, tx_reply, tx_wrap
 
 REPO_URL = "https://github.com/KrishP147/skills"
@@ -28,6 +29,7 @@ SECTIONS = (
     ("when", "When to use"),
     ("invoke", "How to invoke"),
     ("how", "How it works"),
+    ("flow", "Flow"),
     ("design", "Design principles"),
     ("usecases", "Use cases"),
     ("tips", "Tips"),
@@ -41,6 +43,7 @@ ALIASES = {
     "when": ("when to use", "when to use it", "when"),
     "invoke": ("how to invoke", "invoke", "invocation", "usage", "you pass", "install"),
     "how": ("how it works",),
+    "flow": ("flow", "flow diagram", "flowchart", "diagram", "the loop"),
     "design": ("design principles", "principles", "design"),
     "usecases": ("use cases", "use case"),
     "tips": ("tips", "gotchas", "tips and gotchas"),
@@ -251,8 +254,14 @@ def shared_agent_example(agents_readme):
     return ""
 
 
-def parent_prereqs(root, source):
-    """Prereq section of a skill's parent-group README (e.g. kanban/)."""
+# Sections a grouped skill (kanban/<name>) inherits from its group README
+# when its own README lacks them.
+INHERITED = ("flow", "prereqs")
+
+
+def parent_section(root, source, key):
+    """(heading, body) of the `key` section in a skill's parent-group README
+    (e.g. kanban/README.md for kanban/next), else None."""
     parent = posixpath.dirname(source)
     if not parent:
         return None
@@ -262,7 +271,7 @@ def parent_prereqs(root, source):
     with open(path, encoding="utf-8-sig") as f:
         _pre, secs = split_h2(f.read())
     for heading, body in secs:
-        if section_key(heading) == "prereqs":
+        if section_key(heading) == key:
             return heading, body
     return None
 
@@ -298,8 +307,10 @@ def raw_sections(root, e, agents_readme):
         pre, pairs = split_label_paragraphs(e["readme"])
         return pre, pairs, "hooks"
     pre, pairs = split_h2(e["readme"])
-    if not any(section_key(h) == "prereqs" for h, _b in pairs):
-        pp = parent_prereqs(root, e["source"])
+    for key in INHERITED:
+        if any(section_key(h) == key for h, _b in pairs):
+            continue  # the skill's own section wins
+        pp = parent_section(root, e["source"], key)
         if pp:
             # Relative links in the parent README resolve from the parent dir.
             heading, body = pp
@@ -410,11 +421,15 @@ def build_pages(root, entries, meta, template, data_json, site_base=""):
         if missing_example(ordered):
             sys.stderr.write("WARN: %s: no Example section (its page has no transcript)\n" % e["name"])
         # Pre-render to collect outgoing page links (for backlinks).
+        # A ```mermaid fence outside the flow_svg subset fails the build here.
         probe = Renderer(rw)
-        for _k, _t, body in ordered:
-            probe.render(body)
-        for _h, body in extras:
-            probe.render(body)
+        try:
+            for _k, _t, body in ordered:
+                probe.render(body)
+            for _h, body in extras:
+                probe.render(body)
+        except FlowError as err:
+            raise FlowError("%s: %s" % (e["name"], err)) from err
         for t in targets:
             if t != e["name"] and t in backlinks:
                 backlinks[t].add(e["name"])
