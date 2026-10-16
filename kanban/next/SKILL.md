@@ -6,7 +6,7 @@ disallowed-tools: Edit, Write, NotebookEdit
 
 Read-only. Board lookup and status labels: [BOARD.md](BOARD.md).
 
-0. `origin` not on GitHub (`gh repo view` fails) → stop and say this skill needs a GitHub remote.
+0. `gh repo view` fails → stop and say why: `origin` isn't a GitHub remote (this skill needs one), or `gh` isn't authenticated (`gh auth status`).
 1. **Find the board** per BOARD.md.
 
 2. **Red default branch first.** Workflow names: `gh workflow list --json name -q '.[].name'`. Per workflow on the default branch, check the latest *completed* run (`gh run list --branch <default> --status completed --limit 1 --workflow <name> --json conclusion,url`). Any `failure` is priority #1. `cancelled`/`timed_out` is worth a mention, not a priority.

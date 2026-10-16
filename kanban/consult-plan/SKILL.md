@@ -4,10 +4,10 @@ description: Grill a proposed change, deviation, or new idea against a repo's ex
 argument-hint: "the idea, deviation, or innovation"
 ---
 
-0. `origin` not on GitHub (`gh repo view` fails) → stop and say this skill needs a GitHub remote.
+0. `gh repo view` fails → stop and say why: `origin` isn't a GitHub remote (this skill needs one), or `gh` isn't authenticated (`gh auth status`).
 1. **Baseline**, whatever exists: open issues, board state, roadmap doc, `skilleddocs/decisions.md` and `skilleddocs/grills/` (cite decisions as `D<k>`).
 2. **Grill**: call the Skill tool with `"grilling"`, baseline as context. The question tree: does the idea fit, conflict with, or extend the plan, and what does the user want to happen?
 3. **Record** once settled:
-   - Append one row per decision to the repo's decisions doc: the one `AGENTS.md`/`CLAUDE.md` names; else an existing `docs/decisions.md` or ADR folder; else `skilleddocs/decisions.md` (same rule as `grill-docs`, which also gives the header and row format). Source: `consult-plan <local date>`, plus the issue or PR link when there is one. Untracked → exclude `skilleddocs/` per the `handoff-auto` skill's `TRACKING.md` (it also covers the `pip install .` hazard).
+   - Append one row per decision to the repo's decisions doc: the one `AGENTS.md`/`CLAUDE.md` names; else an existing `docs/decisions.md` or ADR folder; else `skilleddocs/decisions.md` (same rule as `grill-docs`, which also gives the header and row format; an ADR folder gets one new ADR per decision). Source: `consult-plan <local date>`, plus the issue or PR link when there is one. Untracked → exclude `skilleddocs/` per the `handoff-auto` skill's `TRACKING.md` (it also covers the `pip install .` hazard).
    - Idea **accepted** or changed: comment on the relevant issue (the `D<k>` ids and a one-line outcome), or open one and put it on the board at Todo ([BOARD.md](../next/BOARD.md)).
    - Idea **rejected**: the decision row is the record. Comment only if a related issue exists; never open an issue for a rejected idea.

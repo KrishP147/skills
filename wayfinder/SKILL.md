@@ -10,7 +10,7 @@ An idea has arrived that no single session can hold, and the way from here to th
 
 Naming the destination is the first act: it fixes the scope and shapes every ticket. It may be a spec, a decision to lock, or a change such as a data migration. The map fits any domain.
 
-`origin` not on GitHub (`gh repo view` fails) → stop and say this skill needs a GitHub remote.
+`gh repo view` fails → stop and say why: `origin` isn't a GitHub remote (this skill needs one), or `gh` isn't authenticated (`gh auth status`).
 
 ## Plan, don't do
 

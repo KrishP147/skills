@@ -39,7 +39,7 @@ Writes: `skilleddocs/grills/<date>-<slug>.md` and the decisions doc: the one `AG
 
 ## Tips
 
-- Pass a slug as the second argument to control the transcript filename; otherwise Claude picks 2 to 4 topic words.
+- End the argument with a kebab-case slug (`/grill-docs our caching plan cache-plan`) to control the transcript filename; otherwise Claude picks 2 to 4 topic words.
 - "Go with your recs" is fine: delegated answers are recorded as `(delegated) <rec>`, so the register stays complete.
 - Files are left uncommitted unless you ask; commit them yourself if the repo tracks `skilleddocs/`.
 - If your repo's `AGENTS.md` or `CLAUDE.md` names a decisions doc, that file is used; otherwise an existing `docs/decisions.md` or ADR folder; the transcript header's `Register:` field says which.

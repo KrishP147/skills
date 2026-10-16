@@ -4,7 +4,7 @@ description: Split a GitHub issue or task into session-sized issues and put them
 argument-hint: "issue number or task description"
 ---
 
-0. `origin` not on GitHub (`gh repo view` fails) → stop and say this skill needs a GitHub remote.
+0. `gh repo view` fails → stop and say why: `origin` isn't a GitHub remote (this skill needs one), or `gh` isn't authenticated (`gh auth status`).
 1. Read the target (`gh issue view <n>`, or the user's description).
 2. **Session-sized** = fits the ~75K-token smart zone and ends in one PR. Target already fits one session → don't divide: say so and stop. Else propose 2+ session-sized pieces, each with a "done when". Show the split; create nothing yet. You revise the split → show it again and wait for the yes.
 3. On yes: `gh issue create --title "<piece>" --body "Part of #<n>. <details>"` per piece, then add a task-list checkbox per child to the parent's body. Free-text target (no issue number) → there is no parent: omit "Part of", the checkboxes and the roadmap link (steps 3 and 5), and put the shared context in each child's body.

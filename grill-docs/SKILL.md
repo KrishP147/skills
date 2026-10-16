@@ -7,8 +7,8 @@ argument-hint: "plan, decision, or doc path [slug]"
 Call the Skill tool with `"grilling"` and run that interview unchanged. Your addition: write it down **as each round settles**, so an abandoned session still leaves a record.
 
 Paths:
-- transcript: `skilleddocs/grills/<local-date>-<slug>.md` (slug: the optional second argument, else 2–4 topic words from the subject)
-- register (the decisions doc): the one the repo's `AGENTS.md`/`CLAUDE.md` names; else an existing `docs/decisions.md` or ADR folder; else `skilleddocs/decisions.md`. Same rule as `consult-plan`. Always name the chosen path in the header's `Register:` field.
+- transcript: `skilleddocs/grills/<local-date>-<slug>.md` (slug: the argument's last word when it is kebab-case with a hyphen, like `auth-plan`, and words remain before it; else 2–4 topic words from the subject)
+- register (the decisions doc): the one the repo's `AGENTS.md`/`CLAUDE.md` names; else an existing `docs/decisions.md` or ADR folder; else `skilleddocs/decisions.md`. Same rule as `consult-plan`. An ADR folder gets one new ADR per decision in its own format, carrying the same Source. Always name the chosen path in the header's `Register:` field.
 
 Untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md) (it also covers the `pip install .` hazard).
 
@@ -35,7 +35,7 @@ Transcript, per question. `Q<n>` counts across the whole session: continue the n
 - Why: <user's reason, else the recommendation's rationale marked "(rec)">
 ```
 
-Register, one row per settled question, continuing the `D<k>` numbering. Source is the transcript file plus the lowercase anchor (`grills/2026-10-16-sync-plan.md#q3`). Called from a `wayfinder` ticket, name the ticket in Source too (`ticket <link>; grills/<file>#q<n>`):
+Register, one row per settled question, continuing the `D<k>` numbering. Source is the transcript path, relative to the register, plus the lowercase anchor (`grills/2026-10-16-sync-plan.md#q3` from `skilleddocs/decisions.md`). Called from a `wayfinder` ticket, name the ticket in Source too (`ticket <link>; grills/<file>#q<n>`):
 
 ```markdown
 | D<k> | <local date> | <decision> | <why> | grills/<file>#q<n> |
