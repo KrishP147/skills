@@ -96,6 +96,8 @@ def _cli(binary, stops):
 
 
 _GC_STOPS = "compute|alpha|beta|preview"
+_AWS_VERBS = "run-instances|request-spot-instances|request-spot-fleet|start-instances"
+_GC_VERBS = "create|start|bulk"
 _AWS = _cli("aws", "ec2")
 _GCLOUD = _cli("gcloud", _GC_STOPS) + r"""(?:(?:alpha|beta|preview)\s+""" + _flags(_GC_STOPS) + ")?"
 _AZ = _cli("az", "vm")
@@ -108,10 +110,10 @@ DEFAULT_BASH_PATTERNS = [
     _RP + r"""pods?\s+update\b[^\n]*--(?:volume-in-gb|container-disk-in-gb)\b""",
     _RP + r"""model\s+add\b""",
     r"""\bvultr-cli(?:\.exe|\.cmd)?["']?\s+instance\s+create\b""",
-    _AWS + r"""ec2\s+(?:run-instances|request-spot-instances|request-spot-fleet"""
-    r"""|start-instances)\b""",
-    _GCLOUD + r"""compute\s+instances\s+(?:create|start|bulk\s+create)\b""",
-    _AZ + r"""vm\s+(?:create|start)\b""",
+    _AWS + r"""ec2\s+""" + _flags(_AWS_VERBS) + r"""(?:""" + _AWS_VERBS + r""")\b""",
+    _GCLOUD + r"""compute\s+""" + _flags("instances") + r"""instances\s+""" + _flags(_GC_VERBS)
+    + r"""(?:create|start|bulk\s+create)\b""",
+    _AZ + r"""vm\s+""" + _flags("create|start") + r"""(?:create|start)\b""",
     r"""\bmodal(?:\.exe|\.cmd)?["']?\s+(?:deploy|run)\b""",
 ]
 
@@ -927,6 +929,7 @@ _DYN_ARG_PREFIXES = {
     "az": [(), ("vm",)],
     "modal": [()],
 }
+_DYN_WORDS = {w for ps in _DYN_ARG_PREFIXES.values() for p in ps for w in p}
 _XARGS_TAIL_RE = re.compile(r"(?<![\w-])(?:xargs|parallel)(?![\w-])[^;&|\n\r]*$")
 
 
@@ -956,6 +959,11 @@ def _dynamic_arg_hit(text):
                 nxt = toks[i + 1].strip("'\"") if i + 1 < len(toks) else ""
                 if "=" not in t and nxt[:1] in ("$", "@"):
                     i += 2  # a variable flag value, e.g. --profile $P
+                    continue
+                if ("=" not in t and prog in ("aws", "gcloud", "az") and nxt
+                        and nxt[:1] != "-" and nxt[:1] not in "(`{"
+                        and nxt.lower() not in _DYN_WORDS):
+                    i += 2  # `--region x`: the value is not a positional (#206)
                     continue
                 i += 1
                 continue
@@ -1965,6 +1973,12 @@ def run_self_test():
                 "az --subscription=s vm create -n v",
                 "az vm start -n v -g g",
                 "az --debug vm start -n v",
+                "aws ec2 --region us-east-1 run-instances",
+                "gcloud compute --project=p instances create vm1",
+                "gcloud compute instances --zone z create vm1",
+                "az vm --subscription s create -n v",
+                "aws --region x ec2 $ACTION",
+                "aws ec2 --region x $ACTION",
                 "xargs runpodctl <<< 'pod create'",
                 "xargs runpodctl < args.txt",
                 "xargs runpodctl pod < args.txt",
@@ -1973,6 +1987,12 @@ def run_self_test():
         record("#202 blocks: %r" % cmd, check(S, {"command": cmd}, None, env=iso) is not None)
     for cmd in ("aws --region x ec2 describe-instances",
                 "aws --profile p s3 ls",
+                "aws ec2 --region x describe-instances",
+                "gcloud compute --project p instances list",
+                "gcloud compute instances --zone z list",
+                "az vm --subscription s list",
+                "aws --region x s3 ls",
+                "aws --profile $P s3 ls",
                 "aws --region x ec2 stop-instances --instance-ids i-1",
                 "gcloud --project p compute instances list",
                 "gcloud alpha compute instances describe vm1",
@@ -2000,6 +2020,7 @@ def run_self_test():
             ("b64", S, "echo " + " ".join(["cnVucG9kY3RsIGdldCBwb2Q="] * n) + " | base64 -d"),
             ("dollar-brace", S, "runpodctl " + "${" * n),
             ("cli-flags", S, "gcloud " + "--f v " * n + "beta " + "--g=w " * n + "compute instances list"),
+            ("cli-mid-flags", S, "aws ec2 " + "--f v -o json " * n + "describe-instances"),
             ("spaces", S, "alias r=runpodctl;" + " " * 20000 + "$X")):
         dt = _best_time(lambda: check(tool, {"command": cmd}, None, env=iso))
         record("#160 perf %s %d chars < %.0fs (best of 3: %.3fs)" % (label, len(cmd), PERF_LIMIT, dt),
