@@ -16,7 +16,7 @@ Read-only. Board lookup and status labels: [BOARD.md](BOARD.md).
    - Labels: `status:in-review` first, tagged "awaiting verification"; then `status:todo`.
    - Roadmap doc: open linked issues in doc order; gated items last.
 
-   Skip any issue labelled `wayfinder:*` (planning tickets, worked only via `/wayfinder`).
+   Skip any issue labelled `wayfinder:*` (planning tickets, worked only via `/wayfinder`), and, with several boards, any In Progress or In Review on another of this repo's boards (`gh issue list -R <owner>/<repo> --state open --json number,projectItems`).
 
    Labels used: `priority:*` (ordering), `size:*` (size). Groups stay in that order (In Review, then Todo); within each, order by priority label (`p0` > `p1` > …, `critical` > `high` > `medium` > `low`), else roadmap order, else oldest first. A repo's `CLAUDE.md`/`AGENTS.md` overrides any of this.
 
