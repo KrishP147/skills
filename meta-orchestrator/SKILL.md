@@ -66,7 +66,7 @@ Verifier fixes on default afterwards are normal; issues it files join the queue.
 
 ## 5. Ledger
 
-`skilleddocs/orchestrator/ledger.md`, append-only, zone named once at the top. Commit and push each entry on default (`docs(skilleddocs): ledger NNN`) unless `docs_commit: uncommitted`.
+`skilleddocs/orchestrator/ledger.md`, append-only, zone named once at the top. Commit and push each entry on default (`docs(skilleddocs): ledger NNN`) unless `docs_commit: uncommitted` (then exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md)).
 
 ```
 ### <NNN> · <local YYYY-MM-DD HH:MM ZZZ> · <plan|implement|merge|verify|decision|assumption|problem|manual|handoff|report>

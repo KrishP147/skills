@@ -84,7 +84,7 @@ Dependencies API unavailable (404/403) → add a `Blocked by: #<n>` line per blo
 
 **HITL** tickets resolve only through a live exchange with the human; never answer their side yourself. **AFK** tickets are driven by the agent alone.
 
-- **Research** (AFK): surface a fact a decision waits on (docs, third-party APIs, knowledge bases, the web). Spawn a `general-purpose` subagent with web search; it returns findings, you post them. Long findings → a gist or a file under `skilleddocs/`, linked from the comment. No branches.
+- **Research** (AFK): surface a fact a decision waits on (docs, third-party APIs, knowledge bases, the web). Spawn a `general-purpose` subagent with web search; it returns findings, you post them. Long findings → a gist or a file under `skilleddocs/` (untracked → exclude it per [TRACKING.md](../handoff-auto/TRACKING.md)), linked from the comment. No branches.
 - **Prototype** (HITL): make a cheap, rough, concrete artifact to react to (outline, stub, sketch UI or logic) when "how should it look/behave" is the question. Link it as an asset.
 - **Grilling** (HITL): the default. Call the Skill tool with `"grill-docs"`; its transcript goes to `skilleddocs/grills/<date>-<ticket-slug>.md`. The resolution comment gists the answers and links the transcript.
 - **Task** (AFK where possible, else a precise checklist for the human): manual work a decision is blocked on (sign up for a service, get access, move data to see its shape). The one type that *does*; it earns its place by unblocking a decision. Record what was done and any resulting facts (where credentials live, new URLs, row counts).

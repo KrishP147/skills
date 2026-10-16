@@ -10,6 +10,8 @@ Paths (repo's `AGENTS.md`/`CLAUDE.md` may name another decisions doc; use it and
 - transcript: `skilleddocs/grills/<local-date>-<slug>.md` (slug: the argument, else 2–4 topic words)
 - register: `skilleddocs/decisions.md`
 
+Untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md) (it also covers the `pip install .` hazard).
+
 ## Before round 1
 
 ```markdown

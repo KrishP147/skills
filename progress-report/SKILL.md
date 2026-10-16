@@ -8,7 +8,7 @@ A document the user reads in two minutes.
 
 ## 1. Range
 
-- **Folder**: the one given, else `skilleddocs/reports/`.
+- **Folder**: the one given, else `skilleddocs/reports/` (untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md)).
 - **Ledger**: `skilleddocs/orchestrator/ledger.md` (older runs: `ledger.md` in the folder). None → reconstruct from `git log`, merged PRs, issues, and this conversation, and say so in the report.
 - **Watermark**: `.last-reported` in the folder = last ledger entry reported + that report's filename. None → report #1, covers everything.
 

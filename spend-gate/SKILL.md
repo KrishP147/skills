@@ -14,7 +14,7 @@ Every billable action gets its own gate, every time: estimate → balance → ex
    | when (local) | amount | purpose | price source | resource id |
    |---|---|---|---|---|
    ```
-   Fill the resource id into the same row once known.
+   Fill the resource id into the same row once known. Untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md) (it also covers the `pip install .` hazard).
 6. **Run**, then for anything that bills while idle (pod, instance, endpoint, volume): give the teardown or auto-stop now, and remind again when the work is done.
 
 Blocked by the spend-guard hook → [HOOK.md](HOOK.md).
