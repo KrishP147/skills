@@ -155,6 +155,18 @@
     ]
   },
   {
+    "name": "climb-a-score",
+    "title": "Push a score up until it plateaus",
+    "steps": [
+      {"kind": "skill", "name": "score-loop", "why": "Builds a local harness that mirrors the grader, measures the noise margin, and shows the setup header with every outward action."},
+      {"kind": "human", "why": "Say yes to the setup once: quota, spend cap, deadline; then it runs unattended."},
+      {"kind": "skill", "name": "spend-gate", "why": "Gates each paid submission or compute step with a cost estimate and a live balance check; the spend cap is a ceiling, not approval."},
+      {"kind": "human", "why": "Say yes to that one paid action."},
+      {"kind": "skill", "name": "handoff-auto", "why": "When the loop's context degrades, writes a handoff pointing at skilleddocs/experiments.md and /score-loop resume."},
+      {"kind": "human", "why": "Run /score-loop resume in a fresh session; at the deadline freeze, say yes to the final submission."}
+    ]
+  },
+  {
     "name": "brief-a-teammate",
     "title": "Hand the project to a teammate",
     "steps": [
