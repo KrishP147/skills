@@ -39,10 +39,19 @@ optional `aliases` from `meta.json`) in `#skill-data`.
 - **Ranking:** exact name > name prefix > word-boundary prefix (`handoff` finds
   `session-handoff`) > substring > alias; ties A-Z. A bare `/` lists everything
   A-Z. About 8 rows show, the rest scroll.
+- **Description fallback:** no name or alias match -> search the summaries
+  with the raw words (spaces and dashes both split). A word matches a whole
+  summary word or, at 4+ chars, its start; words under 3 chars and stopwords
+  (`the`, `and`, ...) are ignored. 1-2 content words must all match, longer
+  queries at least half. Ranking: phrase (words contiguous, in order) > all
+  words > most words; ties A-Z. `/run one task` finds `/pair`; `/review`
+  finds `/pr-watch`. Rows are normal options (Tab/Enter/click) under a dim
+  `No command name matches "/run one task". Matched descriptions:` line. A
+  close name typo (`/gril-me`) still wins over a description hit.
 - **No match:** `No command matches "/x". Did you mean /y?` with up to 3
   suggestions: OSA (Damerau-Levenshtein) distance over names, name parts and
-  aliases, normalized by length, then summary words (`/review` finds `/pr-watch`).
-  Nothing close: `No matches. Type / to see all.`
+  aliases, normalized by length, then fuzzy summary words. Nothing close:
+  `No matches. Type / to see all.`
 - **Keys:** the first row is highlighted every time the menu opens (prompt
   click, `/`, Enter or Up/Down on a closed menu, bare `/` included) and every
   time the text changes. Up/Down move the highlight, Tab fills the highlighted
@@ -51,8 +60,8 @@ optional `aliases` from `meta.json`) in `#skill-data`.
   the page focuses the prompt. An exact name shows a dim `↵ to open`; typing
   never navigates by itself.
 - **ARIA:** input `role=combobox` with `aria-expanded` / `aria-activedescendant`,
-  `role=listbox` of `role=option`s, polite `#status` live region for the count
-  or the did-you-mean line.
+  `role=listbox` of `role=option`s, polite `#status` live region for the count,
+  `N commands match by description`, or the did-you-mean line.
 
 ## Comments (giscus)
 
