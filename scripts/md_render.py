@@ -4,6 +4,10 @@ Supports what the repo's READMEs use: ATX headings (with id slugs),
 paragraphs, nested lists (ordered/unordered), fenced code, inline code,
 links, bold/italic, pipe tables, blockquotes, horizontal rules.
 
+A ```transcript fence renders as a Claude Code style session (line grammar:
+parse_transcript); the tx_* helpers build the same markup for callers that
+assemble a transcript themselves.
+
 Safety: every piece of source text is HTML-escaped. Raw HTML in the
 markdown is escaped, never passed through. Link URLs with a scheme other
 than http/https/mailto (javascript:, data:, vbscript:, ...) are dropped and
@@ -24,7 +28,8 @@ _HEADING_RE = re.compile(r"^(#{1,6})(?:[ \t]+(.*?))?[ \t]*#*[ \t]*$")
 _HR_RE = re.compile(r"^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$")
 _LIST_RE = re.compile(r"^( *)([-*+]|\d{1,9}[.)])( +|$)(.*)$")
 _TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
-_ESCAPABLE = "\\`*_{}[]()#+-.!|>~<\"'"
+_TX_TOOL_RE = re.compile(r"^⏺\s*([A-Za-z_][\w.:-]*)\((.*)\)\s*$")
+_ESCAPABLE ="\\`*_{}[]()#+-.!|>~<\"'"
 
 
 def esc(s):
@@ -39,6 +44,77 @@ def safe_url(url):
     if m and m.group(1).lower() not in SAFE_SCHEMES:
         return None
     return url
+
+
+def parse_transcript(text):
+    """Line grammar of a ```transcript fence -> [(kind, head, lines)].
+
+    '> text'          user prompt (kind "prompt", head = text)
+    '⏺ Tool(args)'    tool call (kind "tool", head = (Tool, args)); the
+                      indented '⎿ ...' line under it, and any further
+                      indented lines, are its result
+    '⏺ text'          reply (kind "reply")
+    Indented lines continue the turn above; blank lines inside a turn are
+    kept, trailing ones dropped. Any other unindented line is a plain
+    "text" turn. Never raises."""
+    turns = []
+    for raw in text.replace("\r\n", "\n").split("\n"):
+        line = raw.rstrip()
+        s = line.lstrip(" ")
+        indent = len(line) - len(s)
+        if not s:
+            if turns:
+                turns[-1][2].append("")
+            continue
+        if indent == 0 and (s == ">" or s.startswith("> ")):
+            turns.append(["prompt", s[2:], []])
+        elif indent == 0 and s.startswith("⏺"):
+            m = _TX_TOOL_RE.match(s)
+            if m:
+                turns.append(["tool", (m.group(1), m.group(2)), []])
+            else:
+                turns.append(["reply", s[1:].strip(), []])
+        elif indent > 0 and turns:
+            if turns[-1][0] == "tool":
+                # '⎿' marks the result; deeper lines keep their indent past it
+                s = s[1:].strip() if s.startswith("⎿") else line[min(indent, 4):]
+            turns[-1][2].append(s)
+        else:
+            turns.append(["text", s, []])
+    out = []
+    for kind, head, lines in turns:
+        while lines and not lines[-1]:
+            lines.pop()
+        out.append((kind, head, lines))
+    return out
+
+
+def tx_prompt(text):
+    return ('<div class="tx-prompt"><span class="tx-gt" aria-hidden="true">&gt;</span>'
+            '<span class="tx-text">%s</span></div>' % esc(text))
+
+
+def tx_reply(inner_html, block=False):
+    """A reply row; inner_html is already rendered (escaped) markup."""
+    return ('<div class="tx-reply%s"><span class="tx-dot" aria-hidden="true">⏺</span>'
+            '<div class="tx-text">%s</div></div>' % (" tx-md" if block else "", inner_html))
+
+
+def tx_tool(name, args, result_lines):
+    """A collapsed tool call; result lines are literal text."""
+    more = res = ""
+    if result_lines:
+        n = len(result_lines)
+        more = ' <span class="tx-more">(+%d line%s)</span>' % (n, "" if n == 1 else "s")
+        res = ('<div class="tx-res"><span class="tx-elbow" aria-hidden="true">⎿</span>'
+               '<span class="tx-text">%s</span></div>' % esc("\n".join(result_lines)))
+    return ('<details class="tx-tool"><summary><span class="tx-dot" aria-hidden="true">⏺</span>'
+            '<span class="tx-name">%s</span>(<span class="tx-args">%s</span>)%s</summary>%s</details>'
+            % (esc(name), esc(args), more, res))
+
+
+def tx_wrap(parts):
+    return '<div class="tx" role="group" aria-label="Example session">\n%s\n</div>' % "\n".join(parts)
 
 
 def slugify(text):
@@ -133,10 +209,28 @@ class Renderer:
                 k += 1
             body.append(s[k:])
             i += 1
+        if lang == "transcript":
+            out.append(self.transcript("\n".join(body)))
+            return i
         cls = ' class="language-%s"' % esc(lang) if lang else ""
         code = "\n".join(body)
         out.append("<pre><code%s>%s</code></pre>" % (cls, esc(code + ("\n" if body else ""))))
         return i
+
+    def transcript(self, text):
+        """HTML for a ```transcript fence body (grammar: parse_transcript).
+        Prompts and tool output stay literal; replies get inline markdown."""
+        parts = []
+        for kind, head, lines in parse_transcript(text):
+            if kind == "prompt":
+                parts.append(tx_prompt("\n".join([head] + lines)))
+            elif kind == "tool":
+                parts.append(tx_tool(head[0], head[1], lines))
+            elif kind == "reply":
+                parts.append(tx_reply("\n".join(self.inline(l) for l in [head] + lines)))
+            else:
+                parts.append('<div class="tx-line">%s</div>' % esc("\n".join([head] + lines)))
+        return tx_wrap(parts)
 
     def _blockquote(self, lines, i, hoff, out):
         inner = []
