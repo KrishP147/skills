@@ -122,7 +122,7 @@ Git: 2 worktrees, clean, all pushed (handoff in ../wt-issue-9 is excluded)
 PRs: none
 Asked -> done: 2/2
 Needs you: none
-Verdict: NOT SAFE - untracked handoff in worktree slated for removal: move <wt>/skilleddocs/handoffs/2026-10-15-x.md or keep worktree
+Verdict: NOT SAFE - untracked handoff in worktree slated for removal: move ../wt-issue-9/skilleddocs/handoffs/2026-10-15-x.md or keep worktree
 ```
 
 ## Related
