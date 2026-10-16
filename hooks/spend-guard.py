@@ -748,7 +748,7 @@ def _norms(v):
 # data=/json=). Case-sensitive for the short curl flags (-f is --fail).
 _WRITE_RE = re.compile(
     r"""(?i:(?<![\w-])(?:POST|PUT|PATCH)(?![\w-]))"""
-    r"""|(?<![\w-])-[a-zA-Z]*[dFT](?=[\s=@'"{]|$)"""
+    r"""|(?<![\w-])-[a-zA-Z]{0,3}[dFT](?=[\s=@'"{]|$)"""
     r"""|(?i:(?<![\w-])(?:--data[\w-]*|--json|--form[\w-]*|--upload-file|--post-data|--post-file|--body-data|--body-file|-Body|-InFile|-Form)(?![\w-]))"""
     r"""|(?<![\w.])(?:data|json)\s*=(?!=)""")
 
@@ -822,6 +822,9 @@ _SDK_RULES = [
     ("Runpod SDK", re.compile(r"\brunpod\b"), re.compile(
         r"\b(?:create_pod|create_endpoint|resume_pod|create_network_volume|create_cluster"
         r"|update_endpoint\w*|run_sync|run_async)\s*\("
+        # `from runpod... import create_pod as c` (call hidden behind a rename)
+        r"|\bimport\b[^;\n]{0,300}\b(?:create_pod|create_endpoint|resume_pod"
+        r"|create_network_volume|create_cluster)\b"
         r"|\bEndpoint\b[\s\S]{0,400}?\.\s*run\w*\s*\(")),
     ("boto3 EC2", re.compile(r"\bboto3\b"), re.compile(
         r"\b(?:run_instances|request_spot_instances|request_spot_fleet|create_fleet"
@@ -1679,6 +1682,200 @@ def run_self_test():
         check(tool, {"command": cmd}, None, env=iso)
         dt = time.time() - t0
         record("#141 perf %s %d chars < 0.5s (%.3fs)" % (tool, len(cmd), dt), dt < 0.5)
+
+    # 17. issue #160: indirection, Start-Process, REST/GraphQL, SDK one-liners.
+    # Each form: (tool, blocks, near-miss that stays allowed).
+    P_ = P  # PowerShell inline-approval prefix from section 16
+    S, P = "Bash", "PowerShell"
+    forms = [
+        (S, "alias r=runpodctl; r create pod", "alias r=runpodctl; r get pod"),
+        (S, "alias r='runpodctl pod'; r create", "alias r='runpodctl pod'; r list"),
+        (S, "X=runpodctl; $X create pod", "X=runpodctl; $X get pod"),
+        (S, "X=runpodctl; ${X} create pod", "X=runpodctl; ${X} get pod"),
+        (S, 'X=runpodctl; "$X" create pod', 'X=runpodctl; "$X" get pod'),
+        (S, "A=runpod; B=ctl; $A$B create pod", "A=runpod; B=ctl; $A$B pod list"),
+        (S, 'f(){ runpodctl "$@"; }; f create pod', 'f(){ runpodctl "$@"; }; f get pod'),
+        (S, 'function f { runpodctl "$@"; }; f create pod',
+         'function f { runpodctl "$@"; }; f get pod'),
+        (S, "f(){ runpodctl $1 pod; }; f create", "f(){ runpodctl $1 pod; }; f list"),
+        (S, 'f(){ aws ec2 "$@"; }; f run-instances --image-id x',
+         'f(){ aws ec2 "$@"; }; f describe-instances'),
+        (P, "Set-Alias r runpodctl; r create pod", "Set-Alias r runpodctl; r get pod"),
+        (P, "New-Alias -Name r -Value runpodctl; r create pod",
+         "New-Alias -Name r -Value runpodctl; r get pod"),
+        (P, "$X='runpodctl'; & $X create pod", "$X='runpodctl'; & $X get pod"),
+        (P, "$env:RP='runpodctl'; & $env:RP create pod", "$env:RP='runpodctl'; & $env:RP pod list"),
+        (P, "$c = Get-Command runpodctl; & $c create pod", "$c = Get-Command runpodctl; & $c get pod"),
+        (P, "function f { runpodctl @args }; f create pod", "function f { runpodctl @args }; f get pod"),
+        (P, "$a = 'create','pod'; runpodctl @a", "$a = 'get','pod'; runpodctl @a"),
+        # unreadable call target / args, in a command naming a billable program
+        (S, "$X create pod; runpodctl get pod", "$X create pod"),
+        (P, "& $c create pod; runpodctl get pod", "& $c create pod"),
+        (S, "eval \"$CMD\"; which runpodctl", "eval \"$CMD\""),
+        (S, "runpodctl $VERB pod", "runpodctl pod list --name $N"),
+        (S, "aws ec2 $ACTION --image-id x", "aws --profile $P s3 ls"),
+        (S, "echo create pod | xargs runpodctl",
+         "runpodctl pod list | xargs -n1 runpodctl pod stop"),
+        # Start-Process and wrappers
+        (P, "Start-Process runpodctl -ArgumentList 'create pod'",
+         "Start-Process runpodctl -ArgumentList 'get pod'"),
+        (P, "Start-Process -FilePath runpodctl -ArgumentList 'create','pod'",
+         "Start-Process -FilePath runpodctl -ArgumentList 'pod','list'"),
+        (P, "Start-Process -ArgumentList 'ec2 run-instances' -FilePath aws",
+         "Start-Process -ArgumentList 'ec2 describe-instances' -FilePath aws"),
+        (P, "saps runpodctl 'create pod'", "saps runpodctl 'pod list'"),
+        (P, "start vultr-cli -ArgumentList 'instance create'", "start vultr-cli -ArgumentList 'instance list'"),
+        (P, "cmd /c \"runpodctl create pod\"", "cmd /c \"runpodctl get pod\""),
+        (S, "bash -c 'runpodctl create pod'", "bash -c 'runpodctl get pod'"),
+        (P, "pwsh -c \"runpodctl create pod\"", "pwsh -c \"runpodctl get pod\""),
+        # quoting / encoding noise
+        (S, "'run''podctl' create pod", "'run''podctl' get pod"),
+        (S, "r\\unpodctl create pod", "r\\unpodctl get pod"),
+        (S, "{runpodctl,create,pod}", "{runpodctl,get,pod}"),
+        (P, "& ('run'+'podctl') create pod", "& ('run'+'podctl') get pod"),
+        (P, "r`unpodctl create pod", "r`unpodctl get pod"),
+        (P, "powershell -EncodedCommand "
+            "cgB1AG4AcABvAGQAYwB0AGwAIABjAHIAZQBhAHQAZQAgAHAAbwBkAA==",
+         "powershell -EncodedCommand cgB1AG4AcABvAGQAYwB0AGwAIABnAGUAdAAgAHAAbwBkAA=="),
+        # REST / GraphQL writes
+        (S, "curl -X POST https://rest.runpod.io/v1/pods -d '{\"interruptible\":true}'",
+         "curl https://rest.runpod.io/v1/pods"),
+        (S, "curl https://rest.runpod.io/v1/pods --json '{}'",
+         "curl -X DELETE https://rest.runpod.io/v1/pods/p1"),
+        (S, "curl -X POST https://rest.runpod.io/v1/pods/p1/start",
+         "curl -X POST https://rest.runpod.io/v1/pods/p1/stop"),
+        (S, "curl -X POST https://rest.runpod.io/v1/endpoints -d '{}'",
+         "curl -X POST https://rest.runpod.io/v1/templates -d '{}'"),
+        (S, "wget --post-data '{}' https://rest.runpod.io/v1/networkvolumes",
+         "wget https://rest.runpod.io/v1/networkvolumes"),
+        (P, "Invoke-RestMethod -Uri https://rest.runpod.io/v1/pods -Method Post -Body $b",
+         "Invoke-RestMethod -Uri https://rest.runpod.io/v1/pods"),
+        (P, "irm https://rest.runpod.io/v1/endpoints -Body '{}'", "irm https://rest.runpod.io/v1/endpoints"),
+        (P, "iwr https://rest.runpod.io/v1/pods -Method Patch -InFile b.json",
+         "iwr https://rest.runpod.io/v1/pods -Method Get"),
+        (S, "curl -X POST https://api.runpod.io/graphql -d '{\"query\":\"mutation "
+            "{ podFindAndDeployOnDemand(input:{}) { id } }\"}'",
+         "curl -X POST https://api.runpod.io/graphql -d '{\"query\":\"query "
+         "{ myself { pods { id } } }\"}'"),
+        (S, "curl https://api.runpod.io/graphql -d '{\"query\":\"mutation "
+            "{ podRentInterruptable(input:{bidPerGpu:0.2}) { id } }\"}'",
+         "curl https://api.runpod.io/graphql -d '{\"query\":\"mutation "
+         "{ podTerminate(input:{podId:\\\"p\\\"}) }\"}'"),
+        (S, "curl -X POST https://api.runpod.io/graphql -d '{\"query\":\"mutation "
+            "{ podResume(input:{podId:\\\"p\\\"}) { id } }\"}'",
+         "curl -X POST https://api.runpod.io/graphql -d '{\"query\":\"{ myself { id } }\"}'"),
+        (S, "curl -X POST https://api.runpod.io/graphql -d @mutation.json",
+         "curl https://api.runpod.io/graphql?query=x"),
+        (P, "irm https://api.runpod.io/graphql -Method Post -Body '{\"query\":\"mutation "
+            "{ saveEndpoint(input:{}) { id } }\"}'",
+         "irm https://api.runpod.io/graphql -Method Post -Body '{\"query\":\"query "
+         "{ gpuTypes { id } }\"}'"),
+        (S, "curl -X POST https://api.runpod.ai/v2/ep/runsync -d '{\"input\":{}}'",
+         "curl https://api.runpod.ai/v2/ep/status/j1"),
+        (S, "curl -X POST https://api.vultr.com/v2/instances -d '{}'",
+         "curl https://api.vultr.com/v2/instances"),
+        (S, "curl 'https://ec2.amazonaws.com/?Action=RunInstances&ImageId=a'",
+         "curl 'https://ec2.amazonaws.com/?Action=DescribeInstances'"),
+        # SDK one-liners
+        (S, "python -c \"import runpod; runpod.create_pod('a','b','c')\"",
+         "python -c \"import runpod; runpod.get_pods()\""),
+        (S, "python3 -c \"import runpod; runpod.resume_pod('p', 1)\"",
+         "python3 -c \"import runpod; runpod.stop_pod('p')\""),
+        (S, "py -c \"import runpod; runpod.create_endpoint(name='x', template_id='t')\"",
+         "py -c \"import runpod; runpod.get_endpoints()\""),
+        (S, "python -c \"import runpod; runpod.Endpoint('e').run_sync({})\"",
+         "python -c \"import runpod; runpod.Endpoint('e').health()\""),
+        (S, "python - <<EOF\nimport runpod\nrunpod.create_pod(name='x', image_name='i', "
+            "gpu_type_id='g', cloud_type='COMMUNITY')\nEOF",
+         "python - <<EOF\nimport runpod\nprint(runpod.get_gpus())\nEOF"),
+        (S, "python -c \"import boto3; boto3.client('ec2').run_instances(MinCount=1)\"",
+         "python -c \"import boto3; boto3.client('ec2').describe_instances()\""),
+        (S, "python -c \"import boto3; boto3.client('ec2').request_spot_instances()\"",
+         "grep -rn 'request_spot_instances(' src/"),
+        # spot / interruptible
+        (S, "runpodctl create pod --communityCloud --bid 0.2", "runpodctl get pod --communityCloud"),
+        (S, "aws ec2 request-spot-instances --spot-price 0.1", "aws ec2 describe-spot-price-history"),
+    ]
+    for tool, bad_cmd, ok_cmd in forms:
+        record("#160 blocks: %s %r" % (tool, bad_cmd),
+               check(tool, {"command": bad_cmd}, None, env=iso) is not None)
+        record("#160 near-miss allowed: %s %r" % (tool, ok_cmd),
+               check(tool, {"command": ok_cmd}, None, env=iso) is None)
+    # misses found by adversarial runs while building #160
+    for tool, cmd in (
+            (S, "echo cnVucG9kY3RsIGNyZWF0ZSBwb2Q= | base64 -d | sh"),
+            (S, "parallel runpodctl ::: create"),
+            (P, "& (Get-Command runpodctl).Source create pod"),
+            (S, "curl -X POST https://api.runpod.io/graphql --data-binary @mutation.json"),
+            (S, "python -c \"from runpod.api.ctl_commands import create_pod as c; c('a')\""),
+            (S, "X=ls; X=runpodctl; $X create pod"),
+            (S, "for c in runpodctl; do $c create pod; done"),
+            (S, "${RP:-runpodctl} create pod"),
+            (S, "g(){ runpodctl \"$@\"; }; f(){ g \"$@\"; }; f create pod"),
+            (P, "$sb = { runpodctl @args }; & $sb create pod"),
+            (P, "Set-Item -Path function:f -Value { runpodctl @args }; f create pod")):
+        record("#160 regression blocks: %s %r" % (tool, cmd),
+               check(tool, {"command": cmd}, None, env=iso) is not None)
+    other_allow = [
+        (P, "runpodctl get pod -o json | ConvertFrom-Json | % { $_.id }"),
+        (P, "foreach ($p in (runpodctl get pod -o json | ConvertFrom-Json)) { $p.id }"),
+        (S, "curl -fsSL https://get.runpod.io/install.sh | bash"),
+        (S, "cd $PROJ && runpodctl pod list"),
+        (P, "$x = 1; if ($x -eq 1) { runpodctl pod list }"),
+    ]
+    for tool, cmd in other_allow:
+        record("#160 allowed: %s %r" % (tool, cmd),
+               check(tool, {"command": cmd}, None, env=iso) is None)
+
+    # 17a. indirection never opens an inline approval; a literal one still works
+    for tool, cmd in (
+            (S, A + "X=runpodctl $X create pod"), (S, A + "runpodctl $VERB pod"),
+            (S, A + "curl -X POST https://rest.runpod.io/v1/pods -d '{}'"),
+            (S, A + "python -c \"import runpod; runpod.create_pod('a','b','c')\""),
+            (S, A + "xargs runpodctl"),
+            (P, P_ + "Start-Process runpodctl -ArgumentList 'create pod'"),
+            (P, P_ + "& $X create pod; runpodctl get pod"),
+            (P, P_ + "runpodctl create pod --name ('run'+'podctl create pod')")):
+        record("#160 inline approval does not cover: %r" % cmd,
+               check(tool, {"command": cmd}, None, env=iso) is not None)
+    for tool, cmd in ((S, A + "runpodctl create pod --communityCloud"),
+                      (P, P_ + "runpodctl create pod --communityCloud"),
+                      (P, P_ + r"& 'C:\x\runpodctl.exe' pod create x")):
+        record("#160 literal inline approval still allows: %r" % cmd,
+               check(tool, {"command": cmd}, None, env=iso) is None)
+
+    # 17b. approval file: one hidden action allowed, two refused
+    with tempfile.TemporaryDirectory() as tmp:
+        env = {"SPEND_GATE_APPROVALS_DIR": tmp}
+        open(os.path.join(tmp, "approved-1"), "w").close()
+        record("#160 file approval refuses two hidden creates",
+               check(S, {"command": "X=runpodctl; $X create pod; $X create pod"},
+                     None, env=env) is not None
+               and os.path.exists(os.path.join(tmp, "approved-1")))
+        record("#160 file approval covers one alias create",
+               check(S, {"command": "alias r=runpodctl; r create pod"}, None, env=env)
+               is None and not os.path.exists(os.path.join(tmp, "approved-1")))
+
+    # 17c. perf: long lines through every rewrite stay well under 1 s
+    n = 2000
+    for label, tool, cmd in (
+            ("assigns", S, "; ".join("X%d=runpodctl" % i for i in range(n)) + "; $X1 get pod"),
+            ("aliases", S, "alias " + " ".join("a%d=runpodctl" % i for i in range(n)) + "; a1 get"),
+            ("funcs", S, " ".join('f%d(){ runpodctl "$@"; };' % i for i in range(n)) + " f1 get"),
+            ("braces", S, "f(){ " + "{ " * n + 'runpodctl "$@"' + " }" * n + "; }; f get pod"),
+            ("refs", S, "X=runpodctl; " + " ".join(["${X}"] * n)),
+            ("ps-assign", P, "; ".join("$x%d = 'runpodctl pod list'" % i for i in range(n))),
+            ("startproc", P, "Start-Process runpodctl " + " ".join(["-ArgumentList 'a'"] * n)),
+            ("graphql", S, "curl -X POST https://api.runpod.io/graphql -d '"
+             + " ".join(["mutation { podStop(input:{}) }"] * n) + "'"),
+            ("eval", S, " ".join(["eval x"] * n) + " runpodctl"),
+            ("b64", S, "echo " + " ".join(["cnVucG9kY3RsIGdldCBwb2Q="] * n) + " | base64 -d"),
+            ("dollar-brace", S, "runpodctl " + "${" * n),
+            ("spaces", S, "alias r=runpodctl;" + " " * 20000 + "$X")):
+        t0 = time.time()
+        check(tool, {"command": cmd}, None, env=iso)
+        dt = time.time() - t0
+        record("#160 perf %s %d chars < 0.5s (%.3fs)" % (label, len(cmd), dt), dt < 0.5)
 
     print("\n%d passed, %d failed" % (passed, failed))
     if failed:
