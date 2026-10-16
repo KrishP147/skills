@@ -75,11 +75,13 @@ in full, then the rotation after the tenth merge:
     18  Paginate the audit log     size:S
     21  Pick a charting library    needs-design
 ⏺ Resolved contract (merge from your arguments; prefix, order, test command from recon):
-    scope: all open issues      exclude: gated / people / external-input
-    execution: pair             parallel: 1
-    merge: ask                  merge_style: squash (the repo's style)
-    interview: answer           handoff_budget: 10
-    prefix: feat                test: pytest
+    scope: all open issues
+    exclude: gated / people / external-input
+    execution: pair, parallel: 1
+    merge: ask, merge_style: squash (the repo's style)
+    interview: answer
+    handoff_budget: 10
+    prefix: feat, test: pytest
   Use these, or customize?
 > Use these
 ⏺ Write(skilleddocs/orchestrator/scope.md)
