@@ -77,7 +77,7 @@ Verifier fixes on default afterwards are normal; issues it files join the queue.
 - manual step for user: <only if one exists>
 ```
 
-`ledger_detail: terse` → the header line + `what` only; `verbose` → add the commands run. Detect the zone once (`python -c "import datetime as d; print(d.datetime.now().astimezone().tzname())"`). Times come from `date`, `git log --date=format-local`, or API UTC timestamps via `datetime.fromisoformat(s).astimezone()`; never estimated or offset by hand. Write `#n` / `PR #n` so `progress-report` can link them. Other `docs` entries: decisions → `skilleddocs/decisions.md`; per-issue handoffs → keep the implementer's; CHANGELOG → one line per merge.
+`ledger_detail: terse` → the header line + `what` only; `verbose` → add the commands run. Zone: scope `timezone` if set, else run `python -c "import datetime as d; n=d.datetime.now().astimezone(); z=n.tzname(); print(z if ' ' not in z else n.strftime('UTC%z'))"` once (abbreviation on Unix, UTC offset on Windows); name it at the top of the ledger. Times come from `date`, `git log --date=format-local`, or API UTC timestamps via `datetime.fromisoformat(s).astimezone()`; never estimated or offset by hand. Write `#n` / `PR #n` so `progress-report` can link them. Other `docs` entries: decisions → `skilleddocs/decisions.md`; per-issue handoffs → keep the implementer's; CHANGELOG → one line per merge.
 
 ## 6. Rotation
 
