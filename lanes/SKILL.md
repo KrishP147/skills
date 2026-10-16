@@ -33,7 +33,7 @@ Record a file set per issue. Mark it **uncertain** when it rests only on a label
 ## 3. Decide the count
 
 `/lanes <n>`:
-- n ≤ streams and n ≤ 4 → merge the smallest streams together until there are n lanes; balance by issue count.
+- n ≤ streams and n ≤ 4 → merge the smallest streams together until there are n lanes; balance by issue count. Tie (several equally small) → merge the pair sharing the most area (a common top directory or label), then the one whose first issue is queued latest. A merged lane takes the shared area's name when one covers both, else both names joined by `-` (`core-inventory`).
 - n > streams, or n > 4 → ask before writing anything. Show the best-guess grouping at the largest safe count and the options, for example: "Only 2 independent streams found (site, hooks). Options: (a) 2 lanes (Recommended); (b) 3 lanes by splitting `site` on #41, which risks a conflict on `site/build.py` (uncertain prediction); (c) n lanes anyway, extra lanes idle until new streams appear." Past 4, add that the single merge gate becomes the bottleneck. Never cap silently.
 
 `/lanes increase`: usually +1. Split the longest lane where its issues are file-disjoint. Add more than one only when several independent streams are already waiting in single lanes. Nothing splits cleanly → say so and ask.

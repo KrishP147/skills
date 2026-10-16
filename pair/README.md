@@ -65,7 +65,7 @@ flowchart TD
 - Set your branch prefix in your `CLAUDE.md`; otherwise branches start with `feat/`.
 - An **INTERIM** report means the implementer is still running; wait for the real one.
 - Leave the worktree alone while the manager runs.
-- Tear down only after the PR merges, with the exact commands in `SKILL.md` §5: move dated handoffs to the main checkout, unlink, check that `<wt>/node_modules` and `<wt>/.venv` are gone, then `git worktree remove`. Never remove the worktree while a link exists: `git worktree remove` or a recursive delete follows it and empties the main checkout's copy.
+- Tear down only after the PR merges, with the exact commands in `TEARDOWN.md`: move every untracked record in the worktree's doc folders (dated handoffs, `HANDOFF.md`, decisions register rows) to the main checkout without overwriting, unlink, check that no link and no record is left, then `git worktree remove`. `git worktree remove` deletes git-excluded files silently, so a record left behind is lost. Never remove the worktree while a link exists: `git worktree remove` or a recursive delete follows it and empties the main checkout's copy.
 - Unfinished after 3 rounds? Accept the offer of another round; it restarts from `skilleddocs/HANDOFF.md`.
 
 ## Example
