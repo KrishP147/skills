@@ -20,10 +20,10 @@ Runs the `grilling` interview on a plan or decision and leaves a paper trail in 
 
 1. Creates `skilleddocs/grills/<YYYY-MM-DD>-<slug>.md` with a header (`Status: in progress`) before the first round.
 2. Asks rounds exactly as `grilling` does (numbered questions, one recommendation each, then waits).
-3. After each answered round, appends a `### Q<n>` block (asked / recommended / answer / why) to the transcript, and one `| D<k> | date | decision | why | source |` row to `skilleddocs/decisions.md` (created with a header if missing). Delegated answers ("go with your recs") are recorded as `(delegated)`.
+3. After each answered round, appends a `### Q<n>` block (topic / asked / recommended / answer / why) to the transcript, and one `| D<k> | date | decision | why | source |` row to the decisions doc (created with a header if missing). `Q<n>` counts across the whole session. The heading is bare `### Q<n>` so the register's `grills/<file>#q<n>` source resolves on GitHub (anchors are lowercase). Delegated answers ("go with your recs") are recorded as `(delegated)`.
 4. When the frontier is empty and you confirm: sets `Status: settled`, adds `## Summary` and `## Open`, prints both paths. Nothing is committed unless you ask.
 
-Writes: `skilleddocs/grills/<date>-<slug>.md`, `skilleddocs/decisions.md`. Honours an `AGENTS.md` / `CLAUDE.md` override naming a different decisions doc.
+Writes: `skilleddocs/grills/<date>-<slug>.md` and the decisions doc: the one `AGENTS.md` / `CLAUDE.md` names, else an existing `docs/decisions.md` or ADR folder, else `skilleddocs/decisions.md` (the same rule `consult-plan` uses). The transcript header's `Register:` field says which.
 
 ## Design principles
 
@@ -42,7 +42,7 @@ Writes: `skilleddocs/grills/<date>-<slug>.md`, `skilleddocs/decisions.md`. Honou
 - Pass a slug as the second argument to control the transcript filename; otherwise Claude picks 2 to 4 topic words.
 - "Go with your recs" is fine: delegated answers are recorded as `(delegated) <rec>`, so the register stays complete.
 - Files are left uncommitted unless you ask; commit them yourself if the repo tracks `skilleddocs/`.
-- If your repo's `AGENTS.md` or `CLAUDE.md` names another decisions doc, that file is used and the transcript header says so.
+- If your repo's `AGENTS.md` or `CLAUDE.md` names a decisions doc, that file is used; otherwise an existing `docs/decisions.md` or ADR folder; the transcript header's `Register:` field says which.
 
 ## Example
 

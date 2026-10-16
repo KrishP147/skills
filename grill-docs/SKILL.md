@@ -6,9 +6,9 @@ argument-hint: "plan, decision, or doc path [slug]"
 
 Call the Skill tool with `"grilling"` and run that interview unchanged. Your addition: write it down **as each round settles**, so an abandoned session still leaves a record.
 
-Paths (repo's `AGENTS.md`/`CLAUDE.md` may name another decisions doc; use it and say so in the header):
-- transcript: `skilleddocs/grills/<local-date>-<slug>.md` (slug: the argument, else 2–4 topic words)
-- register: `skilleddocs/decisions.md`
+Paths:
+- transcript: `skilleddocs/grills/<local-date>-<slug>.md` (slug: the optional second argument, else 2–4 topic words from the subject)
+- register (the decisions doc): the one the repo's `AGENTS.md`/`CLAUDE.md` names; else an existing `docs/decisions.md` or ADR folder; else `skilleddocs/decisions.md`. Same rule as `consult-plan`. Always name the chosen path in the header's `Register:` field.
 
 Untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md) (it also covers the `pip install .` hazard).
 
@@ -17,27 +17,28 @@ Untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.
 ```markdown
 # Grill: <topic>
 
-Date: <local date> · Subject: <doc path or one line> · Status: in progress
+Date: <local date> · Subject: <doc path or one line> · Register: <decisions doc path> · Status: in progress
 
 ## Rounds
 ```
 
 ## After each round, before the next
 
-Transcript, per question:
+Transcript, per question. `Q<n>` counts across the whole session: continue the numbering across rounds, unique within the file. The heading is exactly `### Q<n>` so its anchor is the lowercase `#q<n>` (a title in the heading would change the anchor); the title goes on the first line:
 
 ```markdown
-### Q<n> — <title>
+### Q<n>
+- Topic: <title>
 - Asked: <question + options, one line>
 - Recommended: <your rec>
 - Answer: <user's choice, verbatim if short; delegated → "(delegated) <rec>">
-- Why: <user's reason, or "not stated">
+- Why: <user's reason, else the recommendation's rationale marked "(rec)">
 ```
 
-Register, one row per settled question, continuing the `D<k>` numbering:
+Register, one row per settled question, continuing the `D<k>` numbering. Source is the transcript file plus the lowercase anchor (`grills/2026-10-16-sync-plan.md#q3`). Called from a `wayfinder` ticket, name the ticket in Source too (`ticket <link>; grills/<file>#q<n>`):
 
 ```markdown
-| D<k> | <local date> | <decision> | <why> | grills/<file>#Q<n> |
+| D<k> | <local date> | <decision> | <why> | grills/<file>#q<n> |
 ```
 
 New register header:

@@ -33,6 +33,7 @@ When you want to type something short to start a grilling session.
 
 - Claude never picks `grill-me` itself, so other skills and agents call `grilling` instead.
 - Want a written record? Use [`grill-docs`](../grill-docs/) rather than this alias.
+- The alias's `SKILL.md` (verbatim upstream) doesn't say to forward your argument to `grilling`. If Claude asks what to grill after `/grill-me <plan>`, repeat the plan.
 
 ## Example
 
