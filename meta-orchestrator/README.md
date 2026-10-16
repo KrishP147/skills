@@ -36,7 +36,7 @@ Works through a repo's backlog unattended. Claude becomes the **orchestrator**: 
 
    Writes **`skilleddocs/orchestrator/scope.md`** (a yaml block of every key), commits it, and offers to save your choices as personal defaults so the next repo starts from them.
 1. **Agents.** `planner` → kickoff brief; `manager` (`execution: pair`) or `implementer` (`execution: flat`); `verifier`. Each step is a fresh Agent call. Agents run code review inline (nested fan-out stalls). An **INTERIM** report is not a result.
-2. **Loop:** `planner → manager | implementer → merge gate → verifier → repeat`; parallel issues each get their own worktree.
+2. **Loop:** `planner → manager | implementer → merge gate → verifier → repeat`; parallel issues each get their own worktree. With `parallel > 1`, [`lanes`](../lanes/) groups the queue into file-disjoint lanes, each working its issues in order; `/lanes` changes them mid-run.
 3. **Merge gate (orchestrator only).** Tests/CI green for the head SHA; diff skimmed for scope creep, secrets, drift and anything on your pause list; push, then merge per your `merge` setting; worktree torn down links-first; ledger entry.
 4. **Autonomy.** One retry per failure, then split or park, never loop. The `guard-git.py` hook blocks agents from pushing default or merging.
 5. **Ledger.** Append-only `skilleddocs/orchestrator/ledger.md`, local timestamps, committed per entry (unless you chose uncommitted docs).
@@ -54,6 +54,8 @@ flowchart TD
     gate --> verifier[verifier]
     verifier -->|repeat| planner
 ```
+
+One issue's trip. With lanes, each lane runs this loop on its own issues; the merge gate stays serial.
 
 ## Design principles
 
@@ -138,6 +140,7 @@ in full, then the rotation after the tenth merge:
 
 - Spawns [`planner`, `manager`, `implementer`, `verifier`](../agents/README.md).
 - Uses [`pair`](../pair/)'s worktree pattern; kanban skills via the agents ([`next`](../kanban/next/), [`divide`](../kanban/divide/), [`update-progress`](../kanban/update-progress/), [`consult-plan`](../kanban/consult-plan/)).
+- [`lanes`](../lanes/) sets and changes `parallel` + `lanes` in scope.md.
 - [`progress-report`](../progress-report/) reads its ledger.
 - Optional [`hooks/smartzone.py`](../hooks/smartzone.py) triggers an early rotation.
 
