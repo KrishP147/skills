@@ -15,7 +15,7 @@ Commands: `setup` (default; also when `experiments.md` has no setup header), `re
 3. **Noise margin**: run the harness once on the baseline; propose margin = (max − min of its N runs) / baseline median, as a %.
 4. **Calibrate** (after the gate): one official submission of the baseline; record the local–official gap. A gap wider than the margin (as a % of the baseline) → fix the harness before experiment 1. No official grader → skip and write `calibration: none (no official grader)`.
 5. Freeze time = deadline − lead, lead = max(10% of remaining, min(30 min, 50% of remaining)) (≥5h left: 10%; 1-5h: 30 min; <1h: half the remaining time); no deadline → no freeze. One experiment (one harness run, as timed on the baseline) plus the calibration must fit before freeze; otherwise refuse, say so, and stop.
-6. Gate: show the filled header, how the score could be gamed and how the harness blocks it, and each outward action (the calibration submission, the quota, any paid step). One explicit yes covers this setup; anything vaguer is a no. Then write the header, run the calibration, and go unattended.
+6. Gate: show the filled header, how the score could be gamed and how the harness blocks it (proxy-metric gaming: the score improves without the real goal improving, e.g. work moved outside the measured region or special-cased fixed inputs; the correctness check, fresh or hold-out inputs and timing the whole call guard it), and each outward action (the calibration submission, the quota, any paid step). One explicit yes covers this setup; anything vaguer is a no. Then write the header, run the calibration, and go unattended.
 
 ```
 # Score loop: <slug>
@@ -55,7 +55,7 @@ Per experiment:
    - Correctness check fails → `git revert --no-edit <sha>`, `invalid`; not counted toward K.
    - Gain = the median's relative improvement over the best median (direction-aware); m = the margin.
    - Gain > m → `keep`; it is the new best.
-   - m/2 < gain ≤ m → **borderline**: check out the best commit, run the harness now (fresh best median), return to the candidate. Candidate beats the fresh best median by more than m/2 → `keep`; else `git revert --no-edit <sha>`, `noise`. The fresh median only decides this row; the best stays unless the candidate is kept (then its median is the new best). Note: `borderline: best rerun <fresh> (was <best>), cand <c> beats it by <g>% vs m/2 <h>%`.
+   - m/2 < gain ≤ m → **borderline**: rerun both now, interleaved so drift hits both alike: N single runs each, alternating checkouts best, candidate, best, candidate, ... (harness at N=1; correctness already passed), and take each fresh median. Candidate's fresh median beats the best's fresh median by more than m/2 → `keep`; else `git revert --no-edit <sha>`, `noise`. The fresh medians only decide this row; the best stays unless the candidate is kept (then its fresh median is the new best). Note: `borderline: fresh best <b> (was <best>), fresh cand <c> (was <cand>), gain <g>% vs m/2 <h>%`.
    - 0 ≤ gain ≤ m/2 → `git revert --no-edit <sha>`, `noise`.
    - Worse (gain < 0) → `git revert --no-edit <sha>`, `revert`.
 5. A failed idea moves from Next ideas to Tried with one line why. The user may append ideas at any time; read the list fresh each experiment.
