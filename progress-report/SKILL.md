@@ -8,7 +8,7 @@ A document the user reads in two minutes.
 
 ## 1. Range
 
-- **Folder**: the one given, else `skilleddocs/reports/`.
+- **Folder**: the one given, else `skilleddocs/reports/` (untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md)).
 - **Ledger**: `skilleddocs/orchestrator/ledger.md` (older runs: `ledger.md` in the folder). None → reconstruct from `git log`, merged PRs, issues, and this conversation, and say so in the report.
 - **Watermark**: `.last-reported` in the folder, one line `<NNN> <report filename>` (e.g. `007 002-2026-10-16-x.md`): NNN = last ledger entry reported (no ledger → last reported commit SHA). The report number is that filename's number + 1. No file → report 001, covers everything.
 

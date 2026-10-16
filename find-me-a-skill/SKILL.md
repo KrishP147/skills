@@ -20,8 +20,9 @@ First that applies:
 Candidates: every skill in your available-skills list, plus the entries and workflows in [CATALOG.md](CATALOG.md).
 
 - **Primary**: the best fit among all installed skills, or a CATALOG.md workflow when the task spans its steps.
-- **From your collection**: when a CATALOG.md entry or workflow fits and isn't already the primary, add it with that label.
-- **Model and effort per step**: CATALOG.md's default; one tier or level up for a large or risky task, one down for a small one. Scale: haiku < sonnet < opus; low < medium < high < xhigh < max.
+- **From your collection**: label any option that comes from CATALOG.md, primary or not. A CATALOG.md entry or workflow that fits and isn't already the primary is added as another option.
+- **Not installed**: a CATALOG.md entry that is not in your available-skills list (a workflow: any of its skills) is labelled `not installed`, with the install command from the top README's Install section (`./scripts/install-skills.sh`, or `/plugin install krish@krish`). Its commands won't run until then.
+- **Model and effort per step**: CATALOG.md's default; for a large or risky task move effort up one level; move the model up one tier only when effort is already `max`. For a small task do the reverse: effort down one level, model down only when effort is already `low`. At opus with effort `max` (or haiku with `low`) there is nothing further; say so. Scale: haiku < sonnet < opus; low < medium < high < xhigh < max.
 - **Not in CATALOG.md**: name its origin (`plugin <name>` from its `<name>:` prefix, else `built-in`) and label model and effort `estimate`.
 - **User-only** skills (`skill (user only)` in CATALOG.md) are still suggested: the user runs them by pasting the command.
 - **Agents** run inside a skill (`pair`, `meta-orchestrator`) or on request ("use the planner agent"); **hooks** are installed, not run: say which.
@@ -43,4 +44,4 @@ Run option 1:
 /a <args>
 ```
 
-Steps and `You decide` come from CATALOG.md for a workflow; for a single skill, list its gates (approvals, yes/no points) from its description. Commands are exact and copyable; for a workflow give the first step's.
+Steps and `You decide` come from CATALOG.md for a workflow; for a single skill, list its gates (approvals, yes/no points) from its description. Commands are exact and copyable; for a workflow give the first step's. Skills from the plugin (`krish:` entries in your available-skills list) are invoked with that prefix: write `/krish:pair`, not `/pair`.

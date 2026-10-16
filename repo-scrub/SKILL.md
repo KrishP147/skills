@@ -11,7 +11,7 @@ Two rules hold throughout:
 - **Gate**: each numbered gate below needs the user's explicit go-ahead.
 - **Complete report**: every secret and large blob found is shown, including ones the user keeps.
 
-`<tmp>/scrub-work` holds secret-bearing files. Delete it (step 12) on every exit, early ones included.
+`<tmp>` = `$(mktemp -d)`, created once and echoed to the user; reuse that same path in every step (Git Bash's `/tmp` and Windows `%TEMP%` differ for Python). `<tmp>/scrub-work` holds secret-bearing files. Delete it (step 12) on every exit, early ones included.
 
 ## 1. Prereqs and target
 
@@ -25,7 +25,7 @@ Missing tool → give the install command and stop.
 
 ## 2. LFS bail-out
 
-`gh api repos/<o>/<r>/contents/.gitattributes --jq .content | base64 -d | grep -i lfs` (404 = no LFS). LFS-tracked paths → stop: `filter-repo` has no LFS awareness; this needs manual handling.
+`gh api repos/<o>/<r>/contents/.gitattributes --jq .content | base64 -d | grep -i lfs` (404 = no LFS). LFS-tracked paths → stop: `filter-repo` has no LFS awareness; this needs manual handling. This only sees the root file on the default branch, so repeat the check on clone #1 (step 3): `git log --all -p -- '*.gitattributes' | grep -i filter=lfs` catches nested files and other branches. A hit there → stop too.
 
 ## 3. Scan (clone #1)
 
@@ -39,6 +39,7 @@ python <skill-dir>/scripts/summarize_findings.py --gitleaks <tmp>/scrub-work/git
   --analysis-dir .git/filter-repo/analysis --out <tmp>/scrub-work/findings.json
 ```
 
+- Run the LFS history check from step 2 here, in `scan-clone`, before trusting the scan.
 - gitleaks exit 1 = findings, not failure.
 - `summarize_findings.py` merges gitleaks + `.git/filter-repo/analysis/` into `findings.json`: secrets `S1…` (deduped by rule + value, or by location when the value is empty; fingerprint `secret_sha256` only), large blobs `L1…` (bytes accumulated across every version). Use it; the analysis tables are easy to misread.
 - `--analyze` spends this clone (filter-repo refuses a second run). Delete `scan-clone` once `findings.json` exists; keep `gitleaks-report.json` until step 12 (step 7 recovers values from it).
@@ -102,7 +103,11 @@ git remote add origin <url>
 git push origin --force --all && git push origin --force --tags
 ```
 
+`--all` covers non-default branches only because `filter-repo` turned the fresh clone's `origin/*` into local branches. Run `git branch` before pushing and confirm every branch you mean to keep is listed; a missing one is not pushed, and keeps its old history on the remote.
+
 ## 10. Post-push
+
+**Every local copy of this repo, the user's own included**, still holds the old commits (and the secret). A plain `git pull` would merge the old history back in and the next push would re-leak it. Per copy: re-clone (simplest), or: `git stash` any work, then per branch `git fetch origin && git checkout <branch> && git reset --hard origin/<branch>`, `git stash pop`; `git fetch --tags --force` to take the rewritten tags; delete local-only branches and tags made before the rewrite; never merge or rebase old history. Then `git reflog expire --expire=now --all && git gc --prune=now` to drop the old objects locally (this also drops any stash left, so pop it first). Tell collaborators the same (the step-6 notice).
 
 `gh pr list --state open` → name PRs that must be closed and recreated. Tell the user: old commits stay reachable on GitHub (via `refs/pull/*`, direct SHA, cached views) until GitHub Support garbage-collects them. Rotation protects the secret; the push is hygiene.
 
