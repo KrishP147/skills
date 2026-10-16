@@ -107,7 +107,15 @@ git push origin --force --all && git push origin --force --tags
 
 ## 10. Post-push
 
-**Every local copy of this repo, the user's own included**, still holds the old commits (and the secret). A plain `git pull` would merge the old history back in and the next push would re-leak it. Per copy: re-clone (simplest), or: `git stash` any work, then per branch `git fetch origin && git checkout <branch> && git reset --hard origin/<branch>`, `git stash pop`; `git fetch --tags --force` to take the rewritten tags; delete local-only branches and tags made before the rewrite; never merge or rebase old history. Then `git reflog expire --expire=now --all && git gc --prune=now` to drop the old objects locally (this also drops any stash left, so pop it first). Tell collaborators the same (the step-6 notice).
+**Every local copy of this repo, the user's own included**, still holds the old commits (and the secret). A plain `git pull` would merge the old history back in and the next push would re-leak it. Per copy: re-clone (simplest; carry uncommitted work over by hand), or:
+
+1. `git stash list` first. The reflog expire below deletes **every** stash entry, older ones included. Apply and commit (or save elsewhere) each one the user wants; go on only when the list is empty or the user says the rest can go.
+2. Note the current branch, `git stash -u` any work.
+3. Per branch: `git fetch origin && git checkout <branch> && git reset --hard origin/<branch>`. `git fetch --tags --force` for the rewritten tags. Delete local-only branches and tags made before the rewrite. Never merge or rebase old history.
+4. `git checkout <noted branch> && git stash pop`. A conflicting pop keeps the entry: resolve, then `git stash drop`. `git stash list` must be empty again.
+5. `git reflog expire --expire=now --all && git gc --prune=now` to drop the old objects locally.
+
+Tell collaborators the same (the step-6 notice).
 
 `gh pr list --state open` → name PRs that must be closed and recreated. Tell the user: old commits stay reachable on GitHub (via `refs/pull/*`, direct SHA, cached views) until GitHub Support garbage-collects them. Rotation protects the secret; the push is hygiene.
 

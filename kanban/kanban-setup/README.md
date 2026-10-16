@@ -22,15 +22,15 @@ Default `current`. User-invoked only (`disable-model-invocation: true`) because 
 ## How it works
 
 1. **Prereq:** `gh auth status` must list the `project` scope; otherwise tells you to run `gh auth refresh -s project -s read:project` and stops.
-2. **Board (idempotent):** looks for `<repo> Board` per `next`'s [`BOARD.md`](../next/BOARD.md); creates it with `gh project create` if missing; checks the Status field via `gh project field-list` for an "In Review" option (the default only has Todo/In Progress/Done). Missing it: `gh` can't add an option to an existing field, so this runs the `updateProjectV2Field` GraphQL mutation via `gh api graphql` (replaying every existing option plus the new one), or tells you to add it by hand in the UI if that's not wanted. Label mode: creates the four `status:*` labels up front.
-3. **Scan:** README "Roadmap"/"TODO" sections, `TODO`/`FIXME` comments, `CHANGELOG.md`, `docs/` and plan-like docs.
+2. **Board (read-only until you say yes):** looks for `<repo> Board` per `next`'s [`BOARD.md`](../next/BOARD.md) and, if it exists, checks the Status field via `gh project field-list` for an "In Review" option (the default only has Todo/In Progress/Done). Nothing is created in this step. Label mode (four `status:*` labels instead of a board) is used when you ask for it, the `project` scope isn't granted, or the owner can't create projects.
+3. **Scan:** README "Roadmap"/"TODO" sections, `TODO`/`FIXME` comments, `CHANGELOG.md`, `docs/` and plan-like docs; skips `skilleddocs/`, `node_modules`, `.venv` and vendored dirs.
 4. **Candidates per mode:** `current` = undone items (deduped against existing issues); `retroactive` = finished items from CHANGELOG / git log / resolved TODOs; `both` = both, separated.
-5. **Preview, then create:** shows every issue (title, mode, target column) and waits. Then `current` → create + `item-add` + `item-edit` to Todo; `retroactive` → create, close, `item-add` + `item-edit` to Done (`item-add` alone leaves Status empty, so the `item-edit` step is required, not optional).
+5. **Preview, then create:** shows the board actions (create the board, `gh project link <n> --owner <owner> --repo <owner>/<repo>`, add In Review via the `updateProjectV2Field` GraphQL mutation via `gh api graphql` replaying every existing option plus the new one (`gh` can't add an option to an existing field; or add it by hand in the UI), or the label creation) and every issue (title, mode, target column), then waits. On yes: board actions first, then `current` → create + `item-add` + `item-edit` to Todo; `retroactive` → create, close, `item-add` + `item-edit` to Done (`item-add` alone leaves Status empty, so the `item-edit` step is required, not optional).
 
 ## Design principles
 
 - **Real issues, so preview first.** Issues it creates are public; every one is shown (title, mode, target column) before anything is created.
-- **Idempotent board.** It looks for this repo's board before creating one, and adds the In Review option only when missing.
+- **Idempotent board, nothing before the yes.** It looks for this repo's board, links a new one to the repo, and adds the In Review option only when missing; all of it is previewed and runs after your yes.
 - **Backfill from what's documented.** Candidates come from the repo's own docs, TODOs, CHANGELOG and (retroactive) git log, deduped against existing issues.
 
 ## Use cases
@@ -54,10 +54,10 @@ Default `current`. User-invoked only (`disable-model-invocation: true`) because 
 ```
 
 1. `gh auth status` lists `project`, so it continues.
-2. No board for this repo, so it creates "myrepo Board"; the Status field lacks In Review, so it adds it.
+2. No board for this repo; nothing is created yet.
 3. Scans the README roadmap, `TODO` comments, `CHANGELOG.md` and `git log`: 7 open TODOs (2 already have issues, skipped) and 12 CHANGELOG entries.
-4. Previews 17 issues in two groups: 5 "current → Todo", 12 "retroactive → Done".
-5. On your yes, creates the 5 and sets them to Todo; creates and closes the 12 and sets them to Done.
+4. Previews the board actions (create and link "myrepo Board", add In Review) and 17 issues in two groups: 5 "current → Todo", 12 "retroactive → Done".
+5. On your yes, creates and links the board and adds In Review, then creates the 5 and sets them to Todo; creates and closes the 12 and sets them to Done.
 
 ## Related
 

@@ -11,18 +11,51 @@ import json
 import re
 import sys
 
-SECRET = re.compile(
-    r"(sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{8,}|AKIA[0-9A-Z]{12,}"
-    r"|[Bb]earer\s+\S+|(?i:(?:api[_-]?key|token|secret|password)\S*\s*[:=]\s*)\S+"
-    r"|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})")
+# (pattern, replacement) pairs, applied in order. Every token prefix is
+# anchored on a word boundary so "task-notification" never reads as "sk-...".
+R = "[REDACTED]"
+SECRETS = [(re.compile(p), r) for p, r in (
+    # PEM private key: header through END, else header plus the body that follows.
+    (r"(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----"
+     r"(?:.*?-----END [A-Z ]*PRIVATE KEY-----|[A-Za-z0-9+/=\s\\]*)", R),
+    (r"\bsk-[A-Za-z0-9_-]{8,}", R),
+    (r"\bgh[pousr]_[A-Za-z0-9]{8,}", R),
+    (r"\bgithub_pat_[A-Za-z0-9_]{20,}", R),
+    (r"\bAKIA[0-9A-Z]{12,}", R),
+    (r"\brpa_[A-Za-z0-9]{16,}", R),                    # Runpod
+    (r"\bxox[abprs]-[A-Za-z0-9-]{10,}", R),            # Slack
+    (r"\bhf_[A-Za-z0-9]{20,}", R),                     # Hugging Face
+    (r"\bAIza[A-Za-z0-9_-]{30,}", R),                  # Google API key
+    (r"\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*", R),  # JWT
+    # AWS secret key: 40 base64 chars of mixed case, only within 40 chars after
+    # "aws" or "secret", so bare git SHAs and hashes are left alone.
+    (r"((?i:\baws|secret)[^\n]{0,40}?)(?<![A-Za-z0-9/+])"
+     r"(?=[A-Za-z0-9/+]{0,39}[a-z])(?=[A-Za-z0-9/+]{0,39}[A-Z])"
+     r"[A-Za-z0-9/+]{40}(?![A-Za-z0-9/+])", r"\1" + R),
+    # --password X / --token=X; "--password-file x" is a path, not a secret.
+    (r"((?<![\w-])--?(?i:password|passwd|token|secret|api[-_]?key)(?:\s+|=))(?!-)\S+",
+     r"\1" + R),
+    (r"((?i:\bauthorization)\s*[:=]\s*(?i:basic|digest|token)\s+)\S+", r"\1" + R),
+    (r"\b[Bb]earer\s+\S+", R),
+    (r"(?i:(?:api[_-]?key|token|secret|password)\S*\s*[:=]\s*)\S+", R),
+    (r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", R),
+)]
 
 
 def red(text):
-    return SECRET.sub("[REDACTED]", text)
+    for pat, rep in SECRETS:
+        text = pat.sub(rep, text)
+    return text
+
+
+def one_line(text, limit):
+    """Redact, then fold whitespace so each item stays on one line, then cut."""
+    return " ".join(red(text).split())[:limit]
 
 
 def blocks(entry):
-    content = (entry.get("message") or {}).get("content")
+    msg = entry.get("message")
+    content = msg.get("content") if isinstance(msg, dict) else None
     if isinstance(content, str):
         return [{"type": "text", "text": content}]
     return content if isinstance(content, list) else []
@@ -30,8 +63,8 @@ def blocks(entry):
 
 INJECTED = re.compile(
     r"<(system-reminder|local-command-stdout|local-command-stderr"
-    r"|local-command-caveat|command-message|agent-message)\b[^>]*>.*?</\1>"
-    r"|<(?:system-reminder|agent-message)\b[^>]*>.*\Z", re.S)
+    r"|local-command-caveat|command-message|agent-message|task-notification)\b[^>]*>.*?</\1>"
+    r"|<(?:system-reminder|agent-message|task-notification)\b[^>]*>.*\Z", re.S)
 CMD_NAME = re.compile(r"<command-name>\s*(.*?)\s*</command-name>", re.S)
 CMD_ARGS = re.compile(r"<command-args>\s*(.*?)\s*</command-args>", re.S)
 
@@ -94,19 +127,30 @@ def main(argv):
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
             try:
-                entries.append(json.loads(line))
+                obj = json.loads(line)
             except ValueError:
                 continue
+            if isinstance(obj, dict):  # a list/str/number line is not an entry
+                entries.append(obj)
 
     asks = [t for e in entries if e.get("type") == "user" for t in [user_text(e)] if t]
-    print("LAST USER ASK:", red(asks[-1])[:500] if asks else "(none found)")
+    print("LAST USER ASK:", one_line(asks[-1], 500) if asks else "(none found)")
 
-    actions = []
+    # Only assistant entries: other entry types (e.g. API request blobs) repeat
+    # the same tool calls. Dedupe by tool_use id when one is present.
+    actions, seen = [], set()
     for e in entries:
+        if e.get("type") != "assistant":
+            continue
         for b in blocks(e):
             if isinstance(b, dict) and b.get("type") == "tool_use":
+                tid = b.get("id")
+                if isinstance(tid, str) and tid:
+                    if tid in seen:
+                        continue
+                    seen.add(tid)
                 what = action_text(b.get("name"), b.get("input"))
-                actions.append((e.get("timestamp", "?"), b.get("name"), red(str(what))[:160]))
+                actions.append((e.get("timestamp", "?"), b.get("name"), one_line(str(what), 160)))
     print(f"LAST {n} ACTIONS:")
     for ts, name, what in actions[-n:]:
         print("-", ts, name, what)

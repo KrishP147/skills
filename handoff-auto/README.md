@@ -18,16 +18,16 @@ Model-invocable: another skill calls the Skill tool with `handoff-auto` (optiona
 ## How it works
 
 1. Summarises the conversation into a document under the repo's **`skilleddocs/handoffs/`** (OS temp dir only when there is no repo). Committed or left untracked per [`TRACKING.md`](TRACKING.md): commit only if the repo already tracks `skilleddocs/` or opts in, never on a fork.
-2. Adds a "suggested skills" section.
+2. Records branch, base SHA (`git merge-base <default> HEAD`) and head SHA, and adds a "suggested skills" section.
 3. References existing artifacts by path/URL instead of duplicating them.
 4. Redacts secrets and personal data.
 5. Tailors to the argument if one was given.
-6. Prints the file's absolute path on its own line, last.
+6. Prints the file's absolute path (native OS form) on its own line, last.
 
 ## Design principles
 
 - **Machine-readable ending.** The absolute path is always the very last line, so a calling skill or orchestrator can parse it without guessing.
-- **Same document as `handoff`.** Only the frontmatter, save location and tracking sentence differ from the original, so a manual and an unattended handoff read the same.
+- **Same document as `handoff`.** Only the frontmatter, save location, tracking sentence, a git-state line (branch, base SHA, head SHA) and the final path line differ from the original, so a manual and an unattended handoff read the same.
 - **Shared tracking rule.** Commit or not comes from [`TRACKING.md`](TRACKING.md), the single source for every file under `skilleddocs/`.
 
 ## Use cases

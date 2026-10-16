@@ -37,12 +37,12 @@ Model-invocable, so the trigger phrases above work without the slash.
    it (dashboard, teammate, secrets manager); names only, never values,
    never read from an actual `.env`/secrets file.
 4. **Numbered tasks** — each with a concrete "done when", pulled from open
-   issues where the repo has them.
+   issues where the repo has them (skipping `wayfinder:*` planning tickets and issues already in progress).
 5. **Ownership map** — area/path -> who to ask.
 6. **Don't-touch list** — what to leave alone and why, per item.
 7. **Draft, then write** — shows the full draft before writing; saves to
-   `skilleddocs/briefs/<name>-<local-date>.md` on confirmation.
-8. **GATE** — commits only on yes, pushes only on a separate yes, never
+   `skilleddocs/briefs/<name>-<local-date>.md` on confirmation (`teammate` when no name was given).
+8. **GATE** — commits only when [`TRACKING.md`](../handoff-auto/TRACKING.md) allows it and on yes, pushes only on a separate yes, never
    shares or sends the document anywhere.
 
 ## Design principles
@@ -96,4 +96,4 @@ does not push or share it further without being asked.
 
 ## Prereqs
 
-None.
+`gh`, optional, for open issues (the task list is asked from you without it).

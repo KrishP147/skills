@@ -8,15 +8,15 @@ Read-only. Board lookup and status labels: [BOARD.md](BOARD.md).
 
 1. **Find the board** per BOARD.md.
 
-2. **Red default branch first.** Per workflow on the default branch, check the latest *completed* run (`gh run list --branch <default> --status completed --limit 1 --workflow <name> --json conclusion,url`). Any `failure` is priority #1. `cancelled`/`timed_out` is worth a mention, not a priority.
+2. **Red default branch first.** Workflow names: `gh workflow list --json name -q '.[].name'`. Per workflow on the default branch, check the latest *completed* run (`gh run list --branch <default> --status completed --limit 1 --workflow <name> --json conclusion,url`). Any `failure` is priority #1. `cancelled`/`timed_out` is worth a mention, not a priority.
 
 3. **Candidates.**
-   - Projects v2: items in Todo/Ready. Empty list → cross-check `gh issue list --state open --json number,title,projectItems` before calling the board empty.
+   - Projects v2: items in In Review first, tagged "awaiting verification"; then items in Todo/Ready. Empty list → cross-check `gh issue list --state open --json number,title,projectItems` before calling the board empty.
    - Labels: `status:in-review` first, tagged "awaiting verification"; then `status:todo`.
    - Roadmap doc: open linked issues in doc order; gated items last.
 
    Skip any issue labelled `wayfinder:*` (planning tickets, worked only via `/wayfinder`).
 
-   Order by priority label, else roadmap order, else oldest first. A repo's `CLAUDE.md`/`AGENTS.md` overrides any of this.
+   Labels used: `priority:*` (ordering), `size:*` (size). Order by priority label, else roadmap order, else oldest first. A repo's `CLAUDE.md`/`AGENTS.md` overrides any of this.
 
 4. **Present** the top 1–3: number, title, size label (or "unestimated"), suggested model (fast for narrow, well-specified work; strong for ambiguous or design-heavy). "go" picks the top one. Picking doesn't claim the card; whoever creates the branch moves it.
