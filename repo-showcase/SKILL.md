@@ -36,7 +36,7 @@ Tracked files: key/token/connection-string patterns (`gitleaks dir .` if install
 
 ## 6. Metadata
 
-Propose description, topics, homepage; show `gh repo edit <o/r> --description "…" --add-topic … --homepage …`; run on yes. No GitHub remote (`git remote -v` shows none, or a non-GitHub host) → print the command for later and skip.
+Propose description, topics, homepage; `<o/r>` per the `next` skill's `BOARD.md`, Target repo section (fork → ask which repo first); show `gh repo edit <o/r> --description "…" --add-topic … --homepage …`; run on yes. No GitHub remote (`git remote -v` shows none, or a non-GitHub host) → print the command for later and skip.
 
 ## 7. Gate: diff, commit, push
 

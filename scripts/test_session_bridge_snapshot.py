@@ -225,6 +225,19 @@ class Redaction(unittest.TestCase):
                 self.assertIn("@", snap.red(url))
         self.assertIn("db.test", snap.red("postgres://app:" + pw + "@db.test/x"))
 
+    def test_web_url_password_and_pwd_env(self):
+        pw = fake("hun", "ter", "2")
+        for text in ("git clone https://bot:" + pw + "@git.test/o/r.git",
+                     "curl https://admin:" + pw + "@api.test/x",
+                     "ftp://u:" + pw + "@files.test/a",
+                     "MYSQL_PWD=" + pw + " mysql -u root",
+                     "SMTP_PASS=" + pw):
+            with self.subTest(text):
+                self.check(text, pw)
+        self.assertIn("git.test", snap.red("https://bot:" + pw + "@git.test/x"))
+        for keep in ("https://registry.test:443/@scope%2fpkg", "BYPASS=1", "https://host.test:8080/a"):
+            self.assertEqual(snap.red(keep), keep)
+
     def test_npmrc_auth(self):
         tok = fake("XX", "xx", "YYyy" * 5)
         self.check("//registry.npmjs.org/:_authToken=" + tok, tok)

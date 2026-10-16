@@ -6,13 +6,13 @@ disallowed-tools: Edit, Write, NotebookEdit
 
 Read-only. Board lookup and status labels: [BOARD.md](BOARD.md).
 
-0. `gh repo view` fails → stop and say why: `origin` isn't a GitHub remote (this skill needs one), or `gh` isn't authenticated (`gh auth status`).
+0. **Target repo** per [BOARD.md](BOARD.md#target-repo): resolve `origin` (this skill needs it on GitHub) and pass `-R <owner>/<repo>` on every `gh` call below. Read-only, so no fork question; on a fork, say which repo's board and CI you read.
 1. **Find the board** per BOARD.md.
 
-2. **Red default branch first.** Workflow names: `gh workflow list --json name -q '.[].name'`. Per workflow on the default branch, check the latest *completed* run (`gh run list --branch <default> --status completed --limit 1 --workflow <name> --json conclusion,url`). Any `failure` is priority #1. `cancelled`/`timed_out` is worth a mention, not a priority.
+2. **Red default branch first.** Workflow names: `gh workflow list -R <owner>/<repo> --json name -q '.[].name'`. Per workflow on the default branch, check the latest *completed* run (`gh run list -R <owner>/<repo> --branch <default> --status completed --limit 1 --workflow <name> --json conclusion,url`). Any `failure` is priority #1. `cancelled`/`timed_out` is worth a mention, not a priority.
 
 3. **Candidates.**
-   - Projects v2: items in In Review first, tagged "awaiting verification"; then items in Todo/Ready. Empty list → cross-check `gh issue list --state open --json number,title,projectItems` before calling the board empty.
+   - Projects v2: items in In Review first, tagged "awaiting verification"; then items in Todo/Ready. Empty list → cross-check `gh issue list -R <owner>/<repo> --state open --json number,title,projectItems` before calling the board empty.
    - Labels: `status:in-review` first, tagged "awaiting verification"; then `status:todo`.
    - Roadmap doc: open linked issues in doc order; gated items last.
 

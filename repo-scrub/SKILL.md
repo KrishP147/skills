@@ -21,7 +21,7 @@ Two rules hold throughout:
 
 Missing tool → give the install command and stop.
 
-`gh repo view <repo> --json name,owner,isPrivate,defaultBranchRef` → confirm the repo, and that a rewrite + force-push is OK if anything gets scrubbed.
+`<repo>` = the argument, else `origin`'s repo per the `next` skill's `BOARD.md`, Target repo section (never a bare `gh` call: on a fork it hits the parent). `gh repo view <repo> --json name,owner,isPrivate,defaultBranchRef` → confirm the repo, and that a rewrite + force-push is OK if anything gets scrubbed.
 
 ## 2. LFS bail-out
 
@@ -69,7 +69,7 @@ Per ID or bulk ("all secrets", "over 50MB", a path glob). Echo back the final **
   ```
   gh api repos/<o>/<r>/collaborators --jq '.[].login'
   gh api repos/<o>/<r>/invitations
-  gh pr list --state open --json number,title,headRefName,author
+  gh pr list -R <o>/<r> --state open --json number,title,headRefName,author
   gh api repos/<o>/<r>/forks --jq length
   ```
   Anyone affected → draft a notice (what, why, re-clone from scratch, which PRs need recreating); user posts it or skips. Forks can't be messaged; report the count. **Gate**: go-ahead to rewrite.
@@ -118,7 +118,7 @@ A hook or permission rule that blocks the push → show the user these exact com
 
 Tell collaborators the same (the step-6 notice).
 
-`gh pr list --state open` → name PRs that must be closed and recreated. Tell the user: old commits stay reachable on GitHub (via `refs/pull/*`, direct SHA, cached views) until GitHub Support garbage-collects them. Rotation protects the secret; the push is hygiene.
+`gh pr list -R <o>/<r> --state open` → name PRs that must be closed and recreated. Tell the user: old commits stay reachable on GitHub (via `refs/pull/*`, direct SHA, cached views) until GitHub Support garbage-collects them. Rotation protects the secret; the push is hygiene.
 
 ## 11. Flip visibility
 

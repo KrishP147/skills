@@ -12,7 +12,7 @@ These skills use `gh project ...` commands, which need scopes your `gh` token ma
 gh auth refresh -s project -s read:project
 ```
 
-Label mode (`status:*` labels) needs no `project` scope. Every skill here also needs `origin` on GitHub (`gh repo view` works), and stops with a message if not.
+Label mode (`status:*` labels) needs no `project` scope. Every skill here also needs `origin` on GitHub, and stops with a message if not. All `gh` calls target `origin`'s repo, and on a fork they ask before writing ([Target repo](next/BOARD.md#target-repo)).
 
 Each skill checks for the scope and tells you if it's missing, but it's a one-time interactive step (opens a browser), so do it up front.
 

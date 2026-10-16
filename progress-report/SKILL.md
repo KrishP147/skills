@@ -31,7 +31,7 @@ Bullets, one idea each, numbers in the table, 1–2 pages. Times in the user's l
 
 ## 3. Links
 
-Resolve the repo URL once: `gh repo view --json url -q .url`. Link every reference in every section with **one left-to-right pass** over each paragraph and cell, one combined regex, alternatives tried in this order at each position:
+Resolve the repo URL once: `gh repo view <o>/<r> --json url -q .url`, `<o>/<r>` per the `next` skill's `BOARD.md`, Target repo section (on a fork, the repo the run wrote issues and PRs to). Link every reference in every section with **one left-to-right pass** over each paragraph and cell, one combined regex, alternatives tried in this order at each position:
 
 1. existing markdown link `[..](..)` or `<url>` → copy unchanged
 2. inline code span → copy unchanged

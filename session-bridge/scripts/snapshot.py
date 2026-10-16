@@ -41,6 +41,11 @@ SECRETS = [(re.compile(p), r) for p, r in (
     # Password in a connection URL; keep scheme, user, host. Before the email rule.
     (r"((?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|rediss?|amqps?)://"
      r"[^\s:/@]*:)[^\s@]+(?=@)", r"\1" + R),
+    # Same for web/remote URLs (git clone https://user:tok@host); "/" ends the
+    # password, so "https://host:443/@scope" keeps its port.
+    (r"(\b(?:https?|ftps?|sftp|ssh|git|smtps?|ldaps?)://[^\s:/@]*:)[^\s@/]+(?=@)", r"\1" + R),
+    # MYSQL_PWD=x, SMTP_PASS=x (the generic rule below needs "password").
+    (r"(\b[A-Z][A-Z0-9_]*_(?:PWD|PASS|PASSWD)\s*=\s*)\S+", r"\1" + R),
     # curl basic-auth flag with user:secret (a bare "-u root" has no colon).
     (r"(\bcurl\b[^\n|;&]*?\s(?:-u\s*|--user(?:\s+|=))['\"]?[^\s:'\"]+:)[^\s'\"]+",
      r"\1" + R),
