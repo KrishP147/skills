@@ -123,6 +123,12 @@ def main(argv):
         print(__doc__.strip().splitlines()[-1], file=sys.stderr)
         return 2
     path, n = argv[1], int(argv[2]) if len(argv) > 2 else 10
+    # A Windows pipe defaults to the locale codepage (cp1252): one non-ASCII
+    # char in a transcript would crash print, so replace what can't encode.
+    try:
+        sys.stdout.reconfigure(errors="replace")
+    except (AttributeError, ValueError):
+        pass
     entries = []
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:

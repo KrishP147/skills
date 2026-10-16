@@ -252,6 +252,21 @@ class Robustness(unittest.TestCase):
         out = run([user("real ask"), user([{"type": "text", "text": note}])])
         self.assertEqual(ask(out), "LAST USER ASK: real ask")
 
+    def test_non_ascii_on_cp1252_pipe(self):
+        # Windows pipes default to cp1252; a non-ASCII transcript must not crash.
+        import os
+        import subprocess
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "t.jsonl"
+            p.write_text("\n".join(json.dumps(e) for e in [
+                user("ask → next"), tool("Bash", {"command": "echo ✓ 日"})]) + "\n",
+                encoding="utf-8")
+            env = dict(os.environ, PYTHONIOENCODING="cp1252")
+            r = subprocess.run([sys.executable, str(MODULE_PATH), str(p)],
+                               capture_output=True, env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(b"LAST USER ASK: ask ? next", r.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
