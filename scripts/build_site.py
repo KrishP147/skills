@@ -8,6 +8,8 @@ exactly what lint counts. Output (wiped + recreated every run):
   site/dist/skills.json         full data (name, description, summary,
                                 group, source, readme)
   site/dist/<name>/index.html   detail page per skill/agent/hook (site_detail.py)
+  site/dist/workflows/index.html  sample workflows from site/data/workflows.json
+                                (site_workflows.py; validated, every skill covered)
   site/dist/404.html
   site/dist/*.css|*.js|*.svg    copied as text from site/src/
   site/dist/*.webp|*.png|*.jpg  copied byte for byte (rocky.webp, favicon-32.png, apple-touch-icon.png)
@@ -27,6 +29,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lint  # noqa: E402
 import site_detail  # noqa: E402
+import site_workflows  # noqa: E402
 
 GROUPS = ("core", "kanban", "agents", "hooks")
 KINDS = {"agents": "agent", "hooks": "hook"}  # nav kind per group, else "skill"
@@ -249,6 +252,8 @@ def build(root, out, base=""):
     names = [e["name"] for e in entries]
     if len(set(names)) != len(names):
         raise SystemExit("duplicate skill/agent/hook names: %s" % sorted(n for n in names if names.count(n) > 1))
+    site_workflows.check_slug(entries)
+    workflows = site_workflows.validate(site_workflows.load(root), entries)
 
     if os.path.isdir(out):
         shutil.rmtree(out)
@@ -257,10 +262,13 @@ def build(root, out, base=""):
     meta = site_detail.load_meta(root)
     write(os.path.join(out, "index.html"),
           render_index(read_text(os.path.join(src, "index.html")), entries, base, meta))
-    pages = site_detail.build_pages(root, entries, meta,
-                                    read_text(os.path.join(src, "detail.html")), nav_data(entries, meta), base)
+    data = nav_data(entries, meta)
+    pages = site_detail.build_pages(root, entries, meta, read_text(os.path.join(src, "detail.html")), data, base,
+                                    workflows=site_workflows.by_name(workflows))
     for e in entries:
         write(os.path.join(out, e["name"], "index.html"), pages[e["name"]])
+    write(os.path.join(out, site_workflows.SLUG, "index.html"),
+          site_workflows.render_index(read_text(os.path.join(src, "workflows.html")), workflows, base, data))
     write(os.path.join(out, "404.html"),
           read_text(os.path.join(src, "404.html")).replace("{{BASE}}", esc(base)))
     write(os.path.join(out, "skills.json"),

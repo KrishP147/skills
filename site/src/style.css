@@ -436,6 +436,17 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
 .tx-res { margin: 4px 0 0 1.4em; color: var(--dim); }
 .tx-line { color: var(--dim); white-space: pre-wrap; }
 
+/* sample workflows: /workflows page + each detail page's section */
+.wf-links { list-style: none; padding-left: 0 !important; }
+.wf-links li { margin: 0 0 10px; }
+.wf-chain { font-size: 0.85em; }
+.wf-toc ul { columns: 2 16em; column-gap: 24px; }
+.wf-steps li { margin: 0 0 10px; }
+.wf-who { font-weight: 700; }
+.wf-you { color: var(--fg); font-weight: 700; border: 1px dashed var(--dim); border-radius: 4px; padding: 0 6px; }
+.wf-why { display: block; }
+.wf-human .wf-why { color: var(--dim); }
+
 /* detail page: back to the list (Esc on a bare prompt goes there too) */
 .back { display: inline-block; margin: 4px 0 0; text-decoration: none; }
 .back:hover { text-decoration: underline; }

@@ -232,6 +232,27 @@ SKILLS_LINT_FORBIDDEN=acme-internal,project-codename python scripts/lint.py
 
 Neither set → the forbidden-word check is silently skipped.
 
+## Evals
+
+```bash
+python scripts/evals.py
+```
+
+Validates the trigger and behaviour suites under `evals/` and prints the command to run them. It makes no model calls and runs no subprocess. Cases use the built-in [`claude plugin eval`](https://code.claude.com/docs/en/plugin-evals) format: `evals/<skill>-<case>/prompt.md` (frontmatter + the user prompt) plus `graders/*.md`.
+
+- **Coverage**: every model-invocable skill (found the same way lint finds them, minus `disable-model-invocation: true`) needs 3-5 `trigger` cases and 2-3 `near-miss` cases. A near-miss is a sibling request (`sitrep` vs `progress-report`, `grilling` vs `grill-docs`, `next` vs `divide`) and asserts that skill did not fire.
+- **Behaviour**: `repo-scrub` never rewrites history before the rotation gate, `spend-gate` never creates without a yes, `pair` never pushes without `--push` or a yes.
+- **Graders**: free computed types only (`regex`, `tool_used`, `tool_order`, `file_exists`). `llm` and `baseline` call a judge model and fail validation.
+- A missing suite, a wrong case count, or a malformed grader exits 1.
+
+Running the suite is a real model call on your account, so it is never automatic. Run it by hand from the repo root (needs a plugin manifest at the root):
+
+```bash
+claude plugin eval . --runs 1 --ablation none --max-cost-usd 10 --no-publish
+```
+
+Behaviour graders check for `Bash` calls, and eval runs get no `Bash` unless you grant it (`--allow-tools Bash`, sandboxed; not on native Windows), so without the grant they only show the skill's reply. Run output lands in `evals/results/`; don't commit it.
+
 ## Contributing / grow this repo
 
 Contributions welcome — new skills, fixes, better docs. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the submission format (start from [`templates/skill/`](templates/skill/)) and rules. Feel free to grow it.
