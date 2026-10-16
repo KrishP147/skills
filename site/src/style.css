@@ -3,7 +3,8 @@
    --accent is for text (>= 4.5:1 on --bg, --panel and a selected row);
    --accent-line is the brand orange for borders and outlines.
    --sel-bg / --accent-sel: the selected menu row's background and name,
-   >= 4.5:1 for the name and --dim text over --panel (tested). */
+   >= 4.5:1 for the name and --dim text over --panel (tested). The home
+   list's hover row reuses them over --bg (tested too). */
 :root {
   color-scheme: dark;
   --bg: #1a1918;
@@ -266,7 +267,8 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
   text-decoration: none;
   color: var(--fg);
 }
-.skill-list a:hover { background: var(--accent-soft); }
+.skill-list a:hover { background: var(--sel-bg); }
+.skill-list a:hover .nm { color: var(--accent-sel); }
 .skill-list .nm { flex: 0 0 11em; color: var(--accent); }
 .skill-list .ds {
   color: var(--dim);
