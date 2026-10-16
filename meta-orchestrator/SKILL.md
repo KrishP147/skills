@@ -26,7 +26,7 @@ Every `key` below is a field of that contract. Respect the repo's `skilleddocs/`
 
 Each agent is `<name>` (e.g. `manager`), or `krish:<name>` (e.g. `krish:manager`) when installed as the plugin; pass that as `subagent_type`.
 
-Models: `review_model` for planner/manager/verifier; `implementer_model` for the implementer (default: the planner's recommendation). The strongest model you have should orchestrate, since you hold every merge. `haiku` only for mechanical no-judgment chores (board moves, filing a pre-written issue, labels, CI log triage, read-only recon, doc count/link fixes, a spelled-out conflict resolution); never for design calls, assumed decisions, code review, verifier, manager or the merge gate.
+Models: `review_model` for planner/manager/verifier; `implementer_model` for the implementer (default: the planner's recommendation). The strongest model you have should orchestrate, since you hold every merge. `haiku` only for mechanical no-judgment chores (board moves, filing a pre-written issue, labels, CI log triage, read-only recon, doc count/link fixes, a spelled-out conflict resolution) or an implementer the planner rates trivial; never for design calls, assumed decisions, code review, verifier, manager or the merge gate.
 
 ## 2. Loop
 
@@ -56,7 +56,7 @@ Verifier fixes on default afterwards are normal; issues it files join the queue.
 ## 4. Autonomy
 
 - **Interviews** (grilling, consult-plan): `interview: answer` → the verifier answers from the written plan and lists every Q → A under "decided for you"; copy them to the ledger. Otherwise park the deviation for the user.
-- **Decisions**: `decisions: assume` → a call with no written answer (interviews above cover only the written plan) that would stall: the agent hitting it picks its recommendation and records an open `A-n` in the decision record (what, why, what would change it, undo cost). Never marked accepted; only the user confirms or replaces it. Ledger `assumption` entry. `ask` (default) → park it for the user.
+- **Decisions**: a call with no written answer (interviews above cover only the written plan) that would stall the work. `ask` (default) → park it for the user. `assume` → the agent hitting it picks its recommendation, records an open `A-n` in the decision record (what, why, what would change it, undo cost) and builds on it; ledger `assumption` entry. Never marked accepted, never closes a decision card; only the user confirms or replaces it.
 - **Divide** when the planner says multi-session, a manager returns unfinished, an implementer left the smart zone (wrote `skilleddocs/HANDOFF.md`), or the not-done list won't fit one session. The planner proposes; you approve.
 - **Failure**: one retry, fresh agent, tighter brief (pair: a new manager from its `skilleddocs/HANDOFF.md`). Second failure: split or park it with a reason, move on.
 - **Stalled agent** (no progress for minutes): usually nested fan-out. Kill it, retry once with an inline-only brief.
