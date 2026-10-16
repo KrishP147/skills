@@ -40,7 +40,7 @@ python <skill-dir>/scripts/summarize_findings.py --gitleaks <tmp>/scrub-work/git
 ```
 
 - gitleaks exit 1 = findings, not failure.
-- `summarize_findings.py` merges gitleaks + `.git/filter-repo/analysis/` into `findings.json`: secrets `S1…` (deduped by rule + value, fingerprint `secret_sha256` only), large blobs `L1…` (bytes accumulated across every version). Use it; the analysis tables are easy to misread.
+- `summarize_findings.py` merges gitleaks + `.git/filter-repo/analysis/` into `findings.json`: secrets `S1…` (deduped by rule + value, or by location when the value is empty; fingerprint `secret_sha256` only), large blobs `L1…` (bytes accumulated across every version). Use it; the analysis tables are easy to misread.
 - `--analyze` spends this clone (filter-repo refuses a second run). Delete `scan-clone` once `findings.json` exists; keep `gitleaks-report.json` until step 12 (step 7 recovers values from it).
 
 ## 4. Report
