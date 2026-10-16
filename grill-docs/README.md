@@ -18,17 +18,17 @@ Runs the `grilling` interview on a plan or decision and leaves a paper trail in 
 
 ## How it works
 
-1. Creates `skilleddocs/grills/<YYYY-MM-DD>-<slug>.md` with a header (`Status: in progress`) before the first round.
+1. Creates `skilleddocs/grills/<YYYY-MM-DD>-<slug>.md` (or `grills/` beside a tracked register when `skilleddocs/` is untracked) with a header (`Status: in progress`) before the first round.
 2. Asks rounds exactly as `grilling` does (numbered questions, one recommendation each, then waits).
 3. After each answered round, appends a `### Q<n>` block (topic / asked / recommended / answer / why) to the transcript, and one `| D<k> | date | decision | why | source |` row to the decisions doc (created with a header if missing). `Q<n>` counts across the whole session. The heading is bare `### Q<n>` so the register's `grills/<file>#q<n>` source resolves on GitHub (anchors are lowercase). Delegated answers ("go with your recs") are recorded as `(delegated)`.
 4. When the frontier is empty and you confirm: sets `Status: settled`, adds `## Summary` and `## Open`, prints both paths. Nothing is committed unless you ask.
 
-Writes: `skilleddocs/grills/<date>-<slug>.md` and the decisions doc: the one `AGENTS.md` / `CLAUDE.md` names, else an existing `docs/decisions.md` or ADR folder, else `skilleddocs/decisions.md` (the same rule `consult-plan` uses). The transcript header's `Register:` field says which.
+Writes: `skilleddocs/grills/<date>-<slug>.md` and the decisions doc: the one `AGENTS.md` / `CLAUDE.md` names, else an existing `docs/decisions.md`, else an ADR folder (`docs/adr/`, `doc/adr/`, `docs/decisions/`), else `skilleddocs/decisions.md` (the same rule `consult-plan` uses). The transcript header's `Register:` field says which. In an ADR folder, a new ADR that reverses or narrows an old one also marks the old one `Superseded by NNNN` / `Amended by NNNN`.
 
 ## Design principles
 
 - **Write as you go.** Each round is recorded before the next one, so an abandoned session still leaves a usable record (`Status: abandoned at Q<n>`).
-- **The register is the interface.** Planners, verifiers and `consult-plan` read only `skilleddocs/decisions.md`, so every answer becomes a row, delegated ones included.
+- **The register is the interface.** Planners, verifiers and `consult-plan` read the register (the decisions doc above), so every answer becomes a row, delegated ones included.
 - **Append-only.** A decision is reversed with a new row; old rows stay as written.
 
 ## Use cases
@@ -39,7 +39,8 @@ Writes: `skilleddocs/grills/<date>-<slug>.md` and the decisions doc: the one `AG
 
 ## Tips
 
-- End the argument with a kebab-case slug (`/grill-docs our caching plan cache-plan`) to control the transcript filename; otherwise Claude picks 2 to 4 topic words.
+- To control the transcript filename, put a kebab-case slug after a doc path or a quoted subject (`/grill-docs "our caching plan" cache-plan`); otherwise Claude picks 2 to 4 topic words, and a hyphenated last word of a plain sentence (`e-books`) stays in the subject.
+- Register tracked (say `docs/decisions.md`) but `skilleddocs/` not: the transcript goes in `docs/grills/` instead, so the rows' Source links work once you commit both.
 - "Go with your recs" is fine: delegated answers are recorded as `(delegated) <rec>`, so the register stays complete.
 - Files are left uncommitted unless you ask; commit them yourself if the repo tracks `skilleddocs/`.
 - If your repo's `AGENTS.md` or `CLAUDE.md` names a decisions doc, that file is used; otherwise an existing `docs/decisions.md` or ADR folder; the transcript header's `Register:` field says which.

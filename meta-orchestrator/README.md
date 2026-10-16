@@ -40,7 +40,7 @@ Works through a repo's backlog unattended. Claude becomes the **orchestrator**: 
 3. **Merge gate (orchestrator only).** Tests/CI green for the head SHA; diff skimmed for scope creep, secrets, drift and anything on your pause list; push, then merge per your `merge` setting; worktree torn down links-first; ledger entry.
 4. **Autonomy.** One retry per failure, then split or park, never loop. `decisions: assume` lets agents pick their recommendation for calls with no written answer (unlike `interview: answer`, which answers from the written plan) and log an open `A-n` for you to confirm; listed in every handoff and report. The `guard-git.py` hook blocks agents from pushing default or merging.
 5. **Ledger.** Append-only `skilleddocs/orchestrator/ledger.md`, local timestamps, committed per entry (unless you chose uncommitted docs).
-6. **Rotation** ([`ROTATION.md`](ROTATION.md)). After `handoff_budget` merges or a smart-zone warning: writes `orchestrator-handoff.md`, logs it, optionally runs a progress report, stops. `resume` picks up from there.
+6. **Rotation** ([`ROTATION.md`](ROTATION.md)). After `handoff_budget` merges or a smart-zone warning (with lanes, once every in-flight lane has merged or parked): writes `orchestrator-handoff.md`, logs it, optionally runs a progress report, stops. `resume` picks up from there.
 7. **Done** when every in-scope issue is closed or parked with a reason (or `stop` is reached), default is green, every merge has a verify entry.
 
 ## Flow
@@ -123,7 +123,10 @@ in full, then the rotation after the tenth merge:
 ⏺ PR #40 Add CSV export: 124 passed, diff in scope (src/export.py, tests/test_export.py). Merge?
 > yes
 ⏺ Bash(gh pr merge 40 --squash --delete-branch && git pull --ff-only)
-⏺ Bash(wt=../_worktrees/myrepo-issue-17-csv-export; rm "$wt/.venv"; if [ -e "$wt/.venv" ] || [ -L "$wt/.venv" ] || [ -e "$wt/node_modules" ] || [ -L "$wt/node_modules" ]; then echo "STOP: dep link in $wt"; else git worktree remove "$wt"; fi)
+⏺ Bash(pair TEARDOWN.md step 1, Git Bash form: wt=/home/you/code/_worktrees/myrepo-issue-17-csv-export; main=/home/you/code/myrepo; reg=skilleddocs/decisions.md …)
+  ⎿ moved skilleddocs/handoffs/2026-10-16-issue-17-csv-export.md
+    appended A-4
+⏺ Bash(rm "$wt/.venv"; left=$(git -C "$wt" status --porcelain --ignored --untracked-files=all -- skilleddocs); if [ -e "$wt/.venv" ] || [ -L "$wt/.venv" ] || [ -e "$wt/node_modules" ] || [ -L "$wt/node_modules" ] || [ -n "$left" ]; then echo "STOP: left in $wt:"; echo "$left"; else git -C "$main" worktree remove "$wt"; fi)
 ⏺ Bash(git commit -m "docs(skilleddocs): ledger 004" && git push)
 ⏺ Merged #17 as PR #40 (squash), 124 passed.
   Next: verify, then the planner picks again.

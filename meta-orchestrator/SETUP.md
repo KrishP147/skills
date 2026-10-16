@@ -8,6 +8,7 @@ First run on a repo, or `reconfigure`. Output: `skilleddocs/orchestrator/scope.m
 - Skills the repo names exist (repo `.claude/skills/` wins over `~/.claude/skills/`). The `planner`, `manager`, `implementer`, `verifier` agents exist (`~/.claude/agents/*.md`, or `krish:<agent>` from the plugin); missing → tell the user to run the skills repo's install script or install its plugin, meanwhile use `general-purpose` with the same model and brief.
 - Branches with unpushed commits, open issues and PRs, last CI on default, untracked personal files (never commit them; offer to gitignore).
 - Repo's merge style (recent merge commits vs squash), test command, default branch, the user's branch prefix.
+- No PR host (`origin` not on GitHub, or no authenticated `gh`) → stop and ask where issues come from and how a merge lands (e.g. push the branch, local `--no-ff` merge, push default); write the answer in scope.md's notes. `pr-only` there = push the branch and leave the merge to the user.
 
 ## 2. Resolve defaults
 
@@ -49,9 +50,9 @@ Use the AskUserQuestion tool when available (≤4 questions per call, recommende
 | `merge` | `auto` when the gate is green · `ask` before each merge · `pr-only` (open PRs, user merges) | SKILL.md §3 step 3 |
 | `merge_style` | repo's existing style · squash · merge commit · rebase | how PRs land |
 | `interview` | `answer` (agents answer for me from the written plan) · `park` (deviations wait for me) | verifier + consult-plan |
-| `decisions` | `ask` (park calls with no written answer) · `assume` (agent picks its recommendation, records open `A-n` for me to confirm) | SKILL.md §4; briefs carry `decisions=` |
+| `decisions` | `ask` (park calls with no written answer) · `assume` (agent picks its recommendation, records open `A-n` for me to confirm) | SKILL.md §4; briefs carry `decisions=` and `first A-id` |
 | `escalate` | multi-select: new dependency · schema/migration · deleting files · public API change · CI/config change · anything billable (always on) | pause and ask before merging such a change |
-| `docs` | multi-select: ledger (always on) · decisions register · per-issue handoffs · manager reports kept · CHANGELOG entries | what gets written under `skilleddocs/` |
+| `docs` | multi-select: ledger (always on) · decisions register · per-issue handoffs · manager reports kept · CHANGELOG entries | what gets written (under `skilleddocs/`; the register per SKILL.md §5) |
 | `docs_commit` | `commit` (on default as written) · `uncommitted`; default per [TRACKING.md](../handoff-auto/TRACKING.md), forced `uncommitted` on a fork | where the paper trail lives |
 | `reports` | `handoff` · `every N merges` · `end` · `on-request` | when `progress-report` runs |
 | `report_format` | markdown · docx | progress-report output |
@@ -66,7 +67,7 @@ Use the AskUserQuestion tool when available (≤4 questions per call, recommende
 
 ## 4. Write the contract
 
-`skilleddocs/orchestrator/scope.md`: repo path, default branch, then every key above as `key: value` in a fenced `yaml` block, then free-text notes (exclusion reasons, who answers what). Commit it on the default branch: `docs(skilleddocs): orchestrator scope`. (`docs_commit: uncommitted` → leave it untracked and git-excluded per TRACKING.md; the ledger then lives only on this machine. Say so.)
+`skilleddocs/orchestrator/scope.md`: repo path, default branch, then every key above as `key: value` in a fenced `yaml` block, then free-text notes (exclusion reasons, who answers what). Commit it on the default branch: `docs(skilleddocs): orchestrator scope`. Lanes set by [`lanes`](../lanes/SKILL.md) → also start the ledger (SKILL.md §5) with its `decision` entry as 001 (`lanes` §5 step 2), committed with scope.md. (`docs_commit: uncommitted` → leave it untracked and git-excluded per TRACKING.md; the ledger then lives only on this machine. Say so.)
 
 ## 5. Offer to save as defaults
 

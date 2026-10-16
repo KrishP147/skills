@@ -4,7 +4,7 @@ description: Write an onboarding document for a person joining or picking up a p
 argument-hint: "[teammate name or role]"
 ---
 
-One Markdown file for a human reader, in plain language: "run this command", not "invoke"; no skill or session jargon. **Gate**: commit only if the `handoff-auto` skill's `TRACKING.md` allows it and on the user's yes; push needs its own yes; sharing the file is the user's call.
+One Markdown file for a human reader, in plain language: "run this command", not "invoke"; no skill or session jargon. **Gate**: commit only if the `handoff-auto` skill's `TRACKING.md` allows it, only on `<default>` (defined there), and on the user's yes; push needs its own yes; sharing the file is the user's call.
 
 ## 1. Ask (one batch, each with its default)
 
@@ -19,7 +19,7 @@ One Markdown file for a human reader, in plain language: "run this command", not
 1. **What it is**: 2–3 sentences: purpose, users, state (shipping / prototype / paused), from the README and recent `git log`.
 2. **Setup**: gather steps from README, package scripts, Makefile, compose, CI. Run each here and note the observed result (tests 41/41, server on :3000). Skip destructive, credentialed and slow steps (deploys, migrations on real data, anything needing a secret, long builds); mark them and any step you couldn't run **unverified — <reason>**.
 3. **Env vars**: table Variable · purpose · where to get it, from `.env.example`, config loaders, env lookups, CI secrets. **Names only**: read no real `.env` or secret file, write no value. Unknown source → "ask <owner>".
-4. **Tasks**: numbered, each with a "done when" checkable without asking you. From open issues (skip `wayfinder:*` planning tickets and issues already in progress); ask the user for the rest. Issues via `gh issue list -R <o>/<r>`, `<o>/<r>` per the `next` skill's `BOARD.md`, Target repo section. `gh` unavailable → ask the user for the task list.
+4. **Tasks**: numbered, each with a "done when" checkable without asking you. From open issues (skip `wayfinder:*` planning tickets and issues In Progress or In Review per the `next` skill's `BOARD.md`); ask the user for the rest. Issues via `gh issue list -R <o>/<r>`, `<o>/<r>` per the `next` skill's `BOARD.md`, Target repo section. `gh` unavailable → ask the user for the task list.
 5. **Owners**: area/path → who to ask. Unknown → "unclear — ask <user>".
 6. **Don't touch**: path — reason. Empty is fine: "nothing off-limits".
 

@@ -17,8 +17,8 @@ Model-invocable: another skill calls the Skill tool with `handoff-auto` (optiona
 
 ## How it works
 
-1. Summarises the conversation into a document under the repo's **`skilleddocs/handoffs/`** (OS temp dir only when there is no repo). Committed or left untracked per [`TRACKING.md`](TRACKING.md): commit only if the repo already tracks `skilleddocs/` or opts in, never on a fork.
-2. Records branch, base SHA (`git merge-base <default> HEAD`) and head SHA, and adds a "suggested skills" section.
+1. Summarises the conversation into a document under the repo's **`skilleddocs/handoffs/`** (OS temp dir only when there is no repo). Committed or left untracked per [`TRACKING.md`](TRACKING.md): commit only if the repo already tracks `skilleddocs/` (or the `AGENTS.md` handoff folder) or opts in, never on a fork.
+2. Records branch, base SHA (`git merge-base <default> HEAD`; on the default branch itself, the upstream or the parent of the session's first commit), head SHA and, if the tree is dirty, `git status --short`, and adds a "suggested skills" section.
 3. References existing artifacts by path/URL instead of duplicating them.
 4. Redacts secrets and personal data.
 5. Tailors to the argument if one was given.

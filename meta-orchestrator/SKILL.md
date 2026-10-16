@@ -18,10 +18,10 @@ Every `key` below is a field of that contract. Respect the repo's `skilleddocs/`
 
 | Step | Agent | You pass | You get back |
 |---|---|---|---|
-| Plan | `planner` | repo path + scope.md + `decisions` | ≤40-line kickoff brief, model rec, divide?, assumptions needed |
-| Implement (`execution: pair`) | `manager` | working dir + brief verbatim + prefix + protected branch + `max_rounds=3` + `decisions` + "never push or merge" | branch, commits, tests it reran, review findings, rounds, assumed `A-n`, `skilleddocs/HANDOFF.md` if unfinished |
-| Implement (`execution: flat`) | `implementer` | brief verbatim + prefix + protected branch + `decisions` | handoff (cites assumed `A-n`), path as its last line |
-| Verify | `verifier` | handoff or manager-report path + `interview` + `decisions` + `review-done=<yes in pair / no in flat>` | verified-by, fixes, decided-for-you, assumed `A-n`, manual steps, next |
+| Plan | `planner` | repo path + scope.md + issues in flight + `decisions` | ≤40-line kickoff brief (with `lanes:`, one per lane whose head isn't in flight), model rec, divide?, assumptions needed |
+| Implement (`execution: pair`) | `manager` | working dir + brief verbatim + prefix + protected branch + `max_rounds=3` + `decisions` + `first A-id` (§4) + "never push or merge" | branch, commits, tests it reran, review findings, rounds, assumed `A-n`, `skilleddocs/HANDOFF.md` if unfinished |
+| Implement (`execution: flat`) | `implementer` | brief verbatim + prefix + protected branch + `decisions` + `first A-id` (§4) | handoff (cites assumed `A-n`), path as its last line |
+| Verify | `verifier` | handoff or manager-report path + `interview` + `decisions` + `first A-id` (§4) + user-answered `D<k>` + `review-done=<yes in pair / no in flat>` | verified-by, fixes, decided-for-you, assumed `A-n`, manual steps, next |
 | Chores | `general-purpose` on `haiku` | exact commands + expected output | its report; check it (`gh` read, diff skim) before relying on it |
 
 Each agent is `<name>` (e.g. `manager`), or `krish:<name>` (e.g. `krish:manager`) when installed as the plugin; pass that as `subagent_type`.
@@ -36,7 +36,7 @@ planner → manager | implementer → merge gate (you) → verifier → repeat
 
 - Each arrow is a **fresh** Agent call. In pair mode save the manager's report to `skilleddocs/orchestrator/reports/`; that report or the handoff is the only bridge to the verifier.
 - `parallel > 1` → one worktree per manager (`../_worktrees/<repo>-<slug>`, set up as `pair` §2 does). Never two managers on one checkout.
-- Lanes: each lane in scope.md `lanes:` works its issues in order. [`/lanes`](../lanes/SKILL.md) changes them; apply at your next loop. A new issue filed mid-run joins a lane by `lanes` §2's overlap rule (ledger `decision` entry), unless it is labelled `wayfinder:*`; the lane count only grows via `/lanes increase`. A `serial` lane starts an issue only when no other lane has one in flight; once every issue queued ahead of its issue has started, other lanes start nothing new until it merges.
+- Lanes: each lane in scope.md `lanes:` works its issues in order. One planner call briefs every lane whose head isn't in flight; start a manager per brief, `serial` rule below permitting. [`/lanes`](../lanes/SKILL.md) changes them; apply at your next loop. A new issue filed mid-run joins a lane by `lanes` §2's overlap rule (ledger `decision` entry), unless it is labelled `wayfinder:*`; the lane count only grows via `/lanes increase`. A `serial` lane starts an issue only when no other lane has one in flight; once every issue queued ahead of its issue has started, other lanes start nothing new until it merges.
 - **Nested fan-out stalls.** Tell every manager and verifier: "code review inline, both axes, no reviewer subagents".
 - A handback titled **INTERIM** isn't a result; wait for that agent's next one.
 
@@ -44,11 +44,11 @@ planner → manager | implementer → merge gate (you) → verifier → repeat
 
 1. Pull; run the tests yourself or read CI for the exact head SHA. Green or no merge.
 2. Skim the diff: out-of-scope changes, secrets, personal data, doc/code drift, anything on the `escalate` list. Escalation hit → ask the user, park the issue meanwhile. Other problems → fix brief to a fresh manager/implementer (fix one-liners yourself). The manager's review is an input, not a substitute.
-3. Push the branch (agents can't), open the PR (`pr_body`, `gh pr create -R <o/r>`), then by `merge`. `<o/r>` per the `next` skill's `BOARD.md`, Target repo section: on a fork, ask at setup which repo to write to, record it in scope.md as `target_repo`, and name it in every brief:
+3. Push the branch (agents can't), open the PR (`pr_body`, `gh pr create -R <o/r>`), then by `merge`. No PR host → land it as scope.md's notes say ([SETUP.md](SETUP.md) §1). `<o/r>` per the `next` skill's `BOARD.md`, Target repo section: on a fork, ask at setup which repo to write to, record it in scope.md as `target_repo`, and name it in every brief:
    - `auto`: merge in `merge_style`, delete branch, fast-forward default.
    - `ask`: show PR + test result, merge on yes.
    - `pr-only`: leave it for the user; count it as done for the loop. Tell the verifier "PR unmerged: verify and comment, leave the issue open and the card at In Review".
-4. Tear down the issue's worktree with `pair` §5's commands: unlink linked deps, then the hard check that `<wt>/.venv` and `<wt>/node_modules` are gone (dangling links included), and `git worktree remove` only when it passes. Check fails → leave the worktree, note it in the ledger.
+4. Tear down the issue's worktree with `pair` §5's commands ([TEARDOWN.md](../pair/TEARDOWN.md)). You merge the worktree's records into main: every untracked or ignored file under its `skilleddocs/` and the `AGENTS.md`/`CLAUDE.md`-named doc folders (dated handoffs, `HANDOFF.md`, the decisions register with its `A-…` rows, anything else) moves to the same path in the main checkout without overwriting, and register rows main lacks are appended (the verifier finds them there; TRACKING.md decides the commit). Then unlink linked deps, then the hard check: no `.venv`/`node_modules` link (dangling included) and nothing left in `git -C <wt> status --porcelain --ignored --untracked-files=all -- <doc folders>`; `git worktree remove` only when it passes. Check fails, a `CLASH` is printed, or `remove` refuses → leave the worktree (never `--force`), note what's left in the ledger and tell the user.
 5. Ledger entry (§5). Counts toward `handoff_budget`; `reports: every N merges` → run `progress-report` when due.
 
 Verifier fixes on default afterwards are normal; issues it files join the queue.
@@ -56,7 +56,8 @@ Verifier fixes on default afterwards are normal; issues it files join the queue.
 ## 4. Autonomy
 
 - **Interviews** (grilling, consult-plan): `interview: answer` → the verifier answers from the written plan and lists every Q → A under "decided for you"; copy them to the ledger. Otherwise park the deviation for the user.
-- **Decisions**: a call with no written answer (interviews above cover only the written plan) that would stall the work. `ask` (default) → park it for the user. `assume` → the agent hitting it picks its recommendation, records an open `A-n` in the decision record (what, why, what would change it, undo cost) and builds on it; ledger `assumption` entry. Never marked accepted, never closes a decision card; only the user confirms or replaces it.
+- **Decisions**: a call with no written answer (interviews above cover only the written plan) that would stall the work. `ask` (default) → park it for the user. `assume` → the agent hitting it picks its recommendation, records an open `A-n` in the decision record (what, why, what would change it, undo cost) and builds on it; ledger `assumption` entry. **Ids**: agents in worktrees write the worktree's copy of the register, so you hand them out: before each `decisions=assume` brief read the main checkout's register and pass `first A-id`: one lane → `A-<k>`, the next after its highest `A-<number>`; `parallel > 1` → `A-<lane>-<k>`, the next after that lane's highest, so lanes never collide. Each worktree's record is merged into main by you at teardown (§3 step 4: rows main lacks are appended; a clashing id stops the teardown). Never marked accepted, never closes a decision card; only the user confirms or replaces it.
+- **User answers** (to a planner's questions or a parked call): write each to the decisions register as `D<k>` (`docs` without the register → a ledger `decision` entry) and cite it in every later manager/implementer and verifier brief it touches, marked "answered by the user", so no agent re-decides it.
 - **Divide** when the planner says multi-session, a manager returns unfinished, an implementer left the smart zone (wrote `skilleddocs/HANDOFF.md`), or the not-done list won't fit one session. The planner proposes; you approve.
 - **Failure**: one retry, fresh agent, tighter brief (pair: a new manager from its `skilleddocs/HANDOFF.md`). Second failure: split or park it with a reason, move on.
 - **Stalled agent** (no progress for minutes): usually nested fan-out. Kill it, retry once with an inline-only brief.
@@ -77,7 +78,7 @@ Verifier fixes on default afterwards are normal; issues it files join the queue.
 - manual step for user: <only if one exists>
 ```
 
-`ledger_detail: terse` → the header line + `what` only; `verbose` → add the commands run. Zone: scope `timezone` if set, else run `python -c "import datetime as d; n=d.datetime.now().astimezone(); z=n.tzname(); print(z if ' ' not in z else n.strftime('UTC%z'))"` once (abbreviation on Unix, UTC offset on Windows); name it at the top of the ledger. Times come from `date`, `git log --date=format-local`, or API UTC timestamps via `datetime.fromisoformat(s).astimezone()`; never estimated or offset by hand. Write `#n` / `PR #n` so `progress-report` can link them. Other `docs` entries: decisions → `skilleddocs/decisions.md`; per-issue handoffs → keep the implementer's; CHANGELOG → one line per merge.
+`ledger_detail: terse` → the header line + `what` only; `verbose` → add the commands run. Zone: scope `timezone` if set, else run `python -c "import datetime as d; n=d.datetime.now().astimezone(); z=n.tzname(); print(z if ' ' not in z else n.strftime('UTC%z'))"` once (abbreviation on Unix, UTC offset on Windows); name it at the top of the ledger. Times come from `date`, `git log --date=format-local`, or API UTC timestamps via `datetime.fromisoformat(s).astimezone()`; never estimated or offset by hand. Write `#n` / `PR #n` so `progress-report` can link them. Other `docs` entries: decisions → the decisions register (the one `AGENTS.md`/`CLAUDE.md` names; else `docs/decisions.md`; else an ADR folder; else `skilleddocs/decisions.md`, as `grill-docs`); per-issue handoffs → keep the implementer's; CHANGELOG → one line per merge.
 
 ## 6. Rotation
 

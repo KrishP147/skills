@@ -16,8 +16,8 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 ## planner
 
 - **Role:** picks the next single unit of work from the board and writes the kickoff brief. Read-only: `disallowedTools: Edit, Write, NotebookEdit`; never creates issues. `maxTurns: 40`.
-- **You pass:** repo path + scope contract (exclusions such as gated issues / people tasks / labels, ordering rule), optional `decisions` (`ask`|`assume`).
-- **How it works:** runs `next` → drops excluded items and `wayfinder:*` issues → picks exactly one task → uses `divide` to *propose* a split if it looks multi-session → if nothing is left, says so and stops.
+- **You pass:** repo path + scope contract (exclusions such as gated issues / people tasks / labels, ordering rule, `lanes`), issues in flight, optional `decisions` (`ask`|`assume`).
+- **How it works:** runs `next` → drops excluded items and `wayfinder:*` issues → picks exactly one task (with `lanes:`, one per lane whose head isn't in flight) → uses `divide` to *propose* a split if it looks multi-session → if nothing is left, says so and stops.
 - **You get back (≤40 lines):** issue + acceptance checklist, key files, decisions/ADRs to respect, branch name `<prefix>/issue-<n>-<slug>`, gotchas, recommended model (and why), divide yes/no + proposed split, **Assumptions needed** (when `decisions=assume`).
 - **Design principles:** read-only by construction (`disallowedTools`), so it can only propose, never change the board; exactly one task per brief; the ≤40-line cap keeps the brief cheap to pass verbatim to the next agent.
 - **Use cases:** briefing the next issue for a `meta-orchestrator` loop; asking on your own "use the planner agent to brief the next issue" before starting work by hand.
@@ -32,7 +32,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
   1. Orients read-only; confirms every file the task cites exists; detects the test command.
   2. Writes a ≤40-line brief (includes "if stuck, write `skilleddocs/HANDOFF.md`, commit only if [`TRACKING.md`](../handoff-auto/TRACKING.md) says so, stop").
   3. Spawns an `implementer` (not `fork`, no `isolation`) with `run_in_background` unset so the call blocks. Some Agent tool versions have no foreground mode; then, or if the call returns early, it never fabricates a result or sleep-polls, ends the turn with a plain-text status and lets the completion notification wake it. Only with no notification path does it return **INTERIM — implementer still running** (callers must not act on it).
-  4. Reviews every round itself, inline: commit scope, `git diff <base>...HEAD`, reruns tests + lint, and checks `git diff --name-only <base>...HEAD` carries no `skilleddocs/HANDOFF.md` (no `skilleddocs/handoffs/` in commit mode; nothing under `skilleddocs/` when untracked). Fixes one-liners; larger gaps go to the next round. Never spawns reviewer subagents.
+  4. Reviews every round itself, inline: commit scope, `git diff <base>...HEAD`, reruns tests + lint, and checks `git diff --name-only <base>...HEAD` carries no `skilleddocs/HANDOFF.md` (nothing in the handoff folder, `AGENTS.md`/`CLAUDE.md`'s else `skilleddocs/handoffs/`, in commit mode; nothing under `skilleddocs/` or that folder when untracked). Fixes one-liners; larger gaps go to the next round. Never spawns reviewer subagents.
   5. Retries with a **fresh** implementer + `skilleddocs/HANDOFF.md`/findings, up to `max_rounds`; deletes `HANDOFF.md` once picked up (in a commit if tracked).
 - **You get back:** branch + base/head SHA, commits, tests (command + counts) and lint run by it, review findings and who fixed each, rounds used, **Assumed** open `A-n` ids, `skilleddocs/HANDOFF.md` path (or the last SHA that held it, if tracked) if unfinished, manual steps (e.g. the push).
 - **Guard:** same `guard-git.py` hook as the implementer. Never pushes, merges or opens PRs — the caller does. Never deletes links or worktrees either, and never a recursive delete through a linked `node_modules`/`.venv` — teardown is the caller's job.
@@ -56,7 +56,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 ## verifier
 
 - **Role:** verifies an implementation session and closes the loop. `maxTurns: 120`. No guard hook.
-- **You pass:** handoff path (or saved manager report path), whether it may answer interview-style questions on your behalf, `review-done=yes|no` (default no; `yes` = a manager already reviewed and reran tests), `decisions` (`ask`|`assume`, default `ask`).
+- **You pass:** handoff path (or saved manager report path), whether it may answer interview-style questions on your behalf, `review-done=yes|no` (default no; `yes` = a manager already reviewed and reran tests), `decisions` (`ask`|`assume`, default `ask`), user-answered `D<k>` (settled; never re-decided).
 - **How it works:**
   1. Runs `update-progress` end to end: claims vs `git log`, tests, CI, code review (skipped if `review-done=yes`), docs/board/issue updates. Code review is inline, two axes (standards + spec), no reviewer subagents.
   2. Deviations: if authorized, answers `consult-plan` itself from the written plan and lists every Q → A; if not, records the deviation and leaves the plan untouched.

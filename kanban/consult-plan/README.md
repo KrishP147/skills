@@ -17,11 +17,11 @@ Grills a proposed change, deviation or new idea against the repo's existing plan
 
 ## How it works
 
-1. **Baseline** (whatever exists): open issues (`gh issue list --state open`), board state (`gh project item-list` or `status:*` labels), a roadmap doc (`ROADMAP.md`, `docs/roadmap.md`, …), plus `skilleddocs/decisions.md` and `skilleddocs/grills/`. Earlier decisions are cited as `D<k>`.
+1. **Baseline** (whatever exists): open issues (`gh issue list --state open`), board state (`gh project item-list` or `status:*` labels), a roadmap doc (`ROADMAP.md`, `docs/roadmap.md`, …), plus the decisions doc (found by the same rule as step 3) and the grill transcripts (`skilleddocs/grills/`, or `grills/` beside a tracked register). Earlier decisions are cited as `D<k>`.
 2. **Grill:** calls [`grilling`](../../grilling/) with that baseline, framed as fit / conflict / extension and what you want to happen.
 3. **Record** once settled, both:
    - **Decision:** append to the repo's decisions doc: the one `AGENTS.md` / `CLAUDE.md` names, else an existing `docs/decisions.md` or ADR folder, else `skilleddocs/decisions.md` (header and rows as in [`grill-docs`](../../grill-docs/)). Source column: `consult-plan <date>` plus the issue or PR link if any.
-   - **Issue** (accepted or changed ideas): comment on the relevant issue, or open a new one and put it on the board at Todo (Projects v2: `item-add` + `item-edit`; label mode: `status:todo`, created first if missing). A **rejected** idea gets the decision row only, plus a comment if a related issue exists; no new issue.
+   - **Issue** (accepted or changed ideas): a comment on the relevant issue when it refines existing work, or a new issue when it needs its own work, put on the board at Todo (Projects v2: `item-add` + `item-edit`; label mode: `status:todo`, created first if missing). A **rejected** idea gets the decision row only, plus a comment if a related issue exists; no new issue.
 
 ## Design principles
 
@@ -58,4 +58,4 @@ Reads 12 open issues and `ROADMAP.md`, asks a round of questions (does it replac
 
 ## Prereqs
 
-`gh`, authenticated, and `origin` on GitHub. Projects v2 boards also need the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)); label mode doesn't. [`grilling`](../../grilling/) installed.
+`gh`, authenticated, and `origin` on GitHub. On a fork it asks which repo to write to (fork issues off: it reads the parent). Projects v2 boards also need the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)); label mode doesn't. [`grilling`](../../grilling/) installed.

@@ -1,14 +1,15 @@
 ---
 name: grill-docs
-description: Grill the user about a plan (same interview as grilling) and record it — Q→A transcript in skilleddocs/grills/, each decision appended to skilleddocs/decisions.md. Use for "grill me and document it", "grill with docs".
+description: Grill the user about a plan (same interview as grilling) and record it — Q→A transcript in grills/, each decision appended to the repo's decisions doc (both under skilleddocs/ by default). Use for "grill me and document it", "grill with docs".
 argument-hint: "plan, decision, or doc path [slug]"
 ---
 
 Call the Skill tool with `"grilling"` and run that interview unchanged. Your addition: write it down **as each round settles**, so an abandoned session still leaves a record.
 
 Paths:
-- transcript: `skilleddocs/grills/<local-date>-<slug>.md` (slug: the argument's last word when it is kebab-case with a hyphen, like `auth-plan`, and words remain before it; else 2–4 topic words from the subject)
-- register (the decisions doc): the one the repo's `AGENTS.md`/`CLAUDE.md` names; else an existing `docs/decisions.md` or ADR folder; else `skilleddocs/decisions.md`. Same rule as `consult-plan`. An ADR folder gets one new ADR per decision in its own format, carrying the same Source. Always name the chosen path in the header's `Register:` field.
+- transcript: `skilleddocs/grills/<local-date>-<slug>.md`. Slug: the argument's last word only when it is kebab-case and follows a doc path or a quoted subject (`docs/plan.md auth-plan`, `"our caching plan" cache-plan`); else 2–4 topic words, and the whole argument is the subject (`should we support e-books` keeps `e-books`).
+- register (the decisions doc): the one the repo's `AGENTS.md`/`CLAUDE.md` names; else an existing `docs/decisions.md`; else an ADR folder (`docs/adr/`, `doc/adr/`, `docs/decisions/`); else `skilleddocs/decisions.md`. Same rule as `consult-plan`. An ADR folder gets one new ADR per decision in its own format, carrying the same Source; one that reverses or narrows an old ADR also sets the old one's Status to `Superseded by NNNN` / `Amended by NNNN`, the only edit allowed to an old record. Always name the chosen path in the header's `Register:` field.
+- register outside `skilleddocs/` while `skilleddocs/` stays untracked (below) → the transcript goes in `grills/` beside the register file or ADR folder instead (`docs/grills/…` for `docs/decisions.md` or `docs/adr/`), so its Sources ship with it.
 
 Untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md) (it also covers the `pip install .` hazard).
 
@@ -35,7 +36,7 @@ Transcript, per question. `Q<n>` counts across the whole session: continue the n
 - Why: <user's reason, else the recommendation's rationale marked "(rec)">
 ```
 
-Register, one row per settled question, continuing the `D<k>` numbering. Source is the transcript path, relative to the register, plus the lowercase anchor (`grills/2026-10-16-sync-plan.md#q3` from `skilleddocs/decisions.md`). Called from a `wayfinder` ticket, name the ticket in Source too (`ticket <link>; grills/<file>#q<n>`):
+Register, one row per settled question, continuing the `D<k>` numbering (an ADR folder: the next ADR number, cited `ADR <n>`). Source is the transcript path, relative to the register, plus the lowercase anchor (`grills/2026-10-16-sync-plan.md#q3` from `skilleddocs/decisions.md`). Called from a `wayfinder` ticket, name the ticket in Source too (`ticket <link>; grills/<file>#q<n>`):
 
 ```markdown
 | D<k> | <local date> | <decision> | <why> | grills/<file>#q<n> |
@@ -52,8 +53,8 @@ Append-only register of decisions from grilling sessions, consult-plan reviews, 
 |---|------|----------|-----|--------|
 ```
 
-Every answer is a decision, delegated ones too: planners, verifiers and consult-plan read only the register.
+Every answer is a decision, delegated ones too: planners, verifiers and consult-plan read the register.
 
 ## Close
 
-Frontier empty and the user confirms → `Status: settled`, add `## Summary` (3–8 bullets) and `## Open` (or "none"). Ended early → `Status: abandoned at Q<n>`. Print both paths; say they're uncommitted unless the user asks to commit.
+Frontier empty and the user confirms → `Status: settled`, add `## Summary` (3–8 bullets) and `## Open` (or "none"). Ended early → `Status: abandoned at Q<n>`. Print both paths; say they're uncommitted unless the user asks to commit, and that a tracked register's rows need their transcript committed with them or the Sources dangle.
