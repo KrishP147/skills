@@ -149,6 +149,46 @@ class TestGitleaksDedupe(unittest.TestCase):
         dumped = json.dumps(entry)
         self.assertNotIn("fake-test-secret-value-0001", dumped)
 
+    def test_empty_secret_keyed_by_location(self):
+        base = {"RuleID": "generic-api-key", "Secret": "", "File": "a.txt", "StartLine": 1, "Commit": "c1"}
+        entries = [
+            base,
+            dict(base, File="b.txt"),
+            dict(base, StartLine=2),
+            dict(base, Commit="c2"),
+            dict(base),  # exact duplicate
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            findings = sf.load_gitleaks(self._write_report(Path(tmp), entries))
+        self.assertEqual(len(findings), 4)
+        for f in findings:
+            self.assertIsNone(f["secret_sha256"])
+            self.assertTrue(f["location_key"])
+            self.assertEqual(len(f["paths"]), 1)
+        self.assertEqual(len({f["location_key"] for f in findings}), 4)
+
+    def test_missing_secret_key_and_startline(self):
+        entries = [
+            {"RuleID": "r", "File": "a.txt", "Commit": "c1"},
+            {"RuleID": "r", "File": "b.txt", "Commit": "c1"},
+            {"RuleID": "r", "File": "a.txt", "Commit": "c1"},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            findings = sf.load_gitleaks(self._write_report(Path(tmp), entries))
+        self.assertEqual(len(findings), 2)
+        self.assertIsNone(findings[0]["secret_sha256"])
+
+    def test_empty_secret_prefers_fingerprint(self):
+        entries = [
+            {"RuleID": "r", "Secret": "", "File": "a", "StartLine": 1, "Commit": "c1", "Fingerprint": "c1:a:r:1"},
+            {"RuleID": "r", "Secret": "", "File": "a", "StartLine": 1, "Commit": "c1", "Fingerprint": "c1:a:r:1"},
+            {"RuleID": "r", "Secret": "", "File": "a", "StartLine": 1, "Commit": "c1", "Fingerprint": "c1:a:r:9"},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            findings = sf.load_gitleaks(self._write_report(Path(tmp), entries))
+        self.assertEqual(len(findings), 2)
+        self.assertEqual(findings[0]["location_key"], "c1:a:r:1")
+
     def test_different_secrets_stay_separate(self):
         entries = [
             {

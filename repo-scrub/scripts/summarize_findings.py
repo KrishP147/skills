@@ -10,8 +10,9 @@ Usage:
         [--large-threshold-bytes 1000000]
 
 Writes findings.json and prints a human-readable table to stdout. Secret
-findings are deduped by (RuleID, Secret) and never carry a raw secret value -
-only a sha256 fingerprint, rule, paths/lines, and commits. (git-sizer is not
+findings are deduped by (RuleID, Secret), or by location (gitleaks Fingerprint,
+else RuleID+File+StartLine+Commit) when Secret is empty, and never carry a raw
+secret value - only a sha256 fingerprint, rule, paths/lines, and commits. (git-sizer is not
 used; before/after repo size comes from `git count-objects -vH` instead.)
 """
 
@@ -26,7 +27,10 @@ from pathlib import Path
 def load_gitleaks(path: Path) -> list[dict]:
     """Merge gitleaks JSON entries into one finding per unique (RuleID,
     Secret) pair - the same leaked value showing up in several commits or
-    files is one secret, not N findings. Never keeps the raw secret value:
+    files is one secret, not N findings. Entries with an empty/missing Secret
+    can't be grouped by value, so they key on location instead (gitleaks
+    Fingerprint if set, else RuleID+File+StartLine+Commit) and get their own
+    finding with secret_sha256=null and a location_key. Never keeps the raw secret value:
     only its sha256 fingerprint, so it can be looked back up against the
     gitleaks report (which build_replace_text.py reads separately) without
     ever writing the value itself to findings.json.
@@ -41,7 +45,15 @@ def load_gitleaks(path: Path) -> list[dict]:
     for entry in raw:
         secret = entry.get("Secret", "")
         rule = entry.get("RuleID", "unknown-rule")
-        key = (rule, secret)
+        if secret:
+            key = (rule, secret)
+            location_key = None
+        else:
+            location_key = entry.get("Fingerprint") or ":".join(
+                str(entry.get(k) if entry.get(k) is not None else "")
+                for k in ("RuleID", "File", "StartLine", "Commit")
+            )
+            key = (rule, "", location_key)
         if key not in grouped:
             grouped[key] = {
                 "type": "secret",
@@ -54,6 +66,8 @@ def load_gitleaks(path: Path) -> list[dict]:
                 "paths": [],
                 "commits": [],
             }
+            if location_key is not None:
+                grouped[key]["location_key"] = location_key
             order.append(key)
         g = grouped[key]
         location = {"path": entry.get("File", "unknown"), "line": entry.get("StartLine")}
