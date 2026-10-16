@@ -20,6 +20,7 @@
       {"kind": "skill", "name": "divide", "why": "Proposes 2+ session-sized pieces, each with a done-when, for an item too big for one session; creates nothing yet."},
       {"kind": "human", "why": "Say yes to the split; the children go on the board at Todo."},
       {"kind": "skill", "name": "next", "why": "Shows the top 1-3 tasks from the new board."},
+      {"kind": "skill", "name": "find-me-a-skill", "why": "Suggests the skill or workflow for each top task, with model and effort per step and commands to paste; runs nothing."},
       {"kind": "human", "why": "Say \"go\" to pick the top task."}
     ]
   },

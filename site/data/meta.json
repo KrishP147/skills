@@ -31,11 +31,12 @@
     "divide": ["split"],
     "next": ["todo", "board"],
     "smartzone": ["smart-zone", "context"],
-    "lanes": ["concurrency", "streams"]
+    "lanes": ["concurrency", "streams"],
+    "find-me-a-skill": ["find", "which-skill"]
   },
   "map_groups_note": "Groups on the /map page, in order. Every skill, agent and hook in exactly one. Edges are generated, not listed here.",
   "map_groups": {
-    "plan": ["gap-scan", "grilling", "grill-me", "grill-docs", "consult-plan"],
+    "plan": ["gap-scan", "grilling", "grill-me", "grill-docs", "consult-plan", "find-me-a-skill"],
     "implement": ["pair", "meta-orchestrator", "lanes", "ponytail", "session-bridge"],
     "review": ["pr-watch", "sitrep", "progress-report"],
     "handoff": ["handoff", "handoff-auto", "session-handoff", "teammate-brief"],
@@ -84,6 +85,7 @@
     "planner": {"model": "opus", "effort": "medium"},
     "verifier": {"model": "opus", "effort": "high"},
     "smartzone": {"model": "haiku", "effort": "low"},
-    "spend-guard": {"model": "haiku", "effort": "low"}
+    "spend-guard": {"model": "haiku", "effort": "low"},
+    "find-me-a-skill": {"model": "haiku", "effort": "low"}
   }
 }

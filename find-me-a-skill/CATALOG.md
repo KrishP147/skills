@@ -11,6 +11,7 @@ prefix skills and agents with `krish:` (`/krish:next`).
 
 | name | kind | model | effort | invoke | what it does | workflows |
 |---|---|---|---|---|---|---|
+| find-me-a-skill | skill | haiku | low | `/find-me-a-skill` | Suggest which skill or workflow fits a task, with model and /effort per step and paste-ready commands; runs nothing. | new-board |
 | gap-scan | skill | opus | high | `/gap-scan` | Survey one or more repos (code, commits, docs, tests, issues) and return a ranked, evidence-cited list of gaps, bugs, and extension ideas as issue-ready items. | gaps-to-issues, paid-tests |
 | grill-docs | skill | opus | high | `/grill-docs` | Grill the user about a plan (same interview as grilling) and record it — Q→A transcript in skilleddocs/grills/, each decision appended to skilleddocs/decisions.md. | gaps-to-issues |
 | grill-me | skill (user only) | opus | high | `/grill-me` | A relentless interview to sharpen a plan or design. | pitch-an-idea |
@@ -63,7 +64,8 @@ human-in-the-loop points: nothing continues without you.
 4. /divide (skill, opus · medium): Proposes 2+ session-sized pieces, each with a done-when, for an item too big for one session; creates nothing yet.
 5. you: Say yes to the split; the children go on the board at Todo.
 6. /next (skill, haiku · low): Shows the top 1-3 tasks from the new board.
-7. you: Say "go" to pick the top task.
+7. /find-me-a-skill (skill, haiku · low): Suggests the skill or workflow for each top task, with model and effort per step and commands to paste; runs nothing.
+8. you: Say "go" to pick the top task.
 
 ### gaps-to-issues: Turn a gap scan into planned work
 

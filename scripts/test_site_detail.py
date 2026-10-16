@@ -273,8 +273,8 @@ class DetailPagesTest(unittest.TestCase):
         return m.group(1)
 
     def test_every_entry_has_example_no_warnings(self):
-        self.assertEqual(len(self.entries), 30)  # 24 skills, 4 agents, 2 hooks
-        self.assertEqual(build_site.counts(self.entries), (24, 4, 2))
+        self.assertEqual(len(self.entries), 31)  # 25 skills, 4 agents, 2 hooks
+        self.assertEqual(build_site.counts(self.entries), (25, 4, 2))
         self.assertNotIn("WARN", self.stderr)
         for name in self.pages:
             self.assertIn('<div class="tx" role="group" aria-label="Example session">',
