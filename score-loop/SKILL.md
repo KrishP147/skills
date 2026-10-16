@@ -12,9 +12,9 @@ Commands: `setup` (default; also when `experiments.md` has no setup header), `re
 
 1. Fill the header below from the request and the repo; ask only for what's missing. Create the loop branch off the current HEAD.
 2. **Harness first.** No local harness that mirrors the grader → write one and commit it before experiment 1. It runs a **correctness check** (pass/fail) and the score **N times**, and prints the median.
-3. **Noise margin**: run the baseline N times; propose margin = max − min of those runs.
+3. **Noise margin**: run the harness once on the baseline; propose margin = max − min of its N runs.
 4. **Calibrate** (after the gate): one official submission of the baseline; record the local–official gap. A gap wider than the margin → fix the harness before experiment 1. No official grader → skip and write `calibration: none (no official grader)`.
-5. Freeze time = deadline − max(10% of (deadline − now), 30 min).
+5. Freeze time = deadline − max(10% of (deadline − now), 30 min); no deadline → no freeze.
 6. Gate: show the filled header and each outward action (the calibration submission, the quota, any paid step). One explicit yes covers this setup; anything vaguer is a no. Then write the header, run the calibration, and go unattended.
 
 ```
@@ -24,7 +24,7 @@ Commands: `setup` (default; also when `experiments.md` has no setup header), `re
 - harness: <local cmd>  (correctness check + median of N=<n>)
 - submission: <path or cmd>
 - quota: <official submissions pre-approved, or 0 = ask each time>
-- spend cap: <amount, or 0>
+- spend cap: <amount, or 0 = no paid steps>
 - deadline: <local datetime, or none>  freeze: <datetime>
 - noise margin: <value>  (from <n> baseline runs: <values>)
 - calibration: local <x> vs official <y>
@@ -62,14 +62,14 @@ Ledger rows are append-only: reverted rows stay, a correction is a new row.
 ## 3. Outward actions
 
 - **Official submission**: only inside the setup quota; past it, show the exact submission and wait for an explicit yes. Record the result in the row's `official` column.
-- **Paid** (submission, compute, API): through [spend-gate](../spend-gate/SKILL.md), which takes its own yes per action. The spend cap is a ceiling, not approval.
+- **Paid** (submission, compute, API): through [spend-gate](../spend-gate/SKILL.md), which takes its own yes per action; record the cost in the row's `note`. The spend cap is a ceiling, not approval.
 - Push or merge: only on an explicit yes to that push or merge.
 
 ## 4. Stops
 
 Check before each experiment:
 
-- **Budget**: the spend cap is reached, or the next experiment would pass it.
+- **Budget**: the next experiment needs a paid step that would take total spend (sum of costs in the ledger) past the spend cap. Cap 0 → any paid step stops the loop; unpaid experiments never hit this stop.
 - **Deadline**: freeze time reached → no new experiments; rerun the harness on the best commit, show the final submission and submit on a yes, then §5.
 - **Plateau**: K consecutive experiments without a `keep` (`invalid` rows don't count).
 
@@ -83,7 +83,7 @@ From the ledger only, no reruns: kept commits ranked by gain over the best befor
 
 ## Commands
 
-- `resume`: read the header and ledger, switch to the loop branch. A commit at HEAD with no ledger row → evaluate it as that experiment. Recheck the stops, then §2. No new setup gate.
+- `resume`: read the header and ledger, switch to the loop branch. HEAD is an `exp <n>:` commit with no ledger row for n → evaluate it as that experiment. Recheck the stops, then §2. No new setup gate.
 - `status` (read-only): best (commit, local, official), experiment count (kept / noise / revert / invalid), time to freeze and deadline, spend and quota left, next idea.
 - `summary`: §5 now.
 

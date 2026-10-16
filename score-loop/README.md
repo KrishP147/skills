@@ -71,7 +71,7 @@ flowchart TD
 ## Tips
 
 - Seed the Next ideas list yourself; the loop reads it fresh before every experiment, so you can append while it runs.
-- A noisy grader means a wide margin and few keeps. Raise N in the harness rather than lowering the margin.
+- A noisy grader means a wide margin and few keeps. Cut the noise at its source (fixed seeds, warm-up runs, an idle machine) rather than lowering the margin.
 - `parallel` above 1 runs variants in separate worktrees, but graders that share a machine get noisier. Leave it at 1 unless the grader is remote or cheap.
 - Set the quota to 0 if every official submission should ask you first.
 - Ablation reruns (which kept commit really mattered) cost grader time, so they run only when you ask.
@@ -82,7 +82,7 @@ flowchart TD
 /score-loop make the parser benchmark faster, deadline Friday 18:00
 ```
 
-Writes a harness that checks the parser output against fixtures and reports the median of 5 runs; baseline 412 ms, spread 9 ms, so the margin is 9 ms. You say yes to the header (quota 0, no spend). Experiment 1 (precompile the regexes) gives 371 ms and is kept; experiment 2 (bigger read buffer) gives 368 ms, inside the margin, and is reverted as `noise`; experiment 3 (skip validation) fails the correctness check and is reverted as `invalid`. After five more experiments without a keep it stops on plateau and appends a summary: one kept commit, -41 ms.
+Writes a harness that checks the parser output against fixtures and reports the median of 5 runs; baseline 412 ms, spread 9 ms, so the margin is 9 ms. You say yes to the header (quota 0, no spend). Experiment 1 (precompile the regexes) gives 371 ms and is kept; experiment 2 (bigger read buffer) gives 368 ms, inside the margin, and is reverted as `noise`; experiment 3 (skip validation) fails the correctness check and is reverted as `invalid`. After four more experiments without a keep it stops on plateau and appends a summary: one kept commit, -41 ms.
 
 ## Related
 
