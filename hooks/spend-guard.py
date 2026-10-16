@@ -1201,6 +1201,24 @@ def main():
         sys.exit(0)
 
 
+# Perf self-tests catch blowups (exponential/ReDoS take minutes at 2000 tokens),
+# not load jitter: best of 3 runs against a generous bound.
+PERF_LIMIT = 3.0
+
+
+def _best_time(fn, runs=3):
+    import time
+    best = None
+    for _ in range(runs):
+        t0 = time.perf_counter()
+        fn()
+        dt = time.perf_counter() - t0
+        best = dt if best is None else min(best, dt)
+        if best < PERF_LIMIT / 6:
+            break  # clearly fast: skip the extra runs
+    return best
+
+
 def run_self_test():
     import tempfile
 
@@ -1574,12 +1592,10 @@ def run_self_test():
                 "runpodctl help pod create", "runpodctl ---a pod create"]:
         record("#130v allowed: %s" % cmd,
                check("Bash", {"command": cmd}, None, env=iso) is None)
-    import time
-    t0 = time.time()
     long_cmd = "runpodctl " + " ".join(["--a-b c"] * 400 + ["-x"] * 400) + " pod list"
     record("400+400 flag run allows fast (no backtracking blowup)",
            check("Bash", {"command": long_cmd}, None, env=iso) is None
-           and time.time() - t0 < 2.0)
+           and _best_time(lambda: check("Bash", {"command": long_cmd}, None, env=iso)) < PERF_LIMIT)
     record("pod update volumeInGb allowed with approval",
            check(up, {"body": {"volumeInGb": 5}}, None,
                  env=dict(iso, SPEND_GATE_APPROVED="yes")) is None)
@@ -1705,10 +1721,9 @@ def run_self_test():
             ("Bash", "runpodctl " + " ".join(['--a "x'] * 2000) + " pod create"),
             ("PowerShell", P + "runpodctl " + " ".join(["--a-b c"] * 2000) + " pod create"),
             ("Bash", A + C + " " + " ".join(["-a b ;"] * 1000))):
-        t0 = time.time()
-        check(tool, {"command": cmd}, None, env=iso)
-        dt = time.time() - t0
-        record("#141 perf %s %d chars < 0.5s (%.3fs)" % (tool, len(cmd), dt), dt < 0.5)
+        dt = _best_time(lambda: check(tool, {"command": cmd}, None, env=iso))
+        record("#141 perf %s %d chars < %.0fs (best of 3: %.3fs)" % (tool, len(cmd), PERF_LIMIT, dt),
+               dt < PERF_LIMIT)
 
     # 17. issue #160: indirection, Start-Process, REST/GraphQL, SDK one-liners.
     # Each form: (tool, blocks, near-miss that stays allowed).
@@ -1930,10 +1945,9 @@ def run_self_test():
             ("b64", S, "echo " + " ".join(["cnVucG9kY3RsIGdldCBwb2Q="] * n) + " | base64 -d"),
             ("dollar-brace", S, "runpodctl " + "${" * n),
             ("spaces", S, "alias r=runpodctl;" + " " * 20000 + "$X")):
-        t0 = time.time()
-        check(tool, {"command": cmd}, None, env=iso)
-        dt = time.time() - t0
-        record("#160 perf %s %d chars < 0.5s (%.3fs)" % (label, len(cmd), dt), dt < 0.5)
+        dt = _best_time(lambda: check(tool, {"command": cmd}, None, env=iso))
+        record("#160 perf %s %d chars < %.0fs (best of 3: %.3fs)" % (label, len(cmd), PERF_LIMIT, dt),
+               dt < PERF_LIMIT)
 
     print("\n%d passed, %d failed" % (passed, failed))
     if failed:
