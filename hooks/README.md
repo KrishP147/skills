@@ -120,7 +120,7 @@ How it works: reads the hook JSON on stdin (`tool_name`,
 a list of regexes; any other tool name is checked against a list of
 `fnmatch` globs (for MCP tool names like `mcp__runpod__create-pod`).
 Default billable patterns: `runpodctl` `create`/`start` (legacy `create pod`/`start pod` and v2 `pod|serverless|network-volume|nv create|start`; `template`/`registry create` are free and stay ungated), `runpodctl network-volume|nv update ... --size` (resize; rename-only is allowed), `runpodctl serverless|sls update`, `runpodctl serverless|sls run` (job submit), `runpodctl pod|pods update ... --volume-in-gb|--container-disk-in-gb` (storage resize; other updates allowed), `runpodctl model add` (uploads to model storage), the `sls` alias for `create`/`update`/`run`, global flags before the noun (`--profile x pod create`, `-o json serverless run`), `vultr-cli instance create`,
-`aws ec2 run-instances|request-spot-instances|request-spot-fleet`, `gcloud compute instances create`, `az vm create`,
+`aws ec2 run-instances|request-spot-instances|request-spot-fleet|start-instances`, `gcloud compute instances create|start|bulk create`, `az vm create|start` (each with global flags before the service, `aws --region x ec2 …`, `gcloud --project=p alpha|beta|preview compute …`, `az --subscription s vm …`),
 `modal deploy` (also as `.exe`/`.cmd`, quoted, or full-path forms), and MCP tools matching `mcp__*runpod*__create-*` (except the free `create-template`, `create-secret`, `create-registry` and `create-delegation`, which only write config or credential records; a `mcp:` glob of your own still gates them) /
 `mcp__*runpod*__deploy-*` / `__run-endpoint` / `__runsync-endpoint` /
 `__retry-job` / `__update-endpoint` / `__set-endpoint-gpus`, plus
@@ -177,7 +177,8 @@ few rules cover billers that are not a CLI. All of these block:
   `boto3`, a provider API host), a call target or verb argument whose value
   can't be read blocks: `$X create pod` / `& $c create pod` with no
   definition in the command, `eval "$C"`, `iex $c`, `runpodctl $VERB`,
-  `aws ec2 $ACTION`, `xargs runpodctl`. With no mention at all
+  `aws ec2 $ACTION`, `xargs runpodctl` (whatever feeds it: a pipe,
+  `<<< 'pod create'`, `< file`, `-a file`). With no mention at all
   (`$X create pod` alone) the hook can't tell and allows.
 
 Spot and interruptible flags (`--communityCloud`, `--bid`,

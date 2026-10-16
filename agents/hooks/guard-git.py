@@ -28,7 +28,10 @@ secret/variable/workflow/codespace/cache/ruleset/pr/repo writes block, also
 when named in inline code, runner args, stdin or a written script);
 `gh api` GET (graphql: literal read query only); curl/wget/irm/iwr GET to the
 GitHub API; local git. Other push options/refspecs, send-pack, unknown git
-subcommands naming push/merge, gh commands outside GH_ALLOW (incl. aliases and
+subcommands / git-* plugins naming push/merge/ship/land/submit/sync/publish/
+deploy/traverse, third-party push/merge/PR tools (PUSH_TOOLS: hub, git town,
+gt, ghstack, sl, spr, git machete, jj, arc, gh-pages; their reads pass),
+unknown programs pairing such a verb with a protected branch/remote, gh commands outside GH_ALLOW (incl. aliases and
 extensions), non-GET API calls, and unreadable code that could run them
 (`function f {}` wrappers, `bash <(...)`, `script -c`, xargs into a shell,
 PowerShell `(expr)` args, .NET Process.Start) block. Enable GitHub branch
@@ -1055,7 +1058,7 @@ def _run_segment(toks, ctx, subs, depth):
     if head in ("set-alias", "sal", "new-alias", "nal") and ctx.powershell:
         set_alias(rest, ctx)
         return False
-    if head in CD_WORDS and rest:
+    if head in CD_WORDS and rest and (ctx.powershell or head != "sl"):  # bash `sl` = Sapling
         target = pwsh_path_arg(rest) if head != "cd" else rest[0]
         if target and not is_dynamic(target):
             ctx.cwd = ctx.path(ctx.cwd, target)
@@ -1166,11 +1169,19 @@ def _run_segment(toks, ctx, subs, depth):
                       "failing closed.")
         if not ctx.powershell and not ASSIGN_RE.match(toks[0]):
             ctx.dynamic_exec("a command named by a variable")  # `c='git push ...'; $c`
+    elif push_tool(head, ctx):
+        check_push_tool(push_tool(head, ctx), rest, ctx)
+        if head == "hub":  # hub wraps git: `hub config remote.origin.push ...`
+            check_git(rest, ctx, subs, depth)
     elif head not in READERS and pushy(" ".join(rest)):
         # backstop: `flock l git push`, `awk 'BEGIN{system("git push ...")}'`,
         # `parallel git push ...`: a runner we don't model; fail closed.
         ctx.block("can't read how %s runs its arguments, which name a git push / gh merge / "
                   "GitHub API call; failing closed." % head)
+    elif head.startswith("git-") and len(head) > 4:  # git plugin run directly: `git-ship origin main`
+        check_git([head[4:]] + rest, ctx, subs, depth)
+    elif head not in READERS and push_like(head, rest, ctx):
+        ctx.block("%s names a push-like verb and a protected branch / remote; failing closed (D373)." % head)
     return False
 
 
@@ -1338,8 +1349,10 @@ def strip_prefixes(toks, ctx, depth):
                 return []
         elif (b in ("uv", "poetry", "pipenv", "pdm", "hatch", "rye") and len(toks) > 1 and toks[1] == "run") \
                 or (b in ("npm", "pnpm", "yarn") and len(toks) > 1 and toks[1] in ("exec", "x", "dlx")) \
-                or b in ("npx", "bunx", "pnpx", "uvx"):
-            del toks[:1 if b in ("npx", "bunx", "pnpx", "uvx") else 2]
+                or b in ("npx", "bunx", "pnpx", "uvx") \
+                or (b in ("pnpm", "yarn") and len(toks) > 1 and toks[1].split("@")[0] in PUSH_TOOLS):
+            # `yarn gh-pages`: runs the bin directly, drop only the runner
+            del toks[:1 if b in ("npx", "bunx", "pnpx", "uvx") or toks[1] not in ("run", "exec", "x", "dlx") else 2]
             while toks and toks[0].startswith("-"):  # runner options, then the command
                 o = toks.pop(0)
                 if o == "--":
@@ -1516,7 +1529,11 @@ def check_git(args, ctx, subs, depth, alias_depth=0):
             else:
                 check_git((tokenize(alias) or alias.split()) + rest, ctx, subs, depth, alias_depth + 1)
             return
-    if sub not in GIT_KNOWN and any(GIT_REMOTE_VERBS.search(t) for t in [sub] + rest):
+    if sub.lower() in GIT_PLUGIN_TOOLS:  # `git town ship`, `git machete traverse` (#202)
+        check_push_tool(GIT_PLUGIN_TOOLS[sub.lower()], rest, ctx)
+        return
+    if sub not in GIT_KNOWN and any(GIT_REMOTE_VERBS.search(t) or t.lower() in PUSH_LIKE_VERBS
+                                    for t in [sub] + rest):
         ctx.block("git %s is not on the allowlist and names a push/merge/sync verb; failing closed." % sub)
     for code in git_exec_args(sub, rest) + inline_values:
         analyze(code, ctx, depth + 1)  # commands git runs for us: rebase -x, -c core.sshCommand=...
@@ -2013,6 +2030,98 @@ def risky(text):
 def pushy(text):
     """Text naming a push/merge-capable command or a gh write."""
     return PUSHY_RE.search(text) is not None or gh_text_write(text)
+
+
+# #202: third-party push/merge/PR tools -> the subcommands that write to a remote
+# (1st or 2nd positional: `gt stack submit`, `sl pr submit`, `jj git push`). None:
+# every run publishes (gh-pages) bar --help/--version. Reads (hub status, gt log) pass.
+PUSH_TOOLS = {
+    "hub": {"push", "api", "merge", "fork", "create", "pull-request", "sync", "delete", "gist", "release",
+            "issue", "pr"},
+    "git-town": {"ship", "sync", "propose", "new-pull-request", "repo"},
+    "gt": {"submit", "ss", "merge", "sync", "land", "push", "publish"},
+    "graphite": {"submit", "ss", "merge", "sync", "land", "push", "publish"},
+    "ghstack": {"land", "submit"},
+    "sl": {"push", "pr", "ghstack", "land"},
+    "spr": {"land", "update", "diff", "merge", "submit"},
+    "git-spr": {"land", "update", "diff", "merge", "submit"},
+    "git-machete": {"traverse", "t", "github", "gitlab"},
+    "jj": {"push"},
+    "arc": {"land", "diff"},
+    "gh-pages": None,
+}
+PUSH_TOOL_BARE = {"ghstack", "spr", "git-spr"}  # bare run submits
+PUSH_TOOL_VALUE_OPTS = {"-C", "--cwd", "-R", "--repository", "--config", "--repo", "-r"}
+PUSH_TOOL_FAMILY_READS = {"list", "show", "view", "checkout", "status", "ls"}  # `hub pr list`, `sl pr list`
+# git plugins reached as `git <sub>`
+GIT_PLUGIN_TOOLS = {"town": "git-town", "machete": "git-machete", "spr": "git-spr", "ghstack": "ghstack"}
+# an unknown program / git external with one of these verbs (D373 fail closed)
+PUSH_LIKE_VERBS = {"push", "ship", "land", "submit", "sync", "merge", "publish", "deploy", "traverse", "propose"}
+REMOTE_NAMES = {"origin", "upstream"}
+
+
+def push_tool(head, ctx):
+    """PUSH_TOOLS key for a command head (`gh-pages@6` from npx), else None."""
+    h = head.split("@", 1)[0] if not head.startswith("@") else head
+    if h == "sl" and ctx.powershell:
+        return None  # PowerShell Set-Location
+    return h if h in PUSH_TOOLS else None
+
+
+def _tool_positionals(rest):
+    pos, i = [], 0
+    while i < len(rest):
+        t = rest[i]
+        if t in PUSH_TOOL_VALUE_OPTS:
+            i += 2
+            continue
+        if not t.startswith("-"):
+            pos.append(t.lower())
+        i += 1
+    return pos
+
+
+def check_push_tool(tool, rest, ctx):
+    """`hub push`, `gt submit`, `git town ship`, `npx gh-pages -b main`: block."""
+    pos = _tool_positionals(rest)
+    if any(is_dynamic(t) for t in pos[:2]):
+        ctx.block("%s with an unreadable subcommand; failing closed." % tool)
+    if any(t in ("-h", "--help", "-V", "--version") for t in rest):
+        return
+    verbs = PUSH_TOOLS[tool]
+    if verbs is None:
+        ctx.block("%s publishes to a remote branch; pushes belong to the caller." % tool)
+    if not pos:
+        if tool in PUSH_TOOL_BARE:
+            ctx.block("bare %s submits to the remote; pushes belong to the caller." % tool)
+        return
+    first, second = pos[0], (pos[1] if len(pos) > 1 else "")
+    if first in ("pr", "issue", "release", "gist") and (second in PUSH_TOOL_FAMILY_READS or (not second and tool == "hub")):  # bare `sl pr` may submit
+        return
+    if first in verbs or second in verbs:
+        ctx.block("%s %s pushes/merges/opens PRs on a remote; that belongs to the caller." % (tool, first))
+
+
+REFSPEC_RE = re.compile(r"^\+?(?:(?:head|@)?:)?(?:refs/heads/|(?:origin|upstream)/)?([\w.-]+)$")
+# image/registry tools whose `push`/`sync` never touch a git remote
+PUSH_LIKE_EXEMPT = {"docker", "podman", "buildah", "skopeo", "oras", "crane", "nerdctl", "helm", "kubectl"}
+
+
+def _remoteish(t, ctx):
+    """A protected-branch name / refspec, remote name or git URL as one token."""
+    t = t.lower().split("=", 1)[-1]
+    if "github.com" in t or t.startswith("git@") or t.endswith(".git"):
+        return True
+    m = REFSPEC_RE.match(t)
+    return bool(m) and (m.group(1) in ctx.protected or t in REMOTE_NAMES)
+
+
+def push_like(head, rest, ctx):
+    """Unknown program + a push-like verb + a protected branch / remote:
+    `tool ship origin main`, `x publish --branch master`."""
+    if head in PUSH_LIKE_EXEMPT:
+        return False
+    return any(t.lower() in PUSH_LIKE_VERBS for t in rest) and any(_remoteish(t, ctx) for t in rest)
 
 
 HTTP_CLIENTS = {"curl", "wget", "invoke-webrequest", "iwr", "invoke-restmethod", "irm"}
@@ -3133,6 +3242,103 @@ def run_self_test():
         failed += not ok
         print("%s: %-62s block=%-5s %s" % (
             "PASS" if ok else "FAIL", cmd.replace("\n", "\\n")[:62], reason is not None, reason or ""))
+
+    # #202: third-party push/merge/PR tools, git plugins, unknown push-like tools
+    round202 = [
+        ("hub push origin main", B, False),
+        ("hub push origin krish/x", B, False),
+        ("hub api -X PUT repos/o/r/pulls/1/merge", B, False),
+        ("hub merge https://github.com/o/r/pull/1", B, False),
+        ("hub fork --remote-name me", B, False),
+        ("hub pull-request -m t", B, False),
+        ("hub pr merge 1", B, False),
+        ("hub release create v1", B, False),
+        ("hub -C repo push", B, False),
+        ("git town ship", B, False),
+        ("git town sync --all", B, False),
+        ("git town propose", B, False),
+        ("git-town ship feat", B, False),
+        ("gt merge", B, False),
+        ("gt submit --stack", B, False),
+        ("gt stack submit", B, False),
+        ("gt ss", B, False),
+        ("gt sync", B, False),
+        ("ghstack", B, False),
+        ("ghstack land https://github.com/o/r/pull/1", B, False),
+        ("ghstack submit", B, False),
+        ("sl push --to main", B, False),
+        ("sl pr submit", B, False),
+        ("sl ghstack", B, False),
+        ("sl pr", B, False),
+        ("spr land", B, False),
+        ("spr update", B, False),
+        ("git spr update", B, False),
+        ("git machete traverse --fetch", B, False),
+        ("git machete github create-pr", B, False),
+        ("git-machete traverse", B, False),
+        ("gh-pages -d dist -b main", B, False),
+        ("npx gh-pages -d dist -b main", B, False),
+        ("npx gh-pages@6.1.0 -d dist", B, False),
+        ("yarn gh-pages -d dist", B, False),
+        ("pnpm gh-pages -d dist", B, False),
+        ("yarn build", A, False),
+        ("node_modules/.bin/gh-pages -d dist", B, False),
+        ("jj git push --branch main", B, False),
+        ("arc land", B, False),
+        ("git ship", B, False),
+        ("git land main", B, False),
+        ("git publish", B, False),
+        ("git deploy prod", B, False),
+        ("git propose", B, False),
+        ("git-ship origin main", B, False),
+        ("mytool ship origin main", B, False),
+        ("./release.sh publish --branch master", B, False),
+        ("deploytool deploy https://github.com/o/r.git", B, False),
+        ("sudo hub push origin main", B, False),
+        ("env X=1 gt submit", B, False),
+        # near misses: reads and ordinary tools
+        ("hub status", A, False),
+        ("hub log --oneline -5", A, False),
+        ("hub pr list", A, False),
+        ("hub pr show 5", A, False),
+        ("hub issue", A, False),
+        ("hub browse", A, False),
+        ("hub --version", A, False),
+        ("gt log", A, False),
+        ("gt ls", A, False),
+        ("gt create -m msg", A, False),
+        ("gt checkout feat", A, False),
+        ("sl log", A, False),
+        ("sl status", A, False),
+        ("sl pr list", A, False),
+        ("sl C:\\repo", A, True),
+        ("git town status", A, False),
+        ("git town hack feat", A, False),
+        ("git machete status", A, False),
+        ("git machete discover", A, False),
+        ("ghstack --help", A, False),
+        ("spr status", A, False),
+        ("jj log", A, False),
+        ("jj git fetch", A, False),
+        ("gh-pages --help", A, False),
+        ("npm publish --dry-run", A, False),
+        ("npm run deploy", A, False),
+        ("make deploy", A, False),
+        ("docker push registry/img:main", A, False),
+        ("rsync -a dist/ host:/srv", A, False),
+        ("cargo publish --dry-run", A, False),
+        ("git lfs ls-files", A, False),
+        ("echo push origin main", A, False),
+    ]
+    for cmd, expect, ps in round202:
+        ctx = Ctx(["main", "master"], "/repo", branch_lookup=feat, alias_lookup=lambda cwd, name: None,
+                  powershell=ps)
+        reason = decide(cmd, ctx)
+        ok = (reason is not None) == expect
+        passed += ok
+        failed += not ok
+        print("%s: %-62s block=%-5s %s" % (
+            "PASS" if ok else "FAIL", cmd[:62], reason is not None, reason or ""))
 
     # timing: a ~2000-token command analyses well under 1s (no ReDoS / blow-up)
     big = "git push origin " + " ".join("krish/b%d" % k for k in range(2000))
