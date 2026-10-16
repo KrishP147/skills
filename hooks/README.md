@@ -122,6 +122,17 @@ bash:\bdoctl\s+droplets\s+create\b
 mcp:mcp__*digitalocean*__create-*
 ```
 
+Example output when Claude runs a billable command with no approval in place:
+the hook exits 2 and prints this one line on stderr.
+
+```transcript
+⏺ Bash(runpodctl create pod --gpuType RTX4090)
+  ⎿ Blocked: command matches billable pattern '\brunpodctl\s+create\b'. Approve with ONE of: (1) drop a file into skilleddocs/spend-approvals/ (one-shot, consumed on use); (2) prefix the Bash command with SPEND_GATE_APPROVED=<label> (covers just that command). MCP tool calls: use the file. See the spend-gate skill: estimate, check balance, get an explicit yes for this action, log it, before approving.
+```
+
+After an explicit yes, `SPEND_GATE_APPROVED=yes runpodctl create pod --gpuType RTX4090`
+passes (exit 0, nothing printed); the next unprefixed call is blocked again.
+
 Install into a repo:
 
 ```bash
