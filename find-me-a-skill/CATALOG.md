@@ -64,7 +64,7 @@ human-in-the-loop points: nothing continues without you.
 ### new-board: Bootstrap a board from the docs
 
 1. you: Type /kanban-setup: it is user-only, so Claude can't start it.
-2. /kanban-setup (skill, sonnet · medium): Checks the gh project scope, creates the repo's board if it has none, and previews candidate issues from the roadmap, TODOs, changelog and docs.
+2. /kanban-setup (skill, sonnet · medium): Checks the gh project scope, finds the repo's board read-only, then previews the board actions and candidate issues from the roadmap, TODOs, changelog and docs before creating anything.
 3. you: Review the preview and say yes; it creates nothing before that.
 4. /divide (skill, opus · medium): Proposes 2+ session-sized pieces, each with a done-when, for an item too big for one session; creates nothing yet.
 5. you: Say yes to the split; the children go on the board at Todo.
