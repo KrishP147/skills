@@ -17,7 +17,7 @@ New to the repo? Check the prereqs, install, then try one skill.
 | Need | Why | Check |
 |---|---|---|
 | [Claude Code](https://claude.com/claude-code) | runs every skill and agent here | `claude --version` |
-| `gh` CLI, authenticated | `pair`, `meta-orchestrator`, `pr-watch`, `gap-scan` and everything under `kanban/` read and write GitHub (kanban also needs `gh auth refresh -s project -s read:project` once) | `gh auth status` |
+| `gh` CLI, authenticated, `origin` on GitHub | `pair`, `meta-orchestrator`, `pr-watch`, `gap-scan` and everything under `kanban/` read and write GitHub; `kanban/`, `wayfinder` and `pr-watch` stop with a message on a non-GitHub remote (kanban Projects boards also need `gh auth refresh -s project -s read:project` once) | `gh auth status` |
 | Python 3.8+ | the lint step of the install, `scripts/build_site.py`, and the `guard-git` hook that stops agents pushing to `main` or merging | `python --version` |
 | Git Bash (Windows only) | the `guard-git` hook is a POSIX `sh` command; without it the hook fails open, so the installer refuses | `sh --version` |
 
@@ -85,7 +85,7 @@ Each tier builds on the one above: `pair` is one orchestrator loop without the b
 | [`divide`](kanban/divide/README.md) | Splits an oversized issue into session-sized ones |
 | [`kanban-setup`](kanban/kanban-setup/README.md) | Bootstraps a GitHub Projects board for a repo; can backfill issues from what's already documented. User-invoked only (`/kanban-setup`) because it creates real issues. |
 
-Needs `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](kanban/README.md)).
+Projects v2 boards need `gh auth refresh -s project -s read:project` once; label mode doesn't (see [`kanban/README.md`](kanban/README.md)).
 
 ### [`agents/`](agents/) — subagents `pair` and the orchestrator spawn
 

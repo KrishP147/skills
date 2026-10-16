@@ -109,4 +109,4 @@ in `CLAUDE.md` (so `feat`). `--push` means no question before the push:
 
 ## Prereqs
 
-`gh`, authenticated. The [`manager`](../agents/README.md#manager) and [`implementer`](../agents/README.md#implementer) agents installed (the install scripts do this), with their guard-hook needs: Python 3.8+, and Git Bash on Windows.
+`gh`, authenticated, and `origin` on GitHub for the issue lookup and the PR step. The [`manager`](../agents/README.md#manager) and [`implementer`](../agents/README.md#implementer) agents installed (the install scripts do this), with their guard-hook needs: Python 3.8+, and Git Bash on Windows.

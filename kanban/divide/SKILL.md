@@ -4,9 +4,10 @@ description: Split a GitHub issue or task into session-sized issues and put them
 argument-hint: "issue number or task description"
 ---
 
+0. `gh repo view` fails → stop and say why: `origin` isn't a GitHub remote (this skill needs one), or `gh` isn't authenticated (`gh auth status`).
 1. Read the target (`gh issue view <n>`, or the user's description).
-2. Propose 2+ session-sized pieces, each with a "done when". Show the split; create nothing yet.
-3. On yes: `gh issue create --title "<piece>" --body "Part of #<n>. <details>"` per piece, then add a task-list checkbox per child to the parent's body.
+2. **Session-sized** = fits the ~75K-token smart zone and ends in one PR. Target already fits one session → don't divide: say so and stop. Else propose 2+ session-sized pieces, each with a "done when". Show the split; create nothing yet. You revise the split → show it again and wait for the yes.
+3. On yes: `gh issue create --title "<piece>" --body "Part of #<n>. <details>"` per piece, then add a task-list checkbox per child to the parent's body. Free-text target (no issue number) → there is no parent: omit "Part of", the checkboxes and the roadmap link (steps 3 and 5), and put the shared context in each child's body.
 4. Put each child on the board at Todo ([BOARD.md](../next/BOARD.md)).
-5. Roadmap doc links the parent → add `#n → #a, #b` beside it and commit `docs: divide #n into #a/#b`.
-6. Parent now only tracks children → say so; offer to close it once they land.
+5. Roadmap doc links the parent → add `#n → #a, #b` beside it and commit `docs: divide #n into #a/#b/#c…` (every child). Commit on the current branch; on the default branch, make a branch first per the repo's branch rules. Never push without the user's yes.
+6. Issue target: parent now only tracks children → say so; offer to close it once they land.
