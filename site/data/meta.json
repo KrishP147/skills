@@ -16,7 +16,7 @@
       "pair", "progress-report", "repo-scrub", "consult-plan", "divide",
       "kanban-setup"
     ],
-    "untested": ["grill-me", "grill-docs"]
+    "untested": ["grill-me", "grill-docs", "lanes"]
   },
   "aliases_note": "Extra search words per name for the slash prompt. Lowercase a-z, 0-9, -; never an existing name.",
   "aliases": {
@@ -30,7 +30,8 @@
     "teammate-brief": ["onboarding"],
     "divide": ["split"],
     "next": ["todo", "board"],
-    "smartzone": ["smart-zone", "context"]
+    "smartzone": ["smart-zone", "context"],
+    "lanes": ["concurrency", "streams"]
   },
   "authors_note": "Default author is Krish. Third-party entries must match THIRD_PARTY_LICENSES.md.",
   "default_author": "Krish",
