@@ -1960,24 +1960,54 @@ def gh_text_write(text):
     return False
 
 
+# After an unreadable command name (`$x ...`) only its first positionals are
+# read. Families other CLIs share (`$NPM run build`, `$GIT config --get`,
+# `$KUBECTL auth whoami`) block only on a known gh write verb; gh-distinctive
+# families (issue, pr, gist, codespace, ...) keep the allowlist rule.
+GH_SHARED_WRITES = {
+    "run": {"rerun", "cancel", "delete"},
+    "auth": {"login", "logout", "refresh", "setup-git", "switch"},
+    "config": {"set", "clear-cache"},
+    "cache": {"delete"},
+    "release": {"create", "edit", "delete", "delete-asset", "upload"},
+    "label": {"create", "edit", "delete", "clone"},
+    "project": {"create", "edit", "delete", "close", "copy", "link", "unlink", "mark-template", "field-create",
+                "field-delete", "item-add", "item-archive", "item-create", "item-delete", "item-edit"},
+    "secret": {"set", "delete", "remove"},
+    "variable": {"set", "delete", "remove"},
+    "workflow": {"run", "enable", "disable"},
+    "repo": {"create", "new", "edit", "delete", "fork", "rename", "archive", "unarchive", "sync", "set-default",
+             "deploy-key", "autolink"},
+    "alias": {"set", "delete", "import"},
+    "extension": {"install", "remove", "upgrade", "create", "exec"},
+    "org": set(), "search": set(), "status": set(), "browse": set(), "help": set(), "version": set(),
+    "completion": set(), "preview": set(),
+}
+GH_SHARED_WRITES["ext"] = GH_SHARED_WRITES["extensions"] = GH_SHARED_WRITES["extension"]
+
+
 def gh_words_write(words):
-    """Words that read as a gh write after an unreadable command name:
+    """The args of an unreadable command name read as a gh write:
     `$gh issue close 5` -> ['issue', 'close', '5']."""
-    for k, w in enumerate(words):
-        if w not in GH_FAMILIES:
+    for cobra in (False, True):
+        pos = gh_positionals(words, cobra)
+        if not pos or pos[0] not in GH_FAMILIES:
             continue
-        for cobra in (False, True):
-            pos = gh_positionals(words[k:], cobra)
-            if pos and pos[0] == w and gh_reason(pos, words[k:]):
+        if pos[0] in GH_SHARED_WRITES:
+            if len(pos) > 1 and pos[1] in GH_SHARED_WRITES[pos[0]]:
                 return True
+        elif gh_reason(pos, words):
+            return True
     return False
 
 
 def risky(text):
     """Text the fail-closed gates treat as dangerous: push/merge/delete words,
     a literal gh write, or a gh write after a `$var` command name."""
-    return bool(RISKY_WORDS.search(text) or gh_text_write(text)
-                or ("$" in text and gh_words_write(GH_WORD_RE.findall(text))))
+    if RISKY_WORDS.search(text) or gh_text_write(text):
+        return True
+    words = GH_WORD_RE.findall(re.sub(r"\$\{(\w+)\}", r"$\1", text))
+    return any("$" in w and gh_words_write(words[k + 1:]) for k, w in enumerate(words))
 
 
 def pushy(text):
@@ -3078,6 +3108,21 @@ def run_self_test():
         ("$gh pr checks 5", A, False),
         ("\"$EDITOR\" notes.md", A, False),
         ("git config alias.ic '!gh issue close'", B, False),
+        ("$gh run cancel 9", B, False),
+        ("& $gh release delete v1 -y", B, True),
+        ("$gh auth logout", B, False),
+        ("$TOOL project create foo", B, False),  # shared family + gh write verb: fail closed
+        # variable-named non-gh tools sharing gh family words
+        ("$NPM run build", A, False),
+        ("$UV run pytest -q", A, False),
+        ("$DOCKER run --rm img", A, False),
+        ("$GIT config --get user.name", A, False),
+        ("$PNPM run lint", A, False),
+        ("$KUBECTL auth whoami", A, False),
+        ("$PY -m pytest -k \"config set\"", A, False),
+        ("& $npm run test", A, True),
+        ("& $uv run python scripts/lint.py", A, True),
+        ("& $poetry run pytest", A, True),
     ]
     for cmd, expect, ps in round191:
         ctx = Ctx(["main", "master"], "/repo", branch_lookup=feat, alias_lookup=lambda cwd, name: None,
