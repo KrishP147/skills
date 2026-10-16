@@ -22,6 +22,7 @@ A document the user reads in two minutes.
 - **What worked** / **What didn't** (each with what was done about it).
 - **Concerns**: ranked, blockers marked.
 - **Decided for you**: `Q → A · reason · where it landed`, reversible.
+- **Assumed decisions open**: `A-n` from ledger `assumption` entries / decision record, still unconfirmed.
 - **Manual steps for you**: numbered.
 - **Revisions to earlier reports**.
 - **Next up**: 2–4 bullets.
