@@ -64,7 +64,7 @@ test("buffer always starts with exactly one '/'", () => {
 test("free typing: any text is a valid buffer (no rejection)", () => {
   for (const b of ["/zzzz", "/x", "/!!", "/pairx"]) {
     const s = F.search(b, FIX);
-    assert.ok(["results", "suggest", "none"].includes(s.mode), b);
+    assert.ok(["results", "desc", "suggest", "none"].includes(s.mode), b);
   }
 });
 
@@ -121,11 +121,58 @@ test("typos and transpositions suggest the right name", () => {
   assert.equal(F.search("/sesion-handof", FIX).options[0].name, "session-handoff");
 });
 
-test("summary token match: /review -> /pr-watch", () => {
+test("description fallback: /review -> /pr-watch", () => {
   const s = F.search("/review", FIX);
-  assert.equal(s.mode, "suggest");
+  assert.equal(s.mode, "desc");
   assert.deepEqual(names(s.options), ["pr-watch"]);
-  assert.equal(F.noMatchText(s), 'No command matches "/review". Did you mean /pr-watch?');
+  assert.equal(F.noMatchText(s), 'No command name matches "/review". Matched descriptions:');
+  assert.equal(F.statusText(s), "1 command matches by description");
+  assert.equal(F.resolve(s, -1), "pr-watch");
+  assert.equal(F.complete("/review", s, -1), "/pr-watch");
+});
+
+test("description fallback: /run one task -> pair first (FIX and REAL)", () => {
+  for (const data of [FIX, REAL]) {
+    const s = F.search("/run one task", data);
+    assert.equal(s.mode, "desc");
+    assert.equal(s.options[0].name, "pair");
+    assert.equal(F.noMatchText(s), 'No command name matches "/run one task". Matched descriptions:');
+    assert.match(F.statusText(s), /^\d+ commands? match(es)? by description$/);
+  }
+  assert.equal(F.search("/task one run", FIX).options[0].name, "pair");
+  assert.equal(F.search("/task one run", REAL).options[0].name, "pair");
+});
+
+test("description fallback: real summary phrases surface their entry", () => {
+  const picked = REAL.filter((x) => !x.aliases && tokensOf(x.summary).length >= 4).slice(0, 5);
+  assert.ok(picked.length >= 3);
+  for (const x of picked) {
+    const tk = tokensOf(x.summary);
+    const phrase = tk.slice(1, 4).join(" ");
+    const s = F.search("/" + phrase, REAL);
+    if (s.mode === "results") continue; // phrase also hit a name: tiers win
+    assert.equal(s.mode, "desc", phrase);
+    assert.ok(names(s.options).includes(x.name), phrase + " -> " + x.name);
+  }
+});
+function tokensOf(t) { return t.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean); }
+
+test("name matches never become description results", () => {
+  for (const b of ["/pair", "/watch", "/handoff", "/status", "/pr watch"]) {
+    assert.notEqual(F.search(b, FIX).mode, "desc", b);
+  }
+  // "next" is in pair's... summary and a name: the name tier wins alone.
+  const s = F.search("/next", FIX);
+  assert.equal(s.mode, "results");
+  assert.deepEqual(names(s.options), ["next"]);
+  assert.equal(F.search("/pr watch", FIX).options[0].name, "pr-watch");
+});
+
+test("description search ignores stopwords and short words", () => {
+  for (const b of ["/the", "/a b", "/and the", "/in of"]) {
+    assert.notEqual(F.search(b, FIX).mode, "desc", b);
+    assert.deepEqual(F.describe(b.slice(1), FIX), [], b);
+  }
 });
 
 test("did-you-mean caps at 3, lists them, Tab/Enter take first", () => {
@@ -151,6 +198,9 @@ test("nonsense and empty", () => {
   }
   assert.equal(F.search("/", []).options.length, 0);
   assert.equal(F.search("/zzzz", REAL).mode, "none");
+  for (const b of ["/qwxv", "/zq", "/!!"]) assert.equal(F.search(b, REAL).mode, "none", b);
+  assert.equal(F.search("/nxet", REAL).options[0].name, "next");
+  assert.equal(F.search("/nxet", REAL).mode, "suggest");
 });
 
 test("tab fills the highlighted name; null when nothing changes", () => {
