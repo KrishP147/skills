@@ -29,13 +29,16 @@ git stash show -p --include-untracked "stash@{n}" > <save>/stash-n.patch
 ## 3. Find unpushed work (before the fetch)
 
 ```
-git ls-remote --heads --tags origin
+git remote                                       # every remote, not only origin
+git ls-remote --heads --tags <remote>            # per remote
 git for-each-ref refs/heads --format='%(refname:short) %(upstream:short)'
 ```
 
-- **Local-only branch**: its name is not on the remote. Old base = `git merge-base <branch> origin/<default>`.
-- **Pushed branch with unpushed commits**: `git log --oneline origin/<b>..<b>` is non-empty. Copy it first, `git branch <b>-local <b>`, and treat the copy as local-only; old base = `origin/<b>`.
-- **Local-only tag**: not in the `ls-remote` list.
+- **Local-only branch**: its name is on no remote. Old base = `git merge-base <branch> origin/<default>`.
+- **Pushed branch** (`<r>` = the remote holding it): with unpushed commits (`git log --oneline <r>/<b>..<b>` non-empty), copy it first, `git branch <b>-local <b>`, and treat the copy as local-only; old base = `<r>/<b>`.
+- **Remote the user did not rewrite** (declined at step 9): its branches and remote-tracking refs keep the old history. Ask: `git remote remove <r>` (drops the refs here; the server copy keeps the secret) or keep (step 10 warns).
+- **Local-only tag**: in no `ls-remote` list.
+- **LFS branch** (`git lfs ls-files <branch>` non-empty; without git-lfs, `git log -p <old base>..<branch> -- '*.gitattributes' | grep -i filter=lfs` hits): rebase only with git-lfs installed, and step 5 runs it with `GIT_LFS_SKIP_SMUDGE=1`. git-lfs missing → offer only delete or keep as is (its bundle and patches are saved).
 
 Save each one, then list them all for the user with their commits:
 
@@ -43,8 +46,8 @@ Save each one, then list them all for the user with their commits:
 echo "<branch> <old base SHA> <base branch>" >> <save>/bases.txt    # base branch: <default>, or <b> for a <b>-local copy
 git bundle create <save>/branches.bundle <branch>... <tag>...      # annotated tags keep their message
 git format-patch -o <save>/<branch> <old base>..<branch>
-echo "<tag> $(git cat-file -t <tag>) $(git log -1 --format='%at %s' <tag>)" >> <save>/tags.txt   # tag|commit, author time, subject
-git tag -l --format='%(contents)' <tag> > <save>/tag-<tag>.msg     # annotated only
+echo "<tag> $(git cat-file -t <tag>) $(git tag -l --format='%(if)%(contents:signature)%(then)signed%(else)-%(end)' <tag>) $(git log -1 --format='%at %s' <tag>)" >> <save>/tags.txt   # tag|commit, signed|-, author time, subject
+git tag -l --format='%(contents:subject)%0a%0a%(contents:body)' <tag> > <save>/tag-<tag>.msg   # annotated only; leaves out the old signature
 ```
 
 Per branch, ask: **rebase** onto the new history (step 5), **delete** (it stays in `<save>`), or **keep as is** (it keeps the old history and the secret alive in this clone, `gc` can't drop them, and it must never be pushed). Per local-only tag: **re-point** to its rewritten commit (step 5), **delete**, or **keep as is** (same warning). No answer = keep as is.
@@ -52,8 +55,8 @@ Per branch, ask: **rebase** onto the new history (step 5), **delete** (it stays 
 ## 4. Reset the pushed branches
 
 ```
-git fetch origin --prune && git fetch origin --tags --force
-git checkout <branch> && git reset --hard origin/<branch>     # per pushed branch
+git fetch --all --prune && git fetch --all --tags --force
+git checkout <branch> && git reset --hard <r>/<branch>       # per pushed branch, <r> = its remote
 ```
 
 Never merge or `pull` the old history.
@@ -61,10 +64,12 @@ Never merge or `pull` the old history.
 ## 5. Rebase what the user chose
 
 ```
-git rebase --onto origin/<base branch> <old base SHA> <branch>    # from bases.txt
+git rebase --onto origin/<base branch> <old base SHA> <branch>    # from bases.txt; LFS branch: GIT_LFS_SKIP_SMUDGE=1 git rebase …
 ```
 
-A conflict means a commit touched scrubbed content: stop that rebase (`git rebase --abort`) and hand the branch to the user; its saved copy is in `<save>`.
+A conflict means a commit touched scrubbed content: stop that rebase (`git rebase --abort`) and hand the branch to the user; its saved copy is in `<save>`. A branch that deletes a file the rewrite edited (a `/repo-showcase` branch, say) always conflicts: merge it before `/repo-scrub`, or resolve with `git rm <file>` on a yes.
+
+`git rebase --abort` itself fails (an LFS smudge, "untracked … would be overwritten") → `GIT_LFS_SKIP_SMUDGE=1 git rebase --abort`; still failing → `git rebase --quit && GIT_LFS_SKIP_SMUDGE=1 git checkout -f <noted branch>`, then `git status --short --untracked-files=all`: leftovers from the half-done checkout are deleted only on a yes (the WIP is safe in its stash). The branch itself is unchanged; hand it to the user.
 
 Then per tag to re-point, find its rewritten commit by author time and subject from `tags.txt`:
 
@@ -73,6 +78,8 @@ git log --branches --remotes --not <tag> --format='%H %at %s' | grep -F '<at> <s
 git tag -f -a <tag> <new sha> -F <save>/tag-<tag>.msg             # annotated
 git tag -f <tag> <new sha>                                         # lightweight
 ```
+
+A tag marked `signed` in `tags.txt`: the re-point drops the signature. Ask to re-sign with the user's own key (`-s` in place of `-a`, then `git tag -v <tag>`); no → say it is now unsigned.
 
 ## 6. Re-create the stash entries on the new history
 
@@ -116,8 +123,8 @@ No `refs/tags`: tags have no reflog, and naming one exits 255. Not `--all`: that
 git checkout <noted branch> && git stash pop     # the WIP entry; a conflicting pop keeps it: resolve, then git stash drop
 git status --short
 git stash list                                   # every non-WIP entry, re-created
-git cat-file -e <old SHA from refs-before.txt>   # must fail, unless a branch or tag was kept as is
-git log --all -S'<string>' --oneline             # each scrubbed personal string: no output, unless a branch or tag was kept as is
+git cat-file -e <old SHA from refs-before.txt>   # must fail, unless a branch, tag or remote was kept as is
+git log --all -m -S'<string>' --oneline          # each scrubbed personal string: no output, unless a branch or tag was kept as is
 git log --all --format='%an %ae %cn %ce %B' | grep -F -i '<string>'   # same, for messages and identities
 git rev-parse "<tag>^{commit}"                   # each re-pointed tag: the new SHA from step 5
 ```
@@ -126,10 +133,10 @@ Report all of it.
 
 ## 10. Warn about what was kept
 
-Per branch or tag kept as is in step 3 or 5 (including any left unanswered), print:
+Per branch, tag or remote kept as is in step 3 or 5 (including any left unanswered), print:
 
 ```
-WARNING: <branch|tag> <name> was kept as is. It still holds the pre-rewrite history, including the scrubbed secret. Never push it.
+WARNING: <branch|tag|remote> <name> was kept as is. It still holds the pre-rewrite history, including the scrubbed secret. Never push it.
 ```
 
 ## 11. Offer to delete `<save>`
