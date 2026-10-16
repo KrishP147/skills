@@ -121,7 +121,7 @@ a list of regexes; any other tool name is checked against a list of
 `fnmatch` globs (for MCP tool names like `mcp__runpod__create-pod`).
 Default billable patterns: `runpodctl` `create`/`start` (legacy `create pod`/`start pod` and v2 `pod|serverless|network-volume|nv create|start`; `template`/`registry create` are free and stay ungated), `runpodctl network-volume|nv update ... --size` (resize; rename-only is allowed), `runpodctl serverless|sls update`, `runpodctl serverless|sls run` (job submit), `runpodctl pod|pods update ... --volume-in-gb|--container-disk-in-gb` (storage resize; other updates allowed), `runpodctl model add` (uploads to model storage), the `sls` alias for `create`/`update`/`run`, global flags before the noun (`--profile x pod create`, `-o json serverless run`), `vultr-cli instance create`,
 `aws ec2 run-instances`, `gcloud compute instances create`, `az vm create`,
-`modal deploy` (also as `.exe`/`.cmd`, quoted, or full-path forms), and MCP tools matching `mcp__*runpod*__create-*` /
+`modal deploy` (also as `.exe`/`.cmd`, quoted, or full-path forms), and MCP tools matching `mcp__*runpod*__create-*` (except the free `create-template`, `create-secret`, `create-registry` and `create-delegation`, which only write config or credential records; a `mcp:` glob of your own still gates them) /
 `mcp__*runpod*__deploy-*` / `__run-endpoint` / `__runsync-endpoint` /
 `__retry-job` / `__update-endpoint` / `__set-endpoint-gpus`, plus
 `__pod-action` only when its action is `start` or `resume` (read from
@@ -136,12 +136,16 @@ hook bug; this hook is a net under `spend-gate`, not the only gate.
 
 Approval scheme (either allows the one matched action):
 
-1. **File-based, one-shot.** Drop any file into
+1. **File-based, one-shot.** Drop a file into
    `skilleddocs/spend-approvals/` (path relative to the tool call's `cwd`;
    override the directory with `SPEND_GATE_APPROVALS_DIR`). The filename is
-   just a label — contents are ignored. The hook deletes the first file it
+   just a label — contents are ignored, and names starting with `.`
+   (`.gitkeep`, `.DS_Store`) never count. The hook deletes the first file it
    finds (sorted by name) and allows that single call; the next matching
-   call is blocked again until another approval file appears.
+   call is blocked again until another approval file appears. The file is
+   gone after use, so it is no record: the log is `skilleddocs/spend.md`. A
+   call holding two or more billable commands (`<create> && <create>`) is
+   refused and the file kept: run them as separate calls.
 2. **`SPEND_GATE_APPROVED=<label>`.** For `Bash`, prefix the one command —
    `SPEND_GATE_APPROVED=yes runpodctl create pod ...` — this is a shell
    per-command env assignment, read out of the command string itself (the
@@ -149,7 +153,13 @@ Approval scheme (either allows the one matched action):
    invocation. For `PowerShell`, start the command with
    `$env:SPEND_GATE_APPROVED='<label>'; <cmd>` (leading only, `;` required,
    non-empty literal value, no `$` variables; a Bash-style prefix is not
-   honoured). For an MCP tool call use the approval file: `export` inside a
+   honoured). Both inline forms count only when the rest of the call is
+   one simple command whose program is the call's only billable match:
+   `true && <create>`, `<create>; <create>`, a pipe, `&`, a newline, a
+   subshell, `$(...)`, backticks or a wrapper (`bash -c '<create>'`,
+   `xargs`, `sudo`) is not approved, and `export SPEND_GATE_APPROVED=...`
+   never is. `env SPEND_GATE_APPROVED=yes <create>` is the same single
+   command and counts. Redirections (`> out 2>&1`) are fine. For an MCP tool call use the approval file: `export` inside a
    Bash tool call never reaches the hook's environment. The hook does also
    honour `SPEND_GATE_APPROVED` in the environment Claude Code was launched
    with, but that approves every matching call for the whole session, so
@@ -158,6 +168,12 @@ Approval scheme (either allows the one matched action):
 This is a tripwire, not a security boundary: an agent that can write files
 can write its own approval. It catches a skipped gate. It can't stop an
 agent that ignores the skill.
+
+Patterns are searched anywhere in the command string, so a command that only
+mentions a billable command also trips: `grep -rn 'runpodctl pod create'`,
+`echo 'modal deploy app.py' >> README.md`, a `git commit -m` message naming
+one. This is accepted tripwire behaviour: rephrase (e.g. put the text in a
+file and use `git commit -F`) or approve it.
 
 Patterns are extendable, without editing the script:
 
@@ -179,7 +195,7 @@ the hook exits 2 and prints this one line on stderr.
 
 ```transcript
 ⏺ Bash(runpodctl create pod --gpuType RTX4090)
-  ⎿ Blocked: command matches billable pattern '\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:(?:pods?|serverless|network-volume|nv)\s+)?(?:create|start)\b'. Approve with ONE of: (1) drop a file into skilleddocs/spend-approvals/ (one-shot, consumed on use); (2) prefix the Bash command with SPEND_GATE_APPROVED=<label> (covers just that command), or start a PowerShell command with $env:SPEND_GATE_APPROVED='<label>'; <cmd>. MCP tool calls: use the file. See the spend-gate skill: estimate, check balance, get an explicit yes for this action, log it, before approving.
+  ⎿ Blocked: command matches billable pattern '\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:(?:pods?|serverless|network-volume|nv)\s+)?(?:create|start)\b'. Approve with ONE of: (1) drop a file into skilleddocs/spend-approvals/ (one-shot, consumed on use); (2) prefix the Bash command with SPEND_GATE_APPROVED=<label>, or start a PowerShell command with $env:SPEND_GATE_APPROVED='<label>'; <cmd> (inline: one simple command only, no ;/&&/|/subshell, one billable command). MCP tool calls: use the file. See the spend-gate skill: estimate, check balance, get an explicit yes for this action, log it, before approving.
 ```
 
 After an explicit yes, `SPEND_GATE_APPROVED=yes runpodctl create pod --gpuType RTX4090`
