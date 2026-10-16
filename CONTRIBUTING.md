@@ -121,6 +121,9 @@ Both install scripts read `CLAUDE_SKILLS_DIR` / `CLAUDE_AGENTS_DIR` and fall
 back to the real `~/.claude/skills` and `~/.claude/agents` only when those
 are unset. Delete the temp directory when you're done.
 
+CI runs both scripts this way (fresh temp dirs on ubuntu, plus the `.ps1` on
+windows-latest) and checks skill, agent and marker counts.
+
 ## 6. The site
 
 Every skill's `README.md` becomes a page on the
