@@ -134,5 +134,116 @@ class Actions(unittest.TestCase):
         self.assertNotIn("c1", out)
 
 
+# Fake credentials, assembled at runtime so no secret-shaped literal sits in
+# the repo source for scanners to flag. "X"/"Z" fillers mark them as fake.
+def fake(*parts):
+    return "".join(parts)
+
+
+FAKES = {
+    "openai": fake("s", "k-", "X" * 24),
+    "github": fake("g", "hp_", "X" * 36),
+    "github_pat": fake("git", "hub_pat_", "X" * 22, "_", "Z" * 30),
+    "aws_id": fake("AK", "IA", "X" * 16),
+    "runpod": fake("r", "pa_", "X" * 40),
+    "slack": fake("xo", "xb-", "1" * 10, "-", "X" * 24),
+    "hf": fake("h", "f_", "X" * 34),
+    "google": fake("AI", "za", "X" * 35),
+    "jwt": fake("ey", "J", "X" * 20, ".", "ey", "J", "Z" * 20, ".", "X" * 20),
+}
+AWS_SECRET = fake("Xx", "Zz" * 19)  # 40 chars, mixed case
+
+
+class Redaction(unittest.TestCase):
+    def check(self, text, leak):
+        out = snap.red(text)
+        self.assertIn("[REDACTED]", out, text)
+        self.assertNotIn(leak, out)
+        # Same through the CLI, as an action and as the user ask.
+        out = run([user("ask " + text), tool("Bash", {"command": text})])
+        self.assertNotIn(leak, out)
+
+    def test_token_formats(self):
+        for name, tok in FAKES.items():
+            with self.subTest(name):
+                self.check("use " + tok + " now", tok)
+
+    def test_aws_secret_key(self):
+        self.check("aws_secret_access_key = " + AWS_SECRET, AWS_SECRET)
+        self.check("AWS_SECRET_ACCESS_KEY " + AWS_SECRET, AWS_SECRET)
+        self.check("export AWS secret: " + AWS_SECRET, AWS_SECRET)
+
+    def test_flag_values(self):
+        pw = fake("hun", "ter", "2")
+        for flag in ("--password", "--token", "--secret", "--api-key", "-password"):
+            for sep in (" ", "="):
+                with self.subTest(flag + sep):
+                    self.check(f"tool {flag}{sep}{pw} --verbose", pw)
+        self.assertIn("--verbose", snap.red("tool --password " + pw + " --verbose"))
+
+    def test_authorization_basic(self):
+        cred = fake("dX", "Nlcjpw", "YXNz")
+        self.check("curl -H 'Authorization: Basic " + cred + "'", cred)
+        self.check("Authorization: Bearer " + cred, cred)
+
+    def test_private_key(self):
+        head = fake("-----BEGIN ", "RSA PRIVATE", " KEY-----")
+        tail = fake("-----END ", "RSA PRIVATE", " KEY-----")
+        body = "\n".join(["X" * 64, "Z" * 64])
+        for text in (head + "\n" + body + "\n" + tail + "\nafter",
+                     head + "\n" + body,                     # no END line
+                     "echo '" + head + "\n" + body + "'"):  # escaped newlines
+            with self.subTest(text[:40]):
+                out = snap.red(text)
+                self.assertNotIn("PRIVATE", out)
+                self.assertNotIn("XXXX", out)
+                self.assertNotIn("ZZZZ", out)
+        self.assertTrue(snap.red(head + "\n" + body + "\n" + tail + "\nafter").endswith("after"))
+
+    def test_existing_formats_kept(self):
+        for text, leak in (("API_KEY=abc123def", "abc123def"),
+                           ("token: zzz999", "zzz999"),
+                           ("mail someone@example.test", "someone@")):
+            with self.subTest(text):
+                self.check(text, leak)
+
+    def test_no_false_positives(self):
+        sha = "0123456789abcdef0123456789abcdef01234567"
+        for text in ("<task-notification> done",
+                     "risk-assessment and desk-booking",
+                     "cmd --password-file /etc/pw.txt",
+                     "git show " + sha,
+                     "aws s3 ls with commit " + sha,
+                     "secret sauce is " + "a" * 40,
+                     "C:/Users/me/repo/hf_utils/rpa_tools/file.py",
+                     "basic idea and the bearer-less path",
+                     "pdf_export ghost_town github_pages"):
+            with self.subTest(text):
+                self.assertEqual(snap.red(text), text)
+
+
+class Robustness(unittest.TestCase):
+    def test_non_object_lines_skipped(self):
+        out = run([user("real ask"), tool("Bash", {"command": "c1"})],
+                  raw=["[1, 2]", '"str"', "5", "null", '{"type": "user", "message": "x"}'])
+        self.assertEqual(ask(out), "LAST USER ASK: real ask")
+        self.assertIn("c1", out)
+
+    def test_duplicate_tool_use_printed_once(self):
+        a = tool("Bash", {"command": "only-once"})
+        a["message"]["content"][0]["id"] = "toolu_fake1"
+        blob = {"type": "api-request-blob", "message": a["message"]}
+        out = run([a, blob, dict(a)])
+        self.assertEqual(out.count("only-once"), 1)
+        self.assertNotIn("- ? ", out)
+
+    def test_task_notification_not_an_ask(self):
+        note = "<task-notification><task-id>x</task-id><status>completed</status></task-notification>"
+        out = run([user("real ask"), user(note)])
+        self.assertEqual(ask(out), "LAST USER ASK: real ask")
+        out = run([user("real ask"), user([{"type": "text", "text": note}])])
+        self.assertEqual(ask(out), "LAST USER ASK: real ask")
+
+
 if __name__ == "__main__":
     unittest.main()
