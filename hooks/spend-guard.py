@@ -187,7 +187,7 @@ def inline_env_approved(command):
 
 
 _PS_INLINE_RE = re.compile(
-    r"""^\s*\$env:SPEND_GATE_APPROVED\s*=\s*(?:'[^']+'|"[^"]+"|[^\s;'"]+)\s*;""",
+    r"""^\s*\$env:SPEND_GATE_APPROVED\s*=\s*(?:'[^']+'|"[^"$]+"|[^\s;'"$]+)\s*;""",
     re.IGNORECASE,
 )
 
@@ -195,8 +195,9 @@ _PS_INLINE_RE = re.compile(
 def powershell_inline_approved(command):
     """True if the PowerShell command string starts with
     `$env:SPEND_GATE_APPROVED='<label>';` (single, double or no quotes,
-    non-empty value, `;` required). Only a leading assignment counts, never
-    one mid-string. Bash-style `VAR=val cmd` is not valid PowerShell, so it
+    non-empty literal value, `;` required). A `$` in an unquoted or
+    double-quoted value is rejected: `$null`/`"$x"` may expand to empty.
+    Only a leading assignment counts, never one mid-string. Bash-style `VAR=val cmd` is not valid PowerShell, so it
     is deliberately not honoured here."""
     if not command:
         return False
@@ -457,6 +458,16 @@ def run_self_test():
                  None, env=iso) is not None)
     record("PowerShell empty approval value blocks",
            check("PowerShell", {"command": "$env:SPEND_GATE_APPROVED=''; " + ps_cmd},
+                 None, env=iso) is not None)
+    for form in ("$null", "$false", '"$x"'):
+        record("PowerShell variable approval value blocks: %s" % form,
+               check("PowerShell", {"command": "$env:SPEND_GATE_APPROVED=%s; %s"
+                                    % (form, ps_cmd)}, None, env=iso) is not None)
+    record("PowerShell approval case-insensitive allows",
+           check("PowerShell", {"command": "  $ENV:spend_gate_approved = 'x' ; " + ps_cmd},
+                 None, env=iso) is None)
+    record("PowerShell comment before approval blocks",
+           check("PowerShell", {"command": "<# c #> $env:SPEND_GATE_APPROVED='x'; " + ps_cmd},
                  None, env=iso) is not None)
     record("PowerShell without ; blocks",
            check("PowerShell", {"command": "$env:SPEND_GATE_APPROVED='x' " + ps_cmd},

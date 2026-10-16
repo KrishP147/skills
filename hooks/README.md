@@ -148,7 +148,8 @@ Approval scheme (either allows the one matched action):
    hook never executes the command), so it only ever covers that one
    invocation. For `PowerShell`, start the command with
    `$env:SPEND_GATE_APPROVED='<label>'; <cmd>` (leading only, `;` required,
-   non-empty value; a Bash-style prefix is not honoured). For an MCP tool call use the approval file: `export` inside a
+   non-empty literal value, no `$` variables; a Bash-style prefix is not
+   honoured). For an MCP tool call use the approval file: `export` inside a
    Bash tool call never reaches the hook's environment. The hook does also
    honour `SPEND_GATE_APPROVED` in the environment Claude Code was launched
    with, but that approves every matching call for the whole session, so
