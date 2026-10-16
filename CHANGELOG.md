@@ -18,6 +18,7 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 - `spend-guard` default patterns also match `.exe`/`.cmd`, quoted and full-path CLI forms (e.g. `& "C:\...\runpodctl.exe" create`).
 - `spend-guard` also covers the PowerShell tool (inline `$env:SPEND_GATE_APPROVED='x';` approval) and more Runpod MCP tools (job submits, endpoint updates, pod start).
 - `spend-guard` also blocks `runpodctl start`/`pod start`, noun-first creates (`pod|serverless|network-volume create`), `serverless update`, and network-volume resize (`--size` flag or MCP `update-network-volume` body with `size`).
+- `score-loop`: freeze lead capped for short deadlines (setup refuses if one experiment doesn't fit), noise margin relative to the best, harness must defeat caching, `## Tried` list apart from Next ideas, summary ranks kept commits by relative gain.
 - Installable as a Claude Code plugin: `/plugin marketplace add KrishP147/skills`, then `/plugin install krish@krish`.
 - Plugin ships every skill (as `/krish:<skill>`), the four agents (as `krish:<agent>`) and the `guard-git` hook.
 - `guard-git` gains `--plugin`: as a plugin hook it guards only the `implementer` and `manager` agents, so your own session can still push. Without Python 3.8+ the plugin hook blocks only those two agents, not your session.
