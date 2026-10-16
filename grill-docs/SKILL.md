@@ -7,8 +7,9 @@ argument-hint: "plan, decision, or doc path [slug]"
 Call the Skill tool with `"grilling"` and run that interview unchanged. Your addition: write it down **as each round settles**, so an abandoned session still leaves a record.
 
 Paths:
-- transcript: `skilleddocs/grills/<local-date>-<slug>.md` (slug: the argument's last word when it is kebab-case with a hyphen, like `auth-plan`, and words remain before it; else 2–4 topic words from the subject)
+- transcript: `skilleddocs/grills/<local-date>-<slug>.md`. Slug: the argument's last word only when it is kebab-case and follows a doc path or a quoted subject (`docs/plan.md auth-plan`, `"our caching plan" cache-plan`); else 2–4 topic words, and the whole argument is the subject (`should we support e-books` keeps `e-books`).
 - register (the decisions doc): the one the repo's `AGENTS.md`/`CLAUDE.md` names; else an existing `docs/decisions.md` or ADR folder; else `skilleddocs/decisions.md`. Same rule as `consult-plan`. An ADR folder gets one new ADR per decision in its own format, carrying the same Source. Always name the chosen path in the header's `Register:` field.
+- register outside `skilleddocs/` while `skilleddocs/` stays untracked (below) → the transcript goes in `grills/` beside the register instead (`docs/grills/…`), so its Sources ship with it.
 
 Untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md) (it also covers the `pip install .` hazard).
 
@@ -56,4 +57,4 @@ Every answer is a decision, delegated ones too: planners, verifiers and consult-
 
 ## Close
 
-Frontier empty and the user confirms → `Status: settled`, add `## Summary` (3–8 bullets) and `## Open` (or "none"). Ended early → `Status: abandoned at Q<n>`. Print both paths; say they're uncommitted unless the user asks to commit.
+Frontier empty and the user confirms → `Status: settled`, add `## Summary` (3–8 bullets) and `## Open` (or "none"). Ended early → `Status: abandoned at Q<n>`. Print both paths; say they're uncommitted unless the user asks to commit, and that a tracked register's rows need their transcript committed with them or the Sources dangle.
