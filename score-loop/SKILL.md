@@ -11,11 +11,11 @@ Commands: `setup` (default; also when `experiments.md` has no setup header), `re
 ## 1. Setup (confirmed once)
 
 1. Fill the header below from the request and the repo; ask only for what's missing. Create the loop branch off the current HEAD.
-2. **Harness first.** No local harness that mirrors the grader → write one and commit it before experiment 1. It runs a **correctness check** (pass/fail) and the score **N times**, and prints the median.
-3. **Noise margin**: run the harness once on the baseline; propose margin = max − min of its N runs.
+2. **Harness first.** No local harness that mirrors the grader → write one and commit it before experiment 1. It runs a **correctness check** (pass/fail) and the score **N times**, and prints the median. It must defeat caching/memoisation (fresh inputs per run, or one process per run), and the correctness check must not warm the timed call: it checks results on inputs not seen before, or in a separate process. Say in setup how the score could be gamed. A near-zero or implausible score is invalid unless correctness proves otherwise.
+3. **Noise margin**: run the harness once on the baseline; margin = (max − min of its N runs) / baseline median, as a percentage.
 4. **Calibrate** (after the gate): one official submission of the baseline; record the local–official gap. A gap wider than the margin → fix the harness before experiment 1. No official grader → skip and write `calibration: none (no official grader)`.
-5. Freeze time = deadline − max(10% of (deadline − now), 30 min); no deadline → no freeze.
-6. Gate: show the filled header and each outward action (the calibration submission, the quota, any paid step). One explicit yes covers this setup; anything vaguer is a no. Then write the header, run the calibration, and go unattended.
+5. Freeze time = deadline − lead, lead = max(10% of remaining, min(30 min, 50% of remaining)) (≥5h left: 10%; 1-5h: 30 min; <1h: half the remaining time); no deadline → no freeze. One experiment (one harness run, as timed on the baseline) plus the calibration must fit before freeze; otherwise refuse, say so, and stop.
+6. Gate: show the filled header, how the score could be gamed and how the harness blocks it, and each outward action (the calibration submission, the quota, any paid step). One explicit yes covers this setup; anything vaguer is a no. Then write the header, run the calibration, and go unattended.
 
 ```
 # Score loop: <slug>
@@ -26,7 +26,7 @@ Commands: `setup` (default; also when `experiments.md` has no setup header), `re
 - quota: <official submissions pre-approved, or 0 = ask each time>
 - spend cap: <amount, or 0 = no paid steps>
 - deadline: <local datetime, or none>  freeze: <datetime>
-- noise margin: <value>  (from <n> baseline runs: <values>)
+- noise margin: <p>% of best  (spread <s> / baseline median <m>, from <n> runs: <values>)
 - calibration: local <x> vs official <y>
 - K: 5   parallel: 1
 - branch: <prefix>score-loop/<slug>   resume: /score-loop resume
@@ -37,6 +37,9 @@ Commands: `setup` (default; also when `experiments.md` has no setup header), `re
 
 ## Next ideas
 - <idea>
+
+## Tried
+- <idea>: <why it failed>
 ```
 
 `<prefix>` is the user's branch prefix with its slash (from their `CLAUDE.md`), or empty. Commit `experiments.md` or leave it untracked per [TRACKING.md](../handoff-auto/TRACKING.md).
@@ -45,15 +48,15 @@ Commands: `setup` (default; also when `experiments.md` has no setup header), `re
 
 Per experiment:
 
-1. Pick the most promising idea from **Next ideas**; the list empty → add 3 from what the ledger shows so far.
+1. Pick the most promising idea from **Next ideas**; the list empty → add 3 from what the ledger shows so far and Tried (not repeating Tried ones).
 2. Make one change for that one hypothesis; commit `exp <n>: <hypothesis>`.
 3. Run the harness (local runs are ungated).
 4. Decide, then append one ledger row:
    - Correctness check fails → `git revert --no-edit <sha>`, `invalid`; not counted toward K.
-   - Median beats the best by more than the margin → `keep`; it is the new best.
-   - Beats it by the margin or less → `git revert --no-edit <sha>`, `noise`.
+   - Median beats the best by more than margin × current best → `keep`; it is the new best.
+   - Beats it by that much or less → `git revert --no-edit <sha>`, `noise`.
    - Worse → `git revert --no-edit <sha>`, `revert`.
-5. A failed idea gets one line in Next ideas saying why. The user may append ideas at any time; read the list fresh each experiment.
+5. A failed idea moves from Next ideas to Tried with one line why. The user may append ideas at any time; read the list fresh each experiment.
 
 Ledger rows are append-only: reverted rows stay, a correction is a new row.
 
@@ -79,7 +82,7 @@ On any stop: §5, then report why it stopped.
 
 ## 5. Summary
 
-From the ledger only, no reruns: kept commits ranked by gain over the best before them, reverted ideas with why, `noise` rows, `invalid` rows, best local and official score. Append it to `experiments.md` under `## Summary <date>` and print it. Ablation reruns only when the user asks.
+From the ledger only, no reruns: kept commits ranked by relative gain (gain / best before them), not absolute, reverted ideas with why, `noise` rows, `invalid` rows, best local and official score. Append it to `experiments.md` under `## Summary <date>` and print it. Ablation reruns only when the user asks.
 
 ## Commands
 
