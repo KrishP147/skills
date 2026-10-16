@@ -6,6 +6,7 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 
 ## [0.1.0] - 2026-10-15
 
+- `guard-git` closes push bypasses: config overrides that redirect a push (`-c push.default=matching|upstream`, `-c remote.*.push=`/`mirror`, `--config-env`, `GIT_CONFIG_*` env, a prior `git config` write), `git checkout/switch <protected>` earlier in a chain, PowerShell `iex`/`Invoke-Expression`/`Start-Process`/`Invoke-Command`/`& {…}`/`. {…}` and `Set-Location`/`pushd`, unquoted Windows backslash paths (now kept for `PowerShell` calls), and `gh api` writes to `repos/*/contents/*` without an explicit non-protected `branch=`; a bare push whose current branch can't be read now fails closed; a PowerShell backtick line continuation no longer trips a false positive.
 - Agents: manager, implementer and verifier honour `decisions=assume` (open `A-n` recorded and reported); planner README lists **Assumptions needed**.
 - `meta-orchestrator`: `decisions: ask|assume` (assume = agent picks its recommendation, logs open `A-n` until you confirm; shown in handoffs and `progress-report`) and a `haiku` chores tier for mechanical no-judgment tasks.
 - `upstream-sync`: when the PR can't be opened, files an issue linking the `upstream-sync/verbatim` branch; a failed step no longer skips the modified-file issues, and the run fails only after trying every step.
