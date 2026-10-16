@@ -138,7 +138,7 @@ Other sessions may be working unblocked tickets in parallel: re-read before edit
 When no open tickets and no fog remain, offer `divide` on the map issue to turn the destination into session-sized board issues for `pair` or `meta-orchestrator`. On a yes (this overrides `divide`'s last step, which offers to close the parent later; the map is closed now, not offered):
 
 - pass `divide` the map plus, as the target's detail, the decisions doc rows its tickets produced and each closed ticket's resolution comment (the map is only an index);
-- divide says it fits one session → create one board issue at Todo (or reuse an open one covering it) with `Part of #<map>` and that detail, per `BOARD.md`; it stands in for the children below;
+- divide says it fits one session → create one board issue at Todo (or reuse one: reopen the issue in the map's `Replaces:` note, else an open one covering it) with `Part of #<map>` and that detail, per `BOARD.md`; it stands in for the children below;
 - a roadmap line for the map, or for the issue in the map's `Replaces:` note, gets the children (`#old → #a, #b`, divide's step 5);
 - each new issue links back to the map in its body (divide's `Part of #<map>`), and carries no `wayfinder:*` label;
 - the map gets a `## Handed off` section listing them by name (divide's task list goes there);
