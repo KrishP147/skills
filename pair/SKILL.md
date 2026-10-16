@@ -16,7 +16,7 @@ Flags: `--no-worktree` (new branch in the current checkout), `--push` (push + PR
 
 ## 2. Isolate
 
-`origin` a relative path (`git remote get-url origin` has no `scheme://`, `host:`, leading `/` or drive letter, e.g. `../origin.git`): git resolves it from each worktree's own root, so fetch and push fail inside a worktree. Make it absolute first, from the main checkout: `git -C "<main>" remote set-url origin "$(cd "<main>" && cd "<url>" && pwd)"`. Same target, and remotes are shared by every worktree, so this one change covers them all; tell the user the old and new URL.
+`origin` a relative path (`git remote get-url origin` has no `scheme://`, `host:`, leading `/` or drive letter, e.g. `../origin.git`): git resolves it from each worktree's own root, so fetch and push fail inside a worktree. Make it absolute first, from the main checkout: Git Bash or mac/linux `git -C "<main>" remote set-url origin "$(cd "<main>" && cd "<url>" && pwd)"`; PowerShell `git -C "<main>" remote set-url origin (Resolve-Path (Join-Path "<main>" "<url>")).Path`. Same target, and remotes are shared by every worktree, so this one change covers them all; tell the user the old and new URL.
 
 ```
 slug = issue-<n>-<kebab-title>   (or ≤6 kebab words of the task)
