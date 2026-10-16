@@ -58,8 +58,13 @@ class BuildSiteTest(unittest.TestCase):
             self.assertEqual(e["source"], "hooks/%s.py" % name)
             self.assertTrue(e["readme"].lstrip().startswith("`"), name)  # the README section, not the docstring
             self.assertNotIn("\n## ", e["readme"], name)
-        self.assertEqual(by["smartzone"]["summary"], "UserPromptSubmit hook.")
-        self.assertEqual(by["spend-guard"]["summary"], "PreToolUse hook for Bash and MCP tool calls.")
+        # summary = heading tagline (after the em dash), capitalized like skill summaries
+        self.assertEqual(by["smartzone"]["summary"], '"Your context has left the smart zone" warning.')
+        self.assertEqual(by["spend-guard"]["summary"], "Block billable commands without an approval.")
+        self.assertTrue(by["spend-guard"]["description"].startswith(
+            "Block billable commands without an approval. PreToolUse hook for Bash"))
+        with open(os.path.join(self.out, "spend-guard", "index.html"), encoding="utf-8") as f:
+            self.assertIn('<span class="k">invocation</span> PreToolUse hook</li>', f.read())
         self.assertNotIn("guard-git", by)
         self.assertIn('href="/spend-guard"', self.index)
 

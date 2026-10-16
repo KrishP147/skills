@@ -90,7 +90,9 @@ def hook_files(root):
 
 def collect_hooks(root):
     """One entry per hooks/<stem>.py. Its page text is the "## `<stem>.py`"
-    section of hooks/README.md; its summary is that section's first sentence."""
+    section of hooks/README.md. Its summary is the heading tagline (text after
+    the em dash), capitalized and ending in a period like skill summaries; its
+    description is that summary plus the section's first paragraph."""
     files = hook_files(root)
     if not files:
         return []
@@ -102,11 +104,24 @@ def collect_hooks(root):
         if not body:
             raise SystemExit("hooks/README.md: no '## `%s`' section" % fn)
         e = _entry({}, os.path.splitext(fn)[0], "hooks", posix_rel(path, root), body + "\n", "")
-        e["description"] = site_detail.first_paragraph_text(body)
-        e["summary"] = first_sentence(e["description"])
+        lead = site_detail.first_paragraph_text(body)
+        e["summary"] = hook_tagline(heading) or first_sentence(lead)
+        e["description"] = e["summary"] + " " + lead if lead else e["summary"]
+        e["_x"]["lead"] = lead
         e["_x"]["heading"] = heading
         out.append(e)
     return out
+
+
+def hook_tagline(heading):
+    """"`x.py` — block foo" -> "Block foo." ("" without an em dash)."""
+    _, sep, tail = heading.partition("—")
+    tail = site_detail.strip_inline(tail).strip()
+    if not sep or not tail:
+        return ""
+    i = next((k for k, c in enumerate(tail) if c.isalpha()), 0)
+    tail = tail[:i] + tail[i:i + 1].upper() + tail[i + 1:]
+    return tail if tail[-1] in ".!?" else tail + "."
 
 
 def _entry(fm, fallback_name, group, source, readme, text):

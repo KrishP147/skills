@@ -354,7 +354,7 @@ def chips(meta, e, prereq_md, hint=""):
         if "guard-git" in x.get("fm_raw", ""):
             out.append(("guard", "guard-git.py hook", None))
     elif e["group"] == "hooks":
-        m = re.match(r"(\w+) hook\b", e["description"])  # "PreToolUse hook for ..."
+        m = re.match(r"(\w+) hook\b", x.get("lead", ""))  # "PreToolUse hook for ..."
         out.append(("invocation", (m.group(1) + " hook") if m else "hook", None))
         out.append(("source", e["source"], "%s/blob/master/%s" % (REPO_URL, e["source"])))
     else:

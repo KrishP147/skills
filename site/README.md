@@ -84,7 +84,9 @@ preview deploys.
   `hooks/README.md`; paragraphs led by a label that maps (`How it works:`,
   `Install into a repo:`, `Example output ...:`, `Related:`) start a
   section, other paragraphs stay with the one above, the text before the
-  first label is What it does. Its summary is the section's first sentence.
+  first label is What it does. Its summary is the heading's tagline (text
+  after the em dash), first letter capitalized and a period added like skill
+  summaries; its description is that summary plus the section's first paragraph.
 - **Sections**, in order: What it does, When to use, How to invoke, How it
   works, Design principles, Use cases, Tips, Example, Related, Prereqs, then
   any README sections that don't map (original heading kept), then Source.
