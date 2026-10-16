@@ -30,7 +30,7 @@
     "steps": [
       {"kind": "skill", "name": "gap-scan", "why": "Surveys docs vs code, commits, TODOs, tests and open issues and writes a ranked, evidence-cited report under skilleddocs/gaps/."},
       {"kind": "human", "why": "Pick the items worth doing; every issue, comment or label change needs your explicit yes."},
-      {"kind": "skill", "name": "grill-docs", "why": "Stress-tests a big call with the grilling interview, writing the transcript to skilleddocs/grills/ and each decision to skilleddocs/decisions.md as each round settles."},
+      {"kind": "skill", "name": "grill-docs", "why": "Stress-tests a big call with the grilling interview, writing the transcript and each decision to the repo's decisions doc (skilleddocs/ by default) as each round settles."},
       {"kind": "human", "why": "Answer each round; \"yes\" accepts the recommended answer."},
       {"kind": "skill", "name": "divide", "why": "Splits a size-L item into session-sized issues and puts them on the board at Todo."},
       {"kind": "human", "why": "Approve the split before any issue is created."}
@@ -42,7 +42,7 @@
     "steps": [
       {"kind": "human", "why": "Type /wayfinder with the loose idea: it is user-only, so Claude can't start it."},
       {"kind": "skill", "name": "wayfinder", "why": "Grills you to a destination, then charts a wayfinder:map issue whose sub-issues are decision tickets, with blocking wired through GitHub's issue dependencies."},
-      {"kind": "skill", "name": "grill-docs", "why": "Resolves a grilling ticket: runs the grilling interview, writing the transcript to skilleddocs/grills/ and each decision to skilleddocs/decisions.md as each round settles."},
+      {"kind": "skill", "name": "grill-docs", "why": "Resolves a grilling ticket: runs the grilling interview, writing the transcript and each decision to the repo's decisions doc (skilleddocs/ by default) as each round settles."},
       {"kind": "human", "why": "Answer each round yourself, one ticket per session, until no tickets or fog remain."},
       {"kind": "skill", "name": "divide", "why": "Proposes 2+ session-sized issues from the map, each with a done-when; creates nothing yet."},
       {"kind": "human", "why": "Say yes to the split: the issues go on the board at Todo, the map gets a Handed off list and closes."},
@@ -57,7 +57,7 @@
       {"kind": "skill", "name": "grill-me", "why": "Calls the grilling skill."},
       {"kind": "skill", "name": "grilling", "why": "Asks every question whose prerequisites are settled, one numbered round at a time, each with a recommended answer."},
       {"kind": "human", "why": "Answer each round and confirm the shared understanding; nothing is acted on before that."},
-      {"kind": "skill", "name": "consult-plan", "why": "Grills the idea against open issues, the board and skilleddocs/decisions.md, then records the decision and comments on or opens an issue."},
+      {"kind": "skill", "name": "consult-plan", "why": "Grills the idea against open issues, the board and the repo's decisions doc, then records the decision and comments on or opens an issue."},
       {"kind": "human", "why": "Say whether the idea fits, conflicts with or extends the plan, and what you want to happen."}
     ]
   },
