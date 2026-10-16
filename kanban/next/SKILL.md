@@ -15,6 +15,8 @@ Read-only. Board lookup and status labels: [BOARD.md](BOARD.md).
    - Labels: `status:in-review` first, tagged "awaiting verification"; then `status:todo`.
    - Roadmap doc: open linked issues in doc order; gated items last.
 
+   Skip any issue labelled `wayfinder:*` (planning tickets, worked only via `/wayfinder`).
+
    Order by priority label, else roadmap order, else oldest first. A repo's `CLAUDE.md`/`AGENTS.md` overrides any of this.
 
 4. **Present** the top 1–3: number, title, size label (or "unestimated"), suggested model (fast for narrow, well-specified work; strong for ambiguous or design-heavy). "go" picks the top one. Picking doesn't claim the card; whoever creates the branch moves it.

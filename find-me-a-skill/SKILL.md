@@ -23,6 +23,7 @@ Candidates: every skill in your available-skills list, plus the entries and work
 - **From your collection**: when a CATALOG.md entry or workflow fits and isn't already the primary, add it with that label.
 - **Model and effort per step**: CATALOG.md's default; one tier or level up for a large or risky task, one down for a small one. Scale: haiku < sonnet < opus; low < medium < high < xhigh < max.
 - **Not in CATALOG.md**: name its origin (`plugin <name>` from its `<name>:` prefix, else `built-in`) and label model and effort `estimate`.
+- **User-only** skills (`skill (user only)` in CATALOG.md) are still suggested: the user runs them by pasting the command.
 - **Agents** run inside a skill (`pair`, `meta-orchestrator`) or on request ("use the planner agent"); **hooks** are installed, not run: say which.
 - **No fit**: say so, name the nearest option, and suggest doing the task directly at an `estimate` model and effort.
 

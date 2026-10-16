@@ -13,13 +13,13 @@ prefix skills and agents with `krish:` (`/krish:next`).
 |---|---|---|---|---|---|---|
 | find-me-a-skill | skill | haiku | low | `/find-me-a-skill` | Suggest which skill or workflow fits a task, with model and /effort per step and paste-ready commands; runs nothing. | new-board |
 | gap-scan | skill | opus | high | `/gap-scan` | Survey one or more repos (code, commits, docs, tests, issues) and return a ranked, evidence-cited list of gaps, bugs, and extension ideas as issue-ready items. | gaps-to-issues, paid-tests |
-| grill-docs | skill | opus | high | `/grill-docs` | Grill the user about a plan (same interview as grilling) and record it — Q→A transcript in skilleddocs/grills/, each decision appended to skilleddocs/decisions.md. | gaps-to-issues |
+| grill-docs | skill | opus | high | `/grill-docs` | Grill the user about a plan (same interview as grilling) and record it — Q→A transcript in skilleddocs/grills/, each decision appended to skilleddocs/decisions.md. | gaps-to-issues, big-effort |
 | grill-me | skill (user only) | opus | high | `/grill-me` | A relentless interview to sharpen a plan or design. | pitch-an-idea |
 | grilling | skill | opus | high | `/grilling` | Grill the user relentlessly about a plan, decision, or idea. | pitch-an-idea |
 | handoff | skill (user only) | sonnet | medium | `/handoff` | Compact the current conversation into a handoff document for another agent to pick up. | lazy-fix-handoff |
 | handoff-auto | skill | sonnet | medium | `/handoff-auto` | Write a handoff document for a fresh session, callable by the model. | safe-to-close |
 | lanes | skill | sonnet | medium | `/lanes` | Set, increase, or decrease the parallel lanes of a meta-orchestrator run by grouping queued issues into file-disjoint streams, with a cost line and a confirm step. | unattended-backlog |
-| meta-orchestrator | skill | opus | high | `/meta-orchestrator` | Run a repo's backlog unattended as the orchestrator — planner, manager/implementer and verifier subagents per issue, merge gated on tests + CI, a ledger, and handoff to a fresh orchestrator on a budget. | unattended-backlog |
+| meta-orchestrator | skill | opus | high | `/meta-orchestrator` | Run a repo's backlog unattended as the orchestrator — planner, manager/implementer and verifier subagents per issue, merge gated on tests + CI, a ledger, and handoff to a fresh orchestrator on a budget. | big-effort, unattended-backlog |
 | pair | skill | sonnet | medium | `/pair` | Run one task (issue number or free text) in an isolated git worktree via a manager subagent that owns its implementer and retries; you push and open the PR at the end. | pair-to-pr |
 | ponytail | skill | sonnet | medium | `/ponytail` | Lazy senior dev mode: the smallest change that fully solves the task, and a reply a busy human understands in one read. | lazy-fix-handoff |
 | pr-watch | skill | sonnet | high | `/pr-watch` | Watch the user's open PRs to merge — read bot and human review threads, fix valid ones via pair, reply to or resolve the rest with evidence, report CI; every push, reply, and resolve gated on a yes. | pair-to-pr |
@@ -30,8 +30,9 @@ prefix skills and agents with `krish:` (`/krish:next`).
 | sitrep | skill | haiku | low | `/sitrep` | Live status of this session in ≤10 lines — what's running, git state, PRs + CI, asked vs done, what needs the user, and a SAFE/NOT SAFE close verdict. | safe-to-close, two-sessions |
 | spend-gate | skill | sonnet | medium | `/spend-gate` | Gate any billable action (GPU pods/instances, paid APIs or tiers, cloud credits) behind a cost estimate, a live balance check, and an explicit yes for that action. | paid-tests |
 | teammate-brief | skill | sonnet | medium | `/teammate-brief` | Write an onboarding document for a person joining or picking up a project — what it is, setup steps verified by running them, env var names and where to get them, tasks with "done when", owners, don't-touch list. | brief-a-teammate |
+| wayfinder | skill (user only) | opus | high | `/wayfinder` | Plan an effort too big for one session as a map of decision tickets (GitHub issue + sub-issues) and resolve them one per session until the way is clear, then hand off to divide. | big-effort |
 | consult-plan | skill | opus | high | `/consult-plan` | Grill a proposed change, deviation, or new idea against a repo's existing plan (issues, board, roadmap, decisions), then record the outcome. | pitch-an-idea |
-| divide | skill | opus | medium | `/divide` | Split a GitHub issue or task into session-sized issues and put them on the board. | new-board, gaps-to-issues, wrap-up-long-session |
+| divide | skill | opus | medium | `/divide` | Split a GitHub issue or task into session-sized issues and put them on the board. | new-board, gaps-to-issues, big-effort, wrap-up-long-session |
 | kanban-setup | skill (user only) | sonnet | medium | `/kanban-setup` | Create a GitHub Projects kanban board for a repo and fill it with issues from documented work (planned, already done, or both). | new-board |
 | next | skill | haiku | low | `/next` | Show the next work-session task from a repo's GitHub kanban board. | close-the-loop, new-board |
 | session-handoff | skill | sonnet | medium | `/session-handoff` | End an implementation session that started from a GitHub issue — writes the handoff, records progress against the issue, moves the card. | close-the-loop, wrap-up-long-session |
@@ -75,6 +76,16 @@ human-in-the-loop points: nothing continues without you.
 4. you: Answer each round; "yes" accepts the recommended answer.
 5. /divide (skill, opus · medium): Splits a size-L item into session-sized issues and puts them on the board at Todo.
 6. you: Approve the split before any issue is created.
+
+### big-effort: Plan an effort too big for one session
+
+1. you: Type /wayfinder with the loose idea: it is user-only, so Claude can't start it.
+2. /wayfinder (skill, opus · high): Grills you to a destination, then charts a wayfinder:map issue whose sub-issues are decision tickets, with blocking wired through GitHub's issue dependencies.
+3. /grill-docs (skill, opus · high): Resolves a grilling ticket: runs the grilling interview, writing the transcript to skilleddocs/grills/ and each decision to skilleddocs/decisions.md as each round settles.
+4. you: Answer each round yourself, one ticket per session, until no tickets or fog remain.
+5. /divide (skill, opus · medium): Proposes 2+ session-sized issues from the map, each with a done-when; on yes, creates them and puts them on the board at Todo.
+6. you: Approve the split; the map gets a Handed off list and closes.
+7. /meta-orchestrator (skill, opus · high): Loops planner, manager or implementer, its own merge gate and verifier per issue, logging each step to the ledger.
 
 ### pitch-an-idea: Pitch an idea against the plan
 

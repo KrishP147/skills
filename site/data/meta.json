@@ -16,7 +16,7 @@
       "pair", "progress-report", "repo-scrub", "consult-plan", "divide",
       "kanban-setup"
     ],
-    "untested": ["grill-me", "grill-docs", "lanes"]
+    "untested": ["grill-me", "grill-docs", "lanes", "wayfinder"]
   },
   "aliases_note": "Extra search words per name for the slash prompt. Lowercase a-z, 0-9, -; never an existing name.",
   "aliases": {
@@ -36,7 +36,7 @@
   },
   "map_groups_note": "Groups on the /map page, in order. Every skill, agent and hook in exactly one. Edges are generated, not listed here.",
   "map_groups": {
-    "plan": ["gap-scan", "grilling", "grill-me", "grill-docs", "consult-plan", "find-me-a-skill"],
+    "plan": ["gap-scan", "grilling", "grill-me", "grill-docs", "wayfinder", "consult-plan", "find-me-a-skill"],
     "implement": ["pair", "meta-orchestrator", "lanes", "ponytail", "session-bridge"],
     "review": ["pr-watch", "sitrep", "progress-report"],
     "handoff": ["handoff", "handoff-auto", "session-handoff", "teammate-brief"],
@@ -52,6 +52,7 @@
     "grill-me": "Matt Pocock",
     "handoff": "derived from Matt Pocock",
     "handoff-auto": "derived from Matt Pocock",
+    "wayfinder": "derived from Matt Pocock",
     "ponytail": "DietrichGebert"
   },
   "model_effort_note": "Suggested model (haiku|sonnet|opus) and /effort (low|medium|high|xhigh|max) per entry; every entry exactly once. Must match an entry's own model/effort frontmatter when it sets one. Hooks run no model: cheapest values.",
@@ -60,6 +61,7 @@
     "grill-docs": {"model": "opus", "effort": "high"},
     "grill-me": {"model": "opus", "effort": "high"},
     "grilling": {"model": "opus", "effort": "high"},
+    "wayfinder": {"model": "opus", "effort": "high"},
     "handoff": {"model": "sonnet", "effort": "medium"},
     "handoff-auto": {"model": "sonnet", "effort": "medium"},
     "lanes": {"model": "sonnet", "effort": "medium"},
