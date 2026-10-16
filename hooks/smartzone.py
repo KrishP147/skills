@@ -1,11 +1,14 @@
-"""UserPromptSubmit hook: warn when the session context has left the smart
-zone (~100-120k tokens).
+"""UserPromptSubmit hook: warn when the session context nears the end of the
+smart zone (quality tends to drop around 100-120k tokens; the default warns
+earlier, at 75k, so there is room to wrap up).
 
 Measures the last main-chain assistant usage (input + cache creation + cache
 read tokens), read from the TAIL of the transcript only. /compact appends a
 compact_boundary line and never truncates, so usage before the last boundary
 is ignored; with no usable usage it falls back to bytes after the boundary
-(~20 bytes per token). Threshold: SMARTZONE_TOKENS (default 75000).
+(~20 bytes per token). Threshold: SMARTZONE_TOKENS (default 75000; a whole
+number, "1e5" and "100_000" accepted; anything else falls back to the default
+with a note on stderr).
 
 Stdout from this hook is injected into the conversation, so both the user and
 Claude see the warning (/divide remaining work, then /session-handoff).
@@ -25,11 +28,19 @@ MAX_WINDOW = 32 * 1024 * 1024  # lower-bound estimate beyond this
 
 def threshold(env=None):
     env = os.environ if env is None else env
-    try:
-        v = int(str(env.get("SMARTZONE_TOKENS", "")).strip())
-        return v if v > 0 else DEFAULT_TOKENS
-    except (ValueError, TypeError):
+    raw = str(env.get("SMARTZONE_TOKENS", "") or "").strip()
+    if not raw:
         return DEFAULT_TOKENS
+    try:
+        f = float(raw)  # also takes "1e5", "100_000", "90000"
+        v = int(f) if f == f and abs(f) != float("inf") and f == int(f) else 0
+    except (ValueError, TypeError, OverflowError):
+        v = 0
+    if v > 0:
+        return v
+    print("smartzone: SMARTZONE_TOKENS=%r is not a positive whole number; "
+          "using %d" % (raw, DEFAULT_TOKENS), file=sys.stderr)
+    return DEFAULT_TOKENS
 
 
 def _is_boundary(o):
@@ -98,13 +109,14 @@ def check(path, env=None):
     if not path or not os.path.exists(path):
         return None
     tokens = context_tokens(path)
-    if tokens is None or tokens < threshold(env):
+    limit = threshold(env)
+    if tokens is None or tokens < limit:
         return None
     return (
-        f"[smart-zone] Session transcript context is ~{tokens // 1000}k tokens - "
-        "context has likely left the smart zone (~100-120k tokens; this is a "
-        "heuristic, verify with /context). Wrap up: run /divide on the remaining "
-        "work, then /session-handoff, and continue in a fresh session."
+        f"[smart-zone] Session transcript context is ~{tokens // 1000}k tokens, "
+        f"past the {limit // 1000}k warning threshold; quality tends to drop around "
+        "100-120k (a heuristic, verify with /context). Wrap up: run /divide on the "
+        "remaining work, then /session-handoff, and continue in a fresh session."
     )
 
 
@@ -164,6 +176,14 @@ def run_self_test() -> int:
     rec("env override lowers threshold", check(p, {"SMARTZONE_TOKENS": "40000"}) is not None)
     rec("env override raises threshold", check(mk("g.jsonl", [asst(cr=90000)]), {"SMARTZONE_TOKENS": "200000"}) is None)
     rec("bad env value uses default", threshold({"SMARTZONE_TOKENS": "abc"}) == DEFAULT_TOKENS)
+    rec("1e5 / 100_000 accepted", threshold({"SMARTZONE_TOKENS": "1e5"}) == 100000
+        and threshold({"SMARTZONE_TOKENS": "100_000"}) == 100000)
+    rec("fractional / inf / nan / negative use default",
+        all(threshold({"SMARTZONE_TOKENS": v}) == DEFAULT_TOKENS
+            for v in ("90000.5", "inf", "nan", "-5", "0")))
+    rec("warning names the threshold, not 100-120k as the trigger",
+        "past the 40k warning threshold" in (check(mk("f2.jsonl", [asst(cr=50000)]),
+                                                   {"SMARTZONE_TOKENS": "4e4"}) or ""))
     p = mk("h.jsonl", [asst(cr=10000), asst(cr=500000, side=True)])
     rec("sidechain entry ignored", check(p, {}) is None)
     p = mk("i.jsonl", [asst(cr=90000)] + [pad] * 3000)
