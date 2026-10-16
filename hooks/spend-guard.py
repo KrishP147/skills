@@ -89,10 +89,11 @@ DEFAULT_BASH_PATTERNS = [
     _RP + r"""pods?\s+update\b[^\n]*--(?:volume-in-gb|container-disk-in-gb)\b""",
     _RP + r"""model\s+add\b""",
     r"""\bvultr-cli(?:\.exe|\.cmd)?["']?\s+instance\s+create\b""",
-    r"""\baws(?:\.exe|\.cmd)?["']?\s+ec2\s+(?:run-instances|request-spot-instances|request-spot-fleet)\b""",
-    r"""\bgcloud(?:\.exe|\.cmd)?["']?\s+compute\s+instances\s+create\b""",
+    r"""\baws(?:\.exe|\.cmd)?["']?\s+ec2\s+(?:run-instances|request-spot-instances|request-spot-fleet"""
+    r"""|start-instances)\b""",
+    r"""\bgcloud(?:\.exe|\.cmd)?["']?\s+compute\s+instances\s+(?:create|start)\b""",
     r"""\baz(?:\.exe|\.cmd)?["']?\s+vm\s+create\b""",
-    r"""\bmodal(?:\.exe|\.cmd)?["']?\s+deploy\b""",
+    r"""\bmodal(?:\.exe|\.cmd)?["']?\s+(?:deploy|run)\b""",
 ]
 
 # Deliberately not defaulted (ambiguous - has free tiers / non-billable uses):
@@ -789,6 +790,8 @@ _GQL_BILL_NAMES_RE = re.compile(
     r"|deployCpuPod|createNetworkVolume|updateNetworkVolume|podEditJob", re.I)
 _GQL_MUTATION_RE = re.compile(r"\bmutation\b", re.I)
 _GQL_BILL_WORD_RE = re.compile(r"deploy|rent|resume|create|save|update|edit|bid|start|launch", re.I)
+# mutations that only write free config records (D375): a template is not compute
+_GQL_FREE_FIELDS = {"savetemplate"}
 # a readable GraphQL operation: `query {`, `mutation Name(...) {`, or the
 # anonymous `{"query": "{ ... }"}` shorthand (not a `mutation.json` filename)
 _GQL_ANY_OP_RE = re.compile(
@@ -815,7 +818,8 @@ def _rest_hits(text, gql_readable):
                 bill = True  # absurd number of mutations: fail closed
                 break
             window = text[mut.end():mut.end() + 2000]
-            if any(_GQL_BILL_WORD_RE.search(f) for f in _GQL_FIELD_RE.findall(window)):
+            if any(_GQL_BILL_WORD_RE.search(f) and f.lower() not in _GQL_FREE_FIELDS
+                   for f in _GQL_FIELD_RE.findall(window)):
                 bill = True
                 break
         if bill or (write and not gql_readable):
@@ -1228,6 +1232,10 @@ def run_self_test():
         "gcloud compute instances create my-vm",
         "az vm create --name my-vm",
         "modal deploy app.py",
+        # D375 (#174): starting stopped instances and modal run bill too
+        "aws ec2 start-instances --instance-ids i-123",
+        "gcloud compute instances start my-vm",
+        "modal run app.py",
     ]
     for cmd in default_cases:
         reason = check("Bash", {"command": cmd}, None, env=iso)
@@ -1787,6 +1795,14 @@ def run_self_test():
             "{ saveEndpoint(input:{}) { id } }\"}'",
          "irm https://api.runpod.io/graphql -Method Post -Body '{\"query\":\"query "
          "{ gpuTypes { id } }\"}'"),
+        # D375 (#174): saveTemplate writes a free config record; saveEndpoint still bills
+        (S, "curl -X POST https://api.runpod.io/graphql -d '{\"query\":\"mutation "
+            "{ saveTemplate(input:{}) { id } saveEndpoint(input:{}) { id } }\"}'",
+         "curl -X POST https://api.runpod.io/graphql -d '{\"query\":\"mutation "
+         "{ saveTemplate(input:{name:\\\"t\\\"}) { id } }\"}'"),
+        (S, "aws ec2 start-instances --instance-ids i-1", "aws ec2 stop-instances --instance-ids i-1"),
+        (S, "gcloud compute instances start vm1", "gcloud compute instances list"),
+        (S, "modal run app.py", "modal app list"),
         (S, "curl -X POST https://api.runpod.ai/v2/ep/runsync -d '{\"input\":{}}'",
          "curl https://api.runpod.ai/v2/ep/status/j1"),
         (S, "curl -X POST https://api.vultr.com/v2/instances -d '{}'",
