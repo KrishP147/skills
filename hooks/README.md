@@ -40,7 +40,7 @@ Related: [`divide`](../kanban/divide/), [`session-handoff`](../kanban/session-ha
 Example output once a long session crosses the threshold:
 
 ```
-[smart-zone] Session transcript context is ~82k tokens - context has likely left the smart zone (~100-120k tokens; this is a heuristic, verify with /context). Wrap up: run /divide on the remaining work, then /session-handoff, and continue in a fresh session.
+[smart-zone] Session transcript context is ~82k tokens, past the 75k warning threshold; quality tends to drop around 100-120k (a heuristic, verify with /context). Wrap up: run /divide on the remaining work, then /session-handoff, and continue in a fresh session.
 ```
 
 Install per repo:
