@@ -1349,8 +1349,10 @@ def strip_prefixes(toks, ctx, depth):
                 return []
         elif (b in ("uv", "poetry", "pipenv", "pdm", "hatch", "rye") and len(toks) > 1 and toks[1] == "run") \
                 or (b in ("npm", "pnpm", "yarn") and len(toks) > 1 and toks[1] in ("exec", "x", "dlx")) \
-                or b in ("npx", "bunx", "pnpx", "uvx"):
-            del toks[:1 if b in ("npx", "bunx", "pnpx", "uvx") else 2]
+                or b in ("npx", "bunx", "pnpx", "uvx") \
+                or (b in ("pnpm", "yarn") and len(toks) > 1 and toks[1].split("@")[0] in PUSH_TOOLS):
+            # `yarn gh-pages`: runs the bin directly, drop only the runner
+            del toks[:1 if b in ("npx", "bunx", "pnpx", "uvx") or toks[1] not in ("run", "exec", "x", "dlx") else 2]
             while toks and toks[0].startswith("-"):  # runner options, then the command
                 o = toks.pop(0)
                 if o == "--":
@@ -3277,6 +3279,9 @@ def run_self_test():
         ("gh-pages -d dist -b main", B, False),
         ("npx gh-pages -d dist -b main", B, False),
         ("npx gh-pages@6.1.0 -d dist", B, False),
+        ("yarn gh-pages -d dist", B, False),
+        ("pnpm gh-pages -d dist", B, False),
+        ("yarn build", A, False),
         ("node_modules/.bin/gh-pages -d dist", B, False),
         ("jj git push --branch main", B, False),
         ("arc land", B, False),
