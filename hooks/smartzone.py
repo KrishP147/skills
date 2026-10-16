@@ -13,6 +13,7 @@ Never blocks, silent on any error. Stdlib only."""
 
 import json
 import os
+import shutil
 import sys
 import tempfile
 
@@ -47,7 +48,7 @@ def _usage_tokens(o):
         v = u.get(k)
         if isinstance(v, int) and not isinstance(v, bool):
             total += v
-    return total
+    return total or None  # synthetic entries (errors, interrupts) carry all-zero usage
 
 
 def context_tokens(path):
@@ -169,6 +170,10 @@ def run_self_test() -> int:
     rec("usage beyond first 2 MB window found (grows)", check(p, {}) is not None)
     p = mk("j.jsonl", [asst(cr=90000)] + [pad] * 3000 + [asst(cr=1000)])
     rec("last usage wins over earlier big one", check(p, {}) is None)
+    p = mk("k.jsonl", [asst(cr=90000), asst()])
+    rec("all-zero synthetic usage skipped", check(p, {}) is not None)
+
+    shutil.rmtree(d, ignore_errors=True)
 
     print("%d passed, %d failed" % (passed, failed))
     return 1 if failed else 0
