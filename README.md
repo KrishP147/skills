@@ -71,6 +71,7 @@ Each tier builds on the one above: `pair` is one orchestrator loop without the b
 | [`repo-showcase`](repo-showcase/README.md) | Gets a repo's working tree ready to be seen: rewrites the README around outcome and demo, prunes stale docs, fixes claims the code has outdated, scans for secrets and private names, proposes GitHub metadata. Never touches history or visibility — hands off to `repo-scrub` for that. | `gh` (metadata step only) |
 | [`teammate-brief`](teammate-brief/README.md) | Writes a handoff document for a person joining or picking up a project: setup steps verified by running them, an env/keys table (names only, never values), numbered tasks with a "done when" each, an ownership map, and a don't-touch list. Saved to `skilleddocs/briefs/`; commits and pushes gated separately. | none |
 | [`ponytail`](ponytail/README.md) *(DietrichGebert)* | Lazy-senior-developer mode for the whole session: the smallest change that fully solves the task, plus a closing line on what was skipped and any risk. Levels `lite`, `full` (default), `ultra`; stays on until "stop ponytail". | none |
+| [`find-me-a-skill`](find-me-a-skill/README.md) | Suggests which skill or sample workflow fits a task (from the text, the conversation, or the top board tasks), with the model and `/effort` for each step, the points where you decide, and commands to paste. Read-only, runs on Haiku, reads a catalog generated from this repo (`python scripts/site_catalog.py`). | none; `gh` for board mode |
 
 ### [`kanban/`](kanban/) — GitHub-Issues-as-kanban-board workflow
 
@@ -98,7 +99,7 @@ Full explainer (inputs, outputs, procedure, guard hook): [`agents/README.md`](ag
 
 ### [`hooks/`](hooks/) — optional per-repo hooks
 
-Not auto-installed. [`smartzone.py`](hooks/smartzone.py) is a `UserPromptSubmit` hook that warns in-conversation when the transcript suggests context has left the smart zone (~100k tokens), so a session wraps up instead of degrading. [`spend-guard.py`](hooks/spend-guard.py) is a `PreToolUse` hook that blocks known billable commands/MCP calls (GPU pod creation, paid deploys, ...) unless an approval token from the [`spend-gate`](spend-gate/README.md) skill already exists. Copy + settings snippets in [`hooks/README.md`](hooks/README.md).
+Not auto-installed. [`smartzone.py`](hooks/smartzone.py) is a `UserPromptSubmit` hook that warns in-conversation when the transcript suggests context has left the smart zone (~75k tokens, `SMARTZONE_TOKENS`), so a session wraps up instead of degrading. [`spend-guard.py`](hooks/spend-guard.py) is a `PreToolUse` hook that blocks known billable commands/MCP calls (GPU pod creation, paid deploys, ...) unless an approval token from the [`spend-gate`](spend-gate/README.md) skill already exists. Copy + settings snippets in [`hooks/README.md`](hooks/README.md).
 
 ### [`site/`](site/) — static skills site
 
@@ -113,12 +114,17 @@ Every skill or agent here that produces a document writes it **inside the repo i
 ```
 skilleddocs/
   README.md            what each folder holds (template below)
-  decisions.md         append-only decision register (D1, D2, ...) — grill-docs, consult-plan, verifier
+  bridge.md            cross-session message log — session-bridge
+  briefs/              teammate onboarding briefs — teammate-brief
+  decisions.md         append-only decision register (D1, D2, ...) — grill-docs, consult-plan, verifier, wayfinder
+  gaps/                gap-scan reports — gap-scan
   grills/              one transcript per grill-docs session
   handoffs/            session handoffs — handoff, handoff-auto, session-handoff, implementer
   HANDOFF.md           short "stuck" note an implementer leaves for a manager (deleted once picked up; never in a pushed branch)
   orchestrator/        scope.md, ledger.md, orchestrator-handoff.md, reports/<manager reports> — meta-orchestrator
+  pr-watch/            per-pass PR watch logs — pr-watch
   reports/             progress reports + .last-reported watermark — progress-report
+  showcase/            showcase inventory and findings — repo-showcase
   spend.md             approval log (when, amount, purpose, price source, resource id) — spend-gate
   spend-approvals/     one-shot approval files consumed by hooks/spend-guard.py — spend-gate
 ```
@@ -132,11 +138,16 @@ Template for a repo's `skilleddocs/README.md`:
 
 Documents written by Claude Code skills (github.com/KrishP147/skills). Versioned so agents and people share one record.
 
+- bridge.md — cross-session message log (session-bridge)
+- briefs/ — teammate onboarding briefs (teammate-brief)
 - decisions.md — append-only decision register; cite as D<k>
+- gaps/ — gap-scan reports (gap-scan)
 - grills/ — grilling transcripts (asked, recommended, answered)
 - handoffs/ — end-of-session handoffs; the newest is the next session's starting brief
 - orchestrator/ — meta-orchestrator scope contract, ledger, handoff, manager reports
+- pr-watch/ — per-pass PR watch logs (pr-watch)
 - reports/ — progress reports and the watermark
+- showcase/ — showcase inventory and findings (repo-showcase)
 - spend.md, spend-approvals/ — billable-action approval log and one-shot approval tokens (spend-gate)
 
 Plans and specs live in docs/; this folder records how they were decided and carried out.

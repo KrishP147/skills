@@ -342,6 +342,39 @@ def author_of(meta, name):
     return meta.get("authors", {}).get(name, meta.get("default_author", "Krish"))
 
 
+MODELS = ("haiku", "sonnet", "opus")
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+CHIP_LABELS = {"suggested": "suggested model · effort"}
+
+
+def model_effort(meta, entries):
+    """meta.json "model_effort": {name: {model, effort}}, validated against
+    entries: every entry exactly once, known values only, and equal to the
+    entry's own model/effort frontmatter when it sets one."""
+    raw = (meta or {}).get("model_effort")
+    if not isinstance(raw, dict):
+        raise SystemExit("meta.json model_effort: need an object {name: {model, effort}}")
+    by = {e["name"]: e for e in entries}
+    for name, v in raw.items():
+        where = "meta.json model_effort[%r]" % name
+        if name not in by:
+            raise SystemExit("meta.json model_effort: unknown name %r" % name)
+        if not isinstance(v, dict) or set(v) != {"model", "effort"}:
+            raise SystemExit("%s: need exactly {model, effort}" % where)
+        if v["model"] not in MODELS:
+            raise SystemExit("%s: model must be one of %s" % (where, ", ".join(MODELS)))
+        if v["effort"] not in EFFORTS:
+            raise SystemExit("%s: effort must be one of %s" % (where, ", ".join(EFFORTS)))
+        fm = by[name].get("_x", {}).get("fm", {})
+        for k in ("model", "effort"):
+            if fm.get(k) and str(fm[k]).strip() != v[k]:
+                raise SystemExit("%s: %s %r differs from its frontmatter %r" % (where, k, v[k], fm[k]))
+    missing = [n for n in by if n not in raw]
+    if missing:
+        raise SystemExit("meta.json model_effort: missing %s" % ", ".join(missing))
+    return raw
+
+
 def first_line_text(md, limit=70):
     for line in md.split("\n"):
         s = line.strip()
@@ -382,10 +415,14 @@ def chips(meta, e, prereq_md, hint=""):
     level = level_of(meta, e["name"])
     label = meta.get("level_labels", {}).get(level, level)
     out.append(("tested", label, None))
+    me = meta.get("model_effort", {}).get(e["name"])
+    if me:
+        out.append(("suggested", "%s · %s" % (me["model"], me["effort"]), None))
     items = []
     for k, v, href in out:
         val = '<a href="%s">%s</a>' % (esc(href), esc(v)) if href else esc(v)
-        items.append('        <li class="chip chip-%s"><span class="k">%s</span> %s</li>' % (esc(k), esc(k), val))
+        items.append('        <li class="chip chip-%s"><span class="k">%s</span> %s</li>'
+                     % (esc(k), esc(CHIP_LABELS.get(k, k)), val))
     return "\n".join(items), level
 
 
