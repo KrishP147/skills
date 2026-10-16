@@ -46,6 +46,7 @@ task: <#n: title> + acceptance checklist
 key files (verified): …   missing/moved: …
 rules: prefix=<p>, protected=<default>, test cmd=<cmd>, commit style=<…>, read <AGENTS.md>
 implementer model: <--model or "your call">
+decisions: <ask | assume>; first A-id: A-<k> (next after the highest A-<number> in main's register)
 max_rounds: 3
 never push, merge, or open a PR.
 ```
