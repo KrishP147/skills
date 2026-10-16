@@ -26,15 +26,15 @@ User-invoked only (`disable-model-invocation: true`):
    - `wayfinder:research`: a subagent with web search; findings go in the resolution comment (long ones in a gist or a `skilleddocs/` file).
    - `wayfinder:prototype`: a rough artifact you react to, linked from the ticket.
    - `wayfinder:grilling`: runs `grill-docs`; transcript in `skilleddocs/grills/`.
-   - `wayfinder:task`: the manual work a decision waits on.
-3. **Record**: resolution comment (canonical), close the ticket, one line in the map's Decisions so far, plus a `skilleddocs/decisions.md` row when that file exists. New questions become tickets; fog that sharpened graduates; anything past the destination is closed as out of scope.
-4. **Hand off**: when no tickets or fog remain, offers `divide` on the map. The new board issues link back to the map, the map gets a `## Handed off` list and closes.
+   - `wayfinder:task`: the manual work a decision waits on. If it needs you, you get a checklist; the ticket stays claimed and open until you report it done.
+3. **Record**: resolution comment (canonical), close the ticket, one line in the map's Decisions so far, plus a decisions-doc row when the repo has one (grilling tickets skip it: `grill-docs` already wrote theirs, citing the ticket). New questions become tickets; fog that sharpened graduates; anything past the destination is closed as out of scope.
+4. **Hand off**: when no tickets or fog remain, offers `divide` on the map. The new board issues link back to the map, the map gets a `## Handed off` list and closes immediately (this replaces `divide`'s "offer to close the parent later").
 
 ## Design principles
 
 - **Plan, don't do.** Tickets end in decisions, not deliverables; the urge to build means it's time to hand off.
 - **Off the board.** Maps and tickets carry only `wayfinder:*` labels, never `status:*`, so `next`, the `planner` agent and `meta-orchestrator` skip them. Research runs only inside a wayfinder session.
-- **One ticket per session** (research excepted), each sized to the ~75K-token smart zone (`SMARTZONE_TOKENS` in [`hooks/smartzone.py`](../hooks/smartzone.py)).
+- **One ticket per session** (research excepted), each sized to the ~75K-token smart zone (this repo's [`hooks/smartzone.py`](../hooks/smartzone.py) warns at that size when installed; the target repo doesn't need it).
 - **Fog of war.** Only questions you can phrase precisely become tickets; the rest waits in Not yet specified.
 - **Refer by name.** Tickets are named by title with the link inside, never a bare `#42`.
 
@@ -69,4 +69,4 @@ Grills you to a destination ("a decision record naming the framework, with a mig
 
 ## Prereqs
 
-`gh` authenticated with issue write access on the repo; [`grill-docs`](../grill-docs/) installed alongside it.
+`gh` authenticated with issue write access on the repo, and `origin` on GitHub; [`grill-docs`](../grill-docs/) installed alongside it.

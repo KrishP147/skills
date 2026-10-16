@@ -10,6 +10,8 @@ An idea has arrived that no single session can hold, and the way from here to th
 
 Naming the destination is the first act: it fixes the scope and shapes every ticket. It may be a spec, a decision to lock, or a change such as a data migration. The map fits any domain.
 
+`gh repo view` fails → stop and say why: `origin` isn't a GitHub remote (this skill needs one), or `gh` isn't authenticated (`gh auth status`).
+
 ## Plan, don't do
 
 Each ticket resolves a decision; the map is done when the way is clear. The urge to start building means you've reached the map's edge: hand off (see [Hand off](#hand-off)). The map's **Notes** may override this for one effort; absent that, produce decisions, not deliverables.
@@ -48,7 +50,7 @@ Body (open tickets are not listed; they are open sub-issues, found by query):
 
 ## Tickets
 
-A ticket is a sub-issue of the map whose body is the question, sized to fit one session inside the smart zone (~75K tokens, `SMARTZONE_TOKENS` in `hooks/smartzone.py`):
+A ticket is a sub-issue of the map whose body is the question, sized to fit one session inside the smart zone (~75K tokens; `hooks/smartzone.py` from this skill set warns at that size when installed, but the figure applies without it):
 
 ```markdown
 ## Question
@@ -71,14 +73,16 @@ The answer is never in the body; it's recorded on resolution. Assets made while 
 The REST APIs take the issue's numeric `id` (`gh api repos/<o>/<r>/issues/<n> -q .id`), not its number.
 
 ```
-gh label create wayfinder:<type> --color <hex> --force                    # before first use
+gh label create wayfinder:<type> --color <hex> --force                    # before first use, every label incl. wayfinder:map
 gh api repos/<o>/<r>/issues/<map>/sub_issues -X POST -F sub_issue_id=<id> # attach ticket to map
 gh api repos/<o>/<r>/issues/<map>/sub_issues                              # list tickets (state, assignees, labels)
 gh api repos/<o>/<r>/issues/<n>/dependencies/blocked_by -X POST -F issue_id=<blocker id>
 gh api repos/<o>/<r>/issues/<n>/dependencies/blocked_by                   # blockers + their state
 ```
 
-Dependencies API unavailable (404/403) → add a `Blocked by: #<n>` line per blocker to the ticket body and read those lines instead. Say which mode the map uses in its Notes.
+Colours (fixed so repeats are no-ops): `wayfinder:map` `5319e7`, `wayfinder:research` `1d76db`, `wayfinder:prototype` `fbca04`, `wayfinder:grilling` `d93f0b`, `wayfinder:task` `0e8a16`.
+
+Dependencies API unavailable (404/403) → add a `Blocked by: #<n>` line per blocker to the ticket body and read those lines instead (the one place a bare `#n` is right: it is machine-read, not for the human). Say which mode the map uses in its Notes.
 
 ## Ticket types
 
@@ -86,8 +90,8 @@ Dependencies API unavailable (404/403) → add a `Blocked by: #<n>` line per blo
 
 - **Research** (AFK): surface a fact a decision waits on (docs, third-party APIs, knowledge bases, the web). Spawn a `general-purpose` subagent with web search; it returns findings, you post them. Long findings → a gist or a file under `skilleddocs/` (untracked → exclude it per [TRACKING.md](../handoff-auto/TRACKING.md)), linked from the comment. No branches.
 - **Prototype** (HITL): make a cheap, rough, concrete artifact to react to (outline, stub, sketch UI or logic) when "how should it look/behave" is the question. Link it as an asset.
-- **Grilling** (HITL): the default. Call the Skill tool with `"grill-docs"`; its transcript goes to `skilleddocs/grills/<date>-<ticket-slug>.md`. The resolution comment gists the answers and links the transcript.
-- **Task** (AFK where possible, else a precise checklist for the human): manual work a decision is blocked on (sign up for a service, get access, move data to see its shape). The one type that *does*; it earns its place by unblocking a decision. Record what was done and any resulting facts (where credentials live, new URLs, row counts).
+- **Grilling** (HITL): the default. Call the Skill tool with `"grill-docs"`; pass the ticket name as the subject and a ticket slug as the slug, so the transcript lands in `skilleddocs/grills/<date>-<ticket-slug>.md` and grill-docs' register rows cite the ticket in Source. grill-docs has already recorded the decisions: step 4 must not add rows again. The resolution comment gists the answers and links the transcript.
+- **Task** (AFK where possible, else a precise checklist for the human): manual work a decision is blocked on (sign up for a service, get access, move data to see its shape). The one type that *does*; it earns its place by unblocking a decision. Record what was done and any resulting facts (where credentials live, new URLs, row counts). A checklist for the human: post it, keep the ticket claimed and open, and end the session waiting; it resolves (facts recorded, closed) once the human reports it done, in this session if they reply or in a later one.
 
 ## Fog of war
 
@@ -110,7 +114,7 @@ Two modes. **Never resolve more than one ticket per session**, research excepted
 User invokes with a loose idea.
 
 1. **Name the destination.** Call the Skill tool with `"grilling"` to pin it down. It fixes the scope, so settle it first.
-2. **Map the frontier.** Grill again, **breadth-first**: across the whole space, surfacing the open decisions and the first takeable steps. **No fog surfaced** (the whole thing fits one session) → no map needed; stop and ask the user how to proceed.
+2. **Map the frontier.** Grill again, **breadth-first**: across the whole space, surfacing the open decisions and the first takeable steps. **The whole effort fits one session** → no map needed; stop and ask the user how to proceed. No fog is not that: if every decision is specifiable now but together they exceed a session, still make the map (Not yet specified stays empty).
 3. **Create the map** (label `wayfinder:map`): Destination and Notes filled, Decisions so far empty, fog sketched into Not yet specified.
 4. **Create the tickets you can specify now**, attach each as a sub-issue, then wire blocking in a **second pass** (ids must exist first). Write cross-references in that pass too, with real numbers: a placeholder `#<n>` auto-links to an unrelated issue.
 5. **Fire research.** One `general-purpose` subagent per new `research` ticket, in parallel; post each one's findings as that ticket's resolution (see Work through the map, step 4).
@@ -123,14 +127,14 @@ User invokes with a map (URL or number), optionally a ticket. Without one, you p
 1. Load the **map** body only, not every ticket.
 2. Choose: the named ticket, else the first frontier ticket in sub-issue order. **Claim it** before any work.
 3. Resolve it as its `wayfinder:<type>` label says (the body never states the type). Fetch related or closed tickets on demand; call any skills the Notes name.
-4. Record: post a **resolution comment** (canonical), **close** the ticket, add a line to the map's Decisions so far. If `skilleddocs/decisions.md` exists, also append a row in its format (next `D<k>`, source = ticket link).
+4. Record: post a **resolution comment** (canonical), **close** the ticket, add a line to the map's Decisions so far. Non-grilling types: if the repo's decisions doc exists (found as `grill-docs` does), also append a row in its format (next `D<k>`, source = ticket link). A grilling ticket skips this: `grill-docs` already appended its rows.
 5. Add newly surfaced tickets (create, attach, then wire). Graduate fog the answer made specifiable, removing it from Not yet specified. Rule out-of-scope tickets out rather than resolving them. Update or close tickets the decision invalidated.
 
 Other sessions may be working unblocked tickets in parallel: re-read before editing the map body.
 
 ## Hand off
 
-When no open tickets and no fog remain, offer `divide` on the map issue to turn the destination into session-sized board issues for `pair` or `meta-orchestrator`. On a yes:
+When no open tickets and no fog remain, offer `divide` on the map issue to turn the destination into session-sized board issues for `pair` or `meta-orchestrator`. On a yes (this overrides `divide`'s last step, which offers to close the parent later; the map is closed now, not offered):
 
 - each new issue links back to the map in its body (divide's `Part of #<map>`), and carries no `wayfinder:*` label;
 - the map gets a `## Handed off` section listing them by name (divide's task list goes there);

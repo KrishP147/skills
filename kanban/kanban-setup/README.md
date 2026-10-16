@@ -66,4 +66,4 @@ Default `current`. User-invoked only (`disable-model-invocation: true`) because 
 
 ## Prereqs
 
-`gh`, authenticated with the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)). It checks for the scope itself and stops if missing.
+`gh`, authenticated, `origin` on GitHub (otherwise it stops and says so). The `project` OAuth scope is needed for a Projects v2 board: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)). It checks for the scope itself and stops if missing.
