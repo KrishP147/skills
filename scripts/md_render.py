@@ -54,7 +54,9 @@ def parse_transcript(text):
                       indented '⎿ ...' line under it, and any further
                       indented lines, are its result
     '⏺ text'          reply (kind "reply")
-    Indented lines continue the turn above; blank lines inside a turn are
+    Indented lines continue the turn above (2 spaces = the text column,
+    deeper indent is kept; under a tool call the '⎿' line sets column 4
+    instead); blank lines inside a turn are
     kept, trailing ones dropped. Any other unindented line is a plain
     "text" turn. Never raises."""
     turns = []
@@ -78,6 +80,8 @@ def parse_transcript(text):
             if turns[-1][0] == "tool":
                 # '⎿' marks the result; deeper lines keep their indent past it
                 s = s[1:].strip() if s.startswith("⎿") else line[min(indent, 4):]
+            else:
+                s = line[min(indent, 2):]  # text column of '> ' / '⏺ '
             turns[-1][2].append(s)
         else:
             turns.append(["text", s, []])
@@ -109,7 +113,8 @@ def tx_tool(name, args, result_lines):
         res = ('<div class="tx-res"><span class="tx-elbow" aria-hidden="true">⎿</span>'
                '<span class="tx-text">%s</span></div>' % esc("\n".join(result_lines)))
     return ('<details class="tx-tool"><summary><span class="tx-dot" aria-hidden="true">⏺</span>'
-            '<span class="tx-name">%s</span>(<span class="tx-args">%s</span>)%s</summary>%s</details>'
+            '<span class="tx-text"><span class="tx-name">%s</span>(<span class="tx-args">%s</span>)%s</span>'
+            '</summary>%s</details>'
             % (esc(name), esc(args), more, res))
 
 

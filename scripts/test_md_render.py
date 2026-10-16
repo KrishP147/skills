@@ -104,8 +104,8 @@ class TranscriptTest(unittest.TestCase):
         self.assertNotIn("<pre>", h)
         self.assertIn('<span class="tx-text">/pair 42 --push</span>', h)
         self.assertIn('<details class="tx-tool"><summary><span class="tx-dot" aria-hidden="true">⏺</span>'
-                      '<span class="tx-name">Bash</span>(<span class="tx-args">gh issue view 42</span>) '
-                      '<span class="tx-more">(+2 lines)</span></summary>', h)
+                      '<span class="tx-text"><span class="tx-name">Bash</span>(<span class="tx-args">gh issue view 42</span>) '
+                      '<span class="tx-more">(+2 lines)</span></span></summary>', h)
         self.assertIn("title: fix &lt;date&gt; parsing\n  indented detail</span>", h)
         self.assertIn("Reading the <strong>issue</strong> and <code>x</code>.\nsecond line", h)
         self.assertIn('<div class="tx-line">loose line</div>', h)

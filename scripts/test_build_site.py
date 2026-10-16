@@ -87,6 +87,8 @@ class PaletteContrastTest(unittest.TestCase):
                 "hover dim on bg (.skill-list a:hover .ds)": (c["--dim"], hov),
                 "accent on bg": (c["--accent"], bg),
                 "accent on panel": (c["--accent"], panel),
+                "dim on panel (transcript .tx-res/.tx-more)": (c["--dim"], panel),
+                "fg on panel (transcript text)": (c["--fg"], panel),
             }
             for label, (fg, back) in pairs.items():
                 r = _contrast(_over(fg, back), back)
