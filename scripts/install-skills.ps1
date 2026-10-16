@@ -181,3 +181,7 @@ if ($staleSkills.Count -gt 0) {
 if ($skippedForeign.Count -gt 0) {
     exit 1
 }
+# explicit success code: callers using `& install-skills.ps1` read
+# $LASTEXITCODE, which otherwise holds the last native exit (e.g. a failed
+# python probe when -NoLint is used).
+exit 0
