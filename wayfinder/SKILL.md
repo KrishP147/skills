@@ -66,7 +66,7 @@ Each ticket carries exactly one `wayfinder:<type>` label: `research`, `prototype
 
 **Blocking** uses GitHub's native issue dependencies, so the frontier shows in GitHub's own UI. A ticket is **unblocked** when every ticket blocking it is closed; the **frontier** is the open, unblocked, unclaimed sub-issues.
 
-The answer is never in the body; it's recorded on resolution. Assets made while resolving (prototypes, long findings) are linked, not pasted.
+The answer is never in the body; it's recorded on resolution. **Assets** made while resolving (prototypes, long findings): short → inline in the resolution comment; else a secret gist (`gh gist create`) linked from it; a committed file only when the repo tracks that path. Never link an untracked file (e.g. under an excluded `skilleddocs/`) from GitHub: nobody else can open it.
 
 ### GitHub operations
 
@@ -80,7 +80,7 @@ gh api repos/<o>/<r>/issues/<n>/dependencies/blocked_by -X POST -F issue_id=<blo
 gh api repos/<o>/<r>/issues/<n>/dependencies/blocked_by                   # blockers + their state
 ```
 
-Colours (fixed so repeats are no-ops): `wayfinder:map` `5319e7`, `wayfinder:research` `1d76db`, `wayfinder:prototype` `fbca04`, `wayfinder:grilling` `d93f0b`, `wayfinder:task` `0e8a16`.
+Colours (fixed so repeats are no-ops; none is a `status:*` colour from `BOARD.md`, so a ticket never reads as a board state): `wayfinder:map` `0052cc`, `wayfinder:research` `1d76db`, `wayfinder:prototype` `f9d0c4`, `wayfinder:grilling` `d93f0b`, `wayfinder:task` `c2e0c6`.
 
 Dependencies API unavailable (404/403) → add a `Blocked by: #<n>` line per blocker to the ticket body and read those lines instead (the one place a bare `#n` is right: it is machine-read, not for the human). Say which mode the map uses in its Notes.
 
@@ -88,9 +88,9 @@ Dependencies API unavailable (404/403) → add a `Blocked by: #<n>` line per blo
 
 **HITL** tickets resolve only through a live exchange with the human; never answer their side yourself. **AFK** tickets are driven by the agent alone.
 
-- **Research** (AFK): surface a fact a decision waits on (docs, third-party APIs, knowledge bases, the web). Spawn a `general-purpose` subagent with web search; it returns findings, you post them. Long findings → a gist or a file under `skilleddocs/` (untracked → exclude it per [TRACKING.md](../handoff-auto/TRACKING.md)), linked from the comment. No branches.
-- **Prototype** (HITL): make a cheap, rough, concrete artifact to react to (outline, stub, sketch UI or logic) when "how should it look/behave" is the question. Link it as an asset.
-- **Grilling** (HITL): the default. Call the Skill tool with `"grill-docs"`; pass the ticket name as the subject and a ticket slug as the slug, so the transcript lands in `skilleddocs/grills/<date>-<ticket-slug>.md` and grill-docs' register rows cite the ticket in Source. grill-docs has already recorded the decisions: step 4 must not add rows again. The resolution comment gists the answers and links the transcript.
+- **Research** (AFK): surface a fact a decision waits on (docs, third-party APIs, knowledge bases, the web). Spawn a `general-purpose` subagent with web search; it returns findings, you post them. Long findings → an asset (see Tickets). No branches.
+- **Prototype** (HITL): make a cheap, rough, concrete artifact to react to (outline, stub, sketch UI or logic) when "how should it look/behave" is the question. Its home is an asset (see Tickets).
+- **Grilling** (HITL): the default. Call the Skill tool with `"grill-docs"`; pass the ticket name, quoted, as the subject and a ticket slug after it, so the transcript is `<date>-<ticket-slug>.md` and grill-docs' register rows cite the ticket in Source. grill-docs has already recorded the decisions: step 4 must not add rows again. The resolution comment gists the answers, linking the transcript only when it is committed.
 - **Task** (AFK where possible, else a precise checklist for the human): manual work a decision is blocked on (sign up for a service, get access, move data to see its shape). The one type that *does*; it earns its place by unblocking a decision. Record what was done and any resulting facts (where credentials live, new URLs, row counts). A checklist for the human: post it, keep the ticket claimed and open, and end the session waiting; it resolves (facts recorded, closed) once the human reports it done, in this session if they reply or in a later one.
 
 ## Fog of war
@@ -113,9 +113,10 @@ Two modes. **Never resolve more than one ticket per session**, research excepted
 
 User invokes with a loose idea.
 
+0. **Baseline**, as `consult-plan` step 1: open issues, roadmap doc, the decisions doc (found as `grill-docs` does). It is the context for every grill below (cite decisions as `D<k>`). An open issue already covers this effort → ask which: make it the map (relabel `wayfinder:map`, remove its `status:*` labels, take its card off the board with `gh project item-delete <number> --owner <owner> --id <item>`, rewrite its body as the map) or close it with a comment linking the map. Note its number for the hand-off.
 1. **Name the destination.** Call the Skill tool with `"grilling"` to pin it down. It fixes the scope, so settle it first.
 2. **Map the frontier.** Grill again, **breadth-first**: across the whole space, surfacing the open decisions and the first takeable steps. **The whole effort fits one session** → no map needed; stop and ask the user how to proceed. No fog is not that: if every decision is specifiable now but together they exceed a session, still make the map (Not yet specified stays empty).
-3. **Create the map** (label `wayfinder:map`): Destination and Notes filled, Decisions so far empty, fog sketched into Not yet specified.
+3. **Create the map** (label `wayfinder:map`), or convert the step-0 issue: Destination and Notes filled, Decisions so far empty, fog sketched into Not yet specified.
 4. **Create the tickets you can specify now**, attach each as a sub-issue, then wire blocking in a **second pass** (ids must exist first). Write cross-references in that pass too, with real numbers: a placeholder `#<n>` auto-links to an unrelated issue.
 5. **Fire research.** One `general-purpose` subagent per new `research` ticket, in parallel; post each one's findings as that ticket's resolution (see Work through the map, step 4).
 6. Stop. Charting is one session's work; it hand-resolves nothing.
@@ -125,7 +126,7 @@ User invokes with a loose idea.
 User invokes with a map (URL or number), optionally a ticket. Without one, you pick.
 
 1. Load the **map** body only, not every ticket.
-2. Choose: the named ticket, else the first frontier ticket in sub-issue order. **Claim it** before any work.
+2. Choose: the named ticket, else the first frontier ticket in sub-issue order. A named ticket assigned to someone else or blocked → say so and ask before going on. **Claim it** before any work.
 3. Resolve it as its `wayfinder:<type>` label says (the body never states the type). Fetch related or closed tickets on demand; call any skills the Notes name.
 4. Record: post a **resolution comment** (canonical), **close** the ticket, add a line to the map's Decisions so far. Non-grilling types: if the repo's decisions doc exists (found as `grill-docs` does), also append a row in its format (next `D<k>`, source = ticket link). A grilling ticket skips this: `grill-docs` already appended its rows.
 5. Add newly surfaced tickets (create, attach, then wire). Graduate fog the answer made specifiable, removing it from Not yet specified. Rule out-of-scope tickets out rather than resolving them. Update or close tickets the decision invalidated.
@@ -136,6 +137,8 @@ Other sessions may be working unblocked tickets in parallel: re-read before edit
 
 When no open tickets and no fog remain, offer `divide` on the map issue to turn the destination into session-sized board issues for `pair` or `meta-orchestrator`. On a yes (this overrides `divide`'s last step, which offers to close the parent later; the map is closed now, not offered):
 
+- pass `divide` the map plus, as the target's detail, the decisions doc rows its tickets produced and each closed ticket's resolution comment (the map is only an index);
+- a roadmap line for the map, or for the issue Chart step 0 closed, gets the children (`#old → #a, #b`, divide's step 5);
 - each new issue links back to the map in its body (divide's `Part of #<map>`), and carries no `wayfinder:*` label;
 - the map gets a `## Handed off` section listing them by name (divide's task list goes there);
 - close the map: its planning is done, whatever happens to the board issues.
