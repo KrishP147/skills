@@ -7,6 +7,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from glob import glob
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build_site  # noqa: E402
@@ -24,6 +26,68 @@ def check_corner(tc, page, base, label):
     tc.assertNotIn("back", m.group(0).lower(), label)
 
 
+def _palettes(css):
+    """{"dark": tokens, "light": tokens} from style.css's two :root palettes
+    (light inherits dark tokens it doesn't override)."""
+    dark_src = re.search(r"^:root \{(.*?)^\}", css, re.S | re.M).group(1)
+    light_src = re.search(r"@media \(prefers-color-scheme: light\) \{\s*:root \{(.*?)\}", css, re.S).group(1)
+
+    def parse(src):
+        return dict(re.findall(r"(--[\w-]+):\s*([^;]+);", src))
+    dark = parse(dark_src)
+    return {"dark": dark, "light": dict(dark, **parse(light_src))}
+
+
+def _rgba(v):
+    v = v.strip()
+    m = re.fullmatch(r"#([0-9a-fA-F]{6})", v)
+    if m:
+        h = m.group(1)
+        return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4)) + (1.0,)
+    m = re.fullmatch(r"rgba\(\s*(\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\s*\)", v)
+    assert m, "unparsed color " + v
+    return tuple(int(x) for x in m.groups()[:3]) + (float(m.group(4)),)
+
+
+def _over(fg, bg):
+    a = fg[3]
+    return tuple(fg[i] * a + bg[i] * (1 - a) for i in range(3)) + (1.0,)
+
+
+def _contrast(a, b):
+    def lum(c):
+        def ch(v):
+            v /= 255
+            return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+        return 0.2126 * ch(c[0]) + 0.7152 * ch(c[1]) + 0.0722 * ch(c[2])
+    hi, lo = sorted((lum(a), lum(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+class PaletteContrastTest(unittest.TestCase):
+    """WCAG AA (4.5:1) for token pairs, both palettes, rgba composited over --panel."""
+
+    def test_selected_row_and_accent(self):
+        with open(os.path.join(ROOT, "site", "src", "style.css"), encoding="utf-8") as f:
+            css = f.read()
+        css_rules = css.split("@media (prefers-color-scheme: light)", 1)[1]
+        self.assertIn('.menu li[aria-selected="true"] .nm { color: var(--accent-sel); }', css_rules)
+        self.assertIn("background: var(--sel-bg); }", css_rules)
+        for theme, t in _palettes(css).items():
+            c = {k: _rgba(v) for k, v in t.items() if k not in ("--mono",)}
+            panel, bg = c["--panel"], c["--bg"]
+            sel = _over(c["--sel-bg"], panel)
+            pairs = {
+                "selected name": (c["--accent-sel"], sel),
+                "selected dim (.kd/.ds)": (c["--dim"], sel),
+                "accent on bg": (c["--accent"], bg),
+                "accent on panel": (c["--accent"], panel),
+            }
+            for label, (fg, back) in pairs.items():
+                r = _contrast(_over(fg, back), back)
+                self.assertGreaterEqual(r, 4.5, "%s %s: %.2f" % (theme, label, r))
+
+
 class BuildSiteTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -39,16 +103,53 @@ class BuildSiteTest(unittest.TestCase):
         shutil.rmtree(cls.out, ignore_errors=True)
 
     def test_counts_match_lint(self):
-        skills, agents = build_site.counts(self.entries)
+        skills, agents, hooks = build_site.counts(self.entries)
         self.assertEqual(skills, len(lint.find_skill_files(ROOT)))
         self.assertEqual(agents, len(lint.find_agent_files(ROOT)))
-        self.assertIn(build_site.esc(build_site.count_line(self.entries)), self.index)
+        self.assertEqual(hooks, len(glob(os.path.join(ROOT, "hooks", "*.py"))))
+        self.assertEqual(hooks, 2)
+        line = build_site.count_line(self.entries)
+        self.assertEqual(line, "%d skills · %d agents · %d hooks" % (skills, agents, hooks))
+        self.assertIn(build_site.esc(line), self.index)
+
+    def test_hook_entries(self):
+        by = {e["name"]: e for e in self.data}
+        for name in ("smartzone", "spend-guard"):
+            e = by[name]
+            self.assertEqual(e["group"], "hooks")
+            self.assertEqual(e["source"], "hooks/%s.py" % name)
+            self.assertTrue(e["readme"].lstrip().startswith("`"), name)  # the README section, not the docstring
+            self.assertNotIn("\n## ", e["readme"], name)
+        # summary = heading tagline (after the em dash), capitalized like skill summaries
+        self.assertEqual(by["smartzone"]["summary"], '"Your context has left the smart zone" warning.')
+        self.assertEqual(by["spend-guard"]["summary"], "Block billable commands without an approval.")
+        self.assertTrue(by["spend-guard"]["description"].startswith(
+            "Block billable commands without an approval. PreToolUse hook for Bash"))
+        with open(os.path.join(self.out, "spend-guard", "index.html"), encoding="utf-8") as f:
+            self.assertIn('<span class="k">invocation</span> PreToolUse hook</li>', f.read())
+        self.assertNotIn("guard-git", by)
+        self.assertIn('href="/spend-guard"', self.index)
+
+    def test_name_collision_fails(self):
+        real = build_site.collect(ROOT)
+        hook = next(e for e in real if e["group"] == "hooks")
+        for other in ("pair", "planner"):
+            dup = dict(hook, name=other)
+            with mock.patch.object(build_site, "collect", return_value=real + [dup]):
+                out = tempfile.mkdtemp(prefix="site-dup-")
+                try:
+                    with self.assertRaises(SystemExit) as cm:
+                        build_site.build(ROOT, out)
+                    self.assertIn(other, str(cm.exception))
+                finally:
+                    shutil.rmtree(out, ignore_errors=True)
 
     def test_groups(self):
         by = {e["name"]: e["group"] for e in self.data}
         self.assertEqual(by["pair"], "core")
         self.assertEqual(by["next"], "kanban")
         self.assertEqual(by["implementer"], "agents")
+        self.assertEqual(by["spend-guard"], "hooks")
         self.assertNotIn("README", by)
         self.assertTrue(set(by.values()) <= set(build_site.GROUPS))
         order = [build_site.GROUPS.index(e["group"]) for e in self.data]
@@ -148,8 +249,8 @@ class BuildSiteTest(unittest.TestCase):
             with open(os.path.join(self.out, n, "index.html"), encoding="utf-8") as f:
                 page = f.read()
             self.assertIn("giscus.app/client.js", page, n)
-            self.assertIn('data-term="%s"' % n, page, n)
-            self.assertIn('data-strict="1"', page, n)
+            self.assertIn('"data-term": "%s"' % n, page, n)
+            self.assertIn('"data-strict": "1"', page, n)
         with open(os.path.join(self.out, "404.html"), encoding="utf-8") as f:
             nf = f.read()
         for page in (self.index, nf):
@@ -176,6 +277,17 @@ class BuildSiteTest(unittest.TestCase):
         self.assertIn("100dvh", css)
         self.assertIn("100vh", css)
         self.assertIn("prefers-reduced-motion", css)
+
+    def test_color_scheme_meta_both(self):
+        for n in ("index.html", "404.html", os.path.join("pair", "index.html")):
+            with open(os.path.join(self.out, n), encoding="utf-8") as f:
+                self.assertIn('<meta name="color-scheme" content="light dark">', f.read(), n)
+        with open(os.path.join(self.out, "style.css"), encoding="utf-8") as f:
+            css = f.read()
+        self.assertIn("@media (prefers-color-scheme: light)", css)
+        # colors live in :root tokens only (the two palettes at the top)
+        body = css.split("@media (prefers-color-scheme: light)", 1)[1].split("}\n}\n", 1)[1]
+        self.assertNotRegex(body, r"#[0-9a-fA-F]{3,8}\b|rgba?\(")
 
     def test_github_link(self):
         link = re.compile(r'<a class="gh[^"]*" href="https://github.com/KrishP147/skills" aria-label="[^"]+"><svg ')
@@ -220,7 +332,7 @@ class BuildSiteTest(unittest.TestCase):
         self.assertIn("review", aliases.get("pr-watch", []))
         for n in nav:
             self.assertEqual(list(n)[:4], ["name", "kind", "group", "summary"], n["name"])
-            self.assertEqual(n["kind"], "agent" if n["group"] == "agents" else "skill", n["name"])
+            self.assertEqual(n["kind"], {"agents": "agent", "hooks": "hook"}.get(n["group"], "skill"), n["name"])
             if n["name"] in aliases:
                 self.assertEqual(n["aliases"], aliases[n["name"]])
             else:
@@ -230,13 +342,14 @@ class BuildSiteTest(unittest.TestCase):
 
     def test_aliases_validated(self):
         entries = [{"name": "pair", "group": "core", "summary": "s"},
-                   {"name": "planner", "group": "agents", "summary": "s"}]
-        ok = build_site.aliases_of({"aliases": {"pair": ["worktree", "run-1"]}}, entries)
-        self.assertEqual(ok, {"pair": ["worktree", "run-1"]})
+                   {"name": "planner", "group": "agents", "summary": "s"},
+                   {"name": "smartzone", "group": "hooks", "summary": "s"}]
+        ok = build_site.aliases_of({"aliases": {"pair": ["worktree", "run-1"], "smartzone": ["context"]}}, entries)
+        self.assertEqual(ok, {"pair": ["worktree", "run-1"], "smartzone": ["context"]})
         self.assertEqual(build_site.aliases_of({}, entries), {})
         self.assertEqual(build_site.aliases_of(None, entries), {})
         for bad in ({"nope": ["x"]}, {"pair": "worktree"}, {"pair": ["Work Tree"]},
-                    {"pair": [""]}, {"pair": ["planner"]}):
+                    {"pair": [""]}, {"pair": ["planner"]}, {"pair": ["smartzone"]}):
             with self.assertRaises(SystemExit, msg=bad):
                 build_site.aliases_of({"aliases": bad}, entries)
 
@@ -312,8 +425,8 @@ class BaseBuildTest(unittest.TestCase):
                 self.assertNotIn("giscus", page, label)
             else:
                 self.assertIn("giscus.app/client.js", page, label)
-                self.assertIn('data-term="%s"' % label, page, label)
-                self.assertIn('data-strict="1"', page, label)
+                self.assertIn('"data-term": "%s"' % label, page, label)
+                self.assertIn('"data-strict": "1"', page, label)
 
     def test_icons_and_robots_prefixed_base(self):
         for label, page in self.pages():

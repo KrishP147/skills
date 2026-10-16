@@ -172,10 +172,22 @@ test("real nav data shape: kind derived from group, aliases optional", () => {
   assert.ok(REAL.length > 10);
   for (const x of REAL) {
     assert.deepEqual(Object.keys(x).filter((k) => k !== "aliases"), ["name", "kind", "group", "summary"], x.name);
-    assert.equal(x.kind, x.group === "agents" ? "agent" : "skill", x.name);
+    assert.equal(x.kind, { agents: "agent", hooks: "hook" }[x.group] || "skill", x.name);
     if ("aliases" in x) assert.ok(Array.isArray(x.aliases) && x.aliases.length, x.name);
   }
   assert.ok(F.search("/review", REAL).options.some((x) => x.name === "pr-watch"));
+});
+
+test("hooks are in the real nav data and searchable", () => {
+  const hooks = REAL.filter((x) => x.kind === "hook").map((x) => x.name).sort();
+  assert.deepEqual(hooks, ["smartzone", "spend-guard"]);
+  assert.ok(!REAL.some((x) => x.name === "guard-git"), "agent hook stays out");
+  // prefix, mid-word fragment, 1-2 char typos (the per-name loop below covers more)
+  for (const [buf, name] of [["/smart", "smartzone"], ["/spend-gu", "spend-guard"], ["/artzon", "smartzone"],
+    ["/end-gua", "spend-guard"], ["/smratzone", "smartzone"], ["/spend-gaurd", "spend-guard"],
+    ["/smartzn", "smartzone"], ["/spnd-gurd", "spend-guard"], ["/smart-zone", "smartzone"]]) {
+    assert.ok(names(F.search(buf, REAL).options).includes(name), buf + " -> " + name);
+  }
 });
 
 function surfaces(buf, name) {

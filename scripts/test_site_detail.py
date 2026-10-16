@@ -60,17 +60,22 @@ class DetailPagesTest(unittest.TestCase):
 
     def test_no_script_from_markdown(self):
         for name, page in self.pages.items():
-            # data + filter.js + app.js + giscus
+            # data + filter.js + app.js + inline giscus loader
             self.assertEqual(page.count("<script"), 4, name)
-            self.assertEqual(page.count("<script src="), 3, name)
+            self.assertEqual(page.count("<script src="), 2, name)
 
     def test_giscus_embed(self):
         for name, page in self.pages.items():
-            self.assertIn('<script src="https://giscus.app/client.js"', page, name)
-            self.assertIn('data-term="%s"' % build_site.esc(name), page, name)
-            self.assertEqual(page.count("data-term="), 1, name)
-            self.assertIn('data-strict="1"', page, name)
-            self.assertIn('data-mapping="specific"', page, name)
+            self.assertIn('"src": "https://giscus.app/client.js"', page, name)
+            self.assertIn('"data-term": "%s"' % build_site.esc(name), page, name)
+            self.assertEqual(page.count('"data-term"'), 1, name)
+            self.assertIn('"data-strict": "1"', page, name)
+            self.assertIn('"data-mapping": "specific"', page, name)
+            # theme from the OS scheme before load, live updates via postMessage, no external CSS
+            self.assertIn('"data-theme": theme()', page, name)
+            self.assertIn('matchMedia("(prefers-color-scheme: light)")', page, name)
+            self.assertIn("setConfig: { theme: theme() }", page, name)
+            self.assertNotRegex(page, r'theme[^,;]*https?://', name)
             self.assertIn("Use cases &amp; tips from the community", page, name)
 
     def test_sections_ordered_none_empty(self):
@@ -109,6 +114,38 @@ class DetailPagesTest(unittest.TestCase):
         article = mgr.split("<article", 1)[1].split("</article>", 1)[0]
         self.assertNotIn("Role:", article)  # labels became section headings
         self.assertNotIn("Picks the next single unit", article)  # planner's section
+
+    def test_hook_pages(self):
+        sz, sg = self.pages["smartzone"], self.pages["spend-guard"]
+        for name, page in (("smartzone", sz), ("spend-guard", sg)):
+            src = "https://github.com/KrishP147/skills/blob/master/hooks/%s.py" % name
+            self.assertIn('<span class="k">source</span> <a href="%s">hooks/%s.py</a>' % (src, name), page)
+            self.assertIn('<span class="tag">hooks</span>', page)
+            for title in ("What it does", "How to invoke", "How it works", "Related"):
+                self.assertIn(">%s</h2>" % title, page, (name, title))
+            article = page.split("<article", 1)[1].split("</article>", 1)[0]
+            self.assertNotIn("Install into a repo:", article)  # bare label dropped
+            self.assertNotIn("How it works:", article)
+            self.assertNotIn("guard-git.py` lives in", article)  # README preamble is not a hook's
+        self.assertIn('<span class="k">invocation</span> UserPromptSubmit hook', sz)
+        self.assertIn('<span class="k">invocation</span> PreToolUse hook', sg)
+        self.assertIn(">Example</h2>", sz)
+        self.assertIn("Example output once a long session", sz)  # long label kept as text
+        self.assertIn('<a href="/divide">', sz)  # ../kanban/divide/
+        self.assertIn('<a href="/spend-gate">', sg)
+        self.assertNotIn("SPEND_GUARD_PATTERNS", sz)  # spend-guard's section stays out
+        self.assertIn("hooks/README.md#spend-guardpy--block-billable-commands-without-an-approval", sg)
+
+    def test_links_to_hooks_become_pages(self):
+        self.assertIn('<a href="/smartzone">', self.pages["meta-orchestrator"])
+        self.assertIn('<a href="/spend-guard">', self.pages["spend-gate"])  # ../hooks/spend-guard.py
+        idx = site_detail.LinkIndex(ROOT, self.entries)
+        rw = idx.rewriter("spend-gate")
+        self.assertEqual(rw("../hooks/README.md#spend-guardpy--block-billable-commands-without-an-approval"),
+                         "/spend-guard")
+        self.assertEqual(rw("../hooks/README.md"),
+                         "https://github.com/KrishP147/skills/blob/master/hooks/README.md")
+        self.assertEqual(rw("../hooks/"), "https://github.com/KrishP147/skills/tree/master/hooks")
 
     def test_prev_next_build_order(self):
         names = [e["name"] for e in self.entries]
@@ -179,6 +216,26 @@ class SectionMappingTest(unittest.TestCase):
         pages = site_detail.build_pages(ROOT, [e], {}, "{{BODY}}|{{NAME}}", "[]")
         self.assertIn("<code>{{NAME}}</code> and {{DATA}}", pages[e["name"]])
         self.assertTrue(pages[e["name"]].endswith("|" + e["name"]))
+
+    def test_install_heading_maps_to_invoke(self):
+        self.assertEqual(site_detail.section_key("Install into a repo"), "invoke")
+
+    def test_label_paragraphs(self):
+        md = ("`X` hook. Does y.\n\nMore of what.\n\n"
+              "How it works: reads stdin,\nthen exits.\n\nThis is a note: kept here.\n\n"
+              "Install into a repo:\n\n```bash\nRelated: not a label in a fence\n```\n\n"
+              "Example output once it fires:\n\n```\nout\n```\n\nRelated: [a](../a/).")
+        pre, pairs = site_detail.split_label_paragraphs(md)
+        self.assertEqual(pre, "`X` hook. Does y.\n\nMore of what.")
+        self.assertEqual([l for l, _b in pairs],
+                         ["How it works", "Install into a repo", "Example output once it fires", "Related"])
+        how = pairs[0][1]
+        self.assertTrue(how.startswith("Reads stdin,\nthen exits."))
+        self.assertIn("This is a note: kept here.", how)
+        self.assertTrue(pairs[1][1].startswith("```bash"))
+        self.assertIn("Related: not a label in a fence", pairs[1][1])
+        self.assertTrue(pairs[2][1].startswith("Example output once it fires:"))
+        self.assertEqual(pairs[3][1], "[a](../a/).")
 
     def test_label_bullets(self):
         rest, pairs = site_detail.split_label_bullets(

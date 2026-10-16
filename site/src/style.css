@@ -1,12 +1,45 @@
+/* Dark is the default (Claude Code's dark theme); light follows the OS
+   (Claude Code's light theme). Every color comes from these tokens.
+   --accent is for text (>= 4.5:1 on --bg, --panel and a selected row);
+   --accent-line is the brand orange for borders and outlines.
+   --sel-bg / --accent-sel: the selected menu row's background and name,
+   >= 4.5:1 for the name and --dim text over --panel (tested). */
 :root {
+  color-scheme: dark;
   --bg: #1a1918;
   --panel: #262624;
   --fg: #e8e6e1;
   --dim: #9c9a93;
   --accent: #d97757;
+  --accent-line: #d97757;
   --accent-soft: rgba(217, 119, 87, 0.16);
+  --sel-bg: rgba(217, 119, 87, 0.10);
+  --accent-sel: #e08a6c;
   --border: #3d3c38;
+  --hover: rgba(255, 255, 255, 0.04);
+  --shadow: rgba(0, 0, 0, 0.45);
+  --code-bg: #111110;
+  --band: #1a1918; /* opaque strip behind the mobile corner links (D26) */
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bg: #faf9f5;
+    --panel: #f0eee6;
+    --fg: #1f1e1d;
+    --dim: #5e5d59;
+    --accent: #a3462a;
+    --accent-line: #c96442;
+    --accent-soft: rgba(217, 119, 87, 0.10);
+    --sel-bg: rgba(217, 119, 87, 0.10);
+    --accent-sel: #a3462a;
+    --border: #d3d0c5;
+    --hover: rgba(31, 30, 29, 0.05);
+    --shadow: rgba(31, 30, 29, 0.14);
+    --code-bg: #f0eee6;
+    --band: #faf9f5;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -51,7 +84,7 @@ kbd {
 .term p { margin: 0 0 4px; }
 
 .welcome {
-  border: 1px solid var(--accent);
+  border: 1px solid var(--accent-line);
   border-radius: 8px;
   padding: 10px 14px;
   margin-bottom: 16px;
@@ -71,7 +104,7 @@ kbd {
   padding: 8px 12px;
   min-height: 42px;
 }
-.prompt-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.prompt-box:focus-within { border-color: var(--accent-line); box-shadow: 0 0 0 1px var(--accent-line); }
 .caret-sign { color: var(--dim); }
 .prompt-box:focus-within .caret-sign { color: var(--fg); }
 .line { white-space: pre; overflow: hidden; }
@@ -127,9 +160,9 @@ kbd {
 .menu li .nm { flex: 0 0 auto; min-width: 11em; white-space: nowrap; }
 .menu li .kd { flex: 0 0 3.6em; color: var(--dim); font-size: 0.78em; }
 .menu li .ds { flex: 1 1 auto; min-width: 0; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menu li[role="option"]:hover { background: rgba(255, 255, 255, 0.04); }
-.menu li[aria-selected="true"], .menu li[aria-selected="true"]:hover { background: var(--accent-soft); }
-.menu li[aria-selected="true"] .nm { color: var(--accent); }
+.menu li[role="option"]:hover { background: var(--hover); }
+.menu li[aria-selected="true"], .menu li[aria-selected="true"]:hover { background: var(--sel-bg); }
+.menu li[aria-selected="true"] .nm { color: var(--accent-sel); }
 .menu .note { padding: 6px 12px; color: var(--fg); overflow-wrap: anywhere; }
 .menu .note + li[role="option"] { margin-top: 2px; }
 
@@ -171,7 +204,7 @@ kbd {
   padding: 4px;
   max-height: min(calc(8 * var(--row) + 10px), 55vh);
   max-height: min(calc(8 * var(--row) + 10px), 55dvh);
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 -8px 24px var(--shadow);
 }
 .dock .keys { margin: 6px 0 0; font-size: 0.8rem; }
 .dock .keys kbd { border: 0; padding: 0; color: var(--dim); }
@@ -214,7 +247,7 @@ kbd {
 }
 .me img { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border); display: block; }
 .me:hover, .me:focus-visible { color: var(--fg); }
-.me:hover img, .me:focus-visible img { border-color: var(--accent); box-shadow: 0 0 10px var(--accent-soft), 0 0 3px var(--accent); }
+.me:hover img, .me:focus-visible img { border-color: var(--accent-line); box-shadow: 0 0 10px var(--accent-soft), 0 0 3px var(--accent-line); }
 .me-fixed { position: fixed; top: 8px; left: 12px; z-index: 20; }
 body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
 
@@ -251,7 +284,7 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
 .detail-name { font-size: 1.3rem; margin: 12px 0 8px; overflow-wrap: anywhere; }
 .tag {
   font-size: 0.75rem; font-weight: 400; color: var(--accent);
-  border: 1px solid var(--accent); border-radius: 4px; padding: 0 6px; vertical-align: middle;
+  border: 1px solid var(--accent-line); border-radius: 4px; padding: 0 6px; vertical-align: middle;
 }
 .detail-desc { margin: 0 0 16px !important; }
 
@@ -284,14 +317,14 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
   border-radius: 8px;
   padding: 4px;
   max-height: min(calc(8 * var(--row) + 10px), 60vh);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 24px var(--shadow);
 }
 
 .out { min-width: 0; }
 .card {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid var(--accent-line);
   border-radius: 8px;
   padding: 4px 16px 14px;
   margin: 8px 0 24px;
@@ -306,7 +339,7 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
   overflow-wrap: anywhere;
 }
 .chip .k { color: var(--dim); }
-.chip-tested { border-color: var(--accent); }
+.chip-tested { border-color: var(--accent-line); }
 
 .sec { margin: 0 0 28px; min-width: 0; }
 .sec h2 {
@@ -328,8 +361,10 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
   padding: 0 3px;
   font-size: 0.92em;
 }
+/* code inside a link: the link color on --accent-soft misses 4.5:1, so no chip */
+.sec a code { background: none; padding: 0; }
 .sec pre {
-  background: #111110;
+  background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 10px 12px;
@@ -392,7 +427,7 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
     position: fixed;
     top: 0; left: 0; right: 0;
     height: 66px;
-    background: var(--bg);
+    background: var(--band);
     border-bottom: 1px solid var(--border);
     z-index: 15;
   }

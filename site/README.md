@@ -1,7 +1,7 @@
 # site
 
-Static site for this repo's skills and agents: a Claude Code style terminal
-home with a free-typing slash search, a plain list of every skill and agent,
+Static site for this repo's skills, agents and hooks: a Claude Code style
+terminal home with a free-typing slash search, a plain list of every entry,
 and a `/<name>` detail page for each. No framework, no npm install, no runtime deps.
 
 ## Layout
@@ -11,7 +11,7 @@ and a `/<name>` detail page for each. No framework, no npm install, no runtime d
 | `src/index.html` | home template (`{{COUNT}}`, `{{LIST}}`, `{{DATA}}` filled at build): welcome + catalog scroll in `.feed`, slash prompt pinned to the viewport bottom in `.dock` (menu opens upward), fixed GitHub link top right, fixed Rocky image link to krishpunjabi.com top left (also on 404; inline in the detail topbar). Under 600px an opaque 66px band sits behind the corner links on non-detail pages so feed text scrolls under it. Intro animation (≤1.5s, any key/click skips) runs only when the inline head script adds `html.intro`, never under `prefers-reduced-motion` |
 | `src/detail.html` | `/<name>` detail page template (sticky slash prompt, header card + chips, sections, prev/next, `#comments` giscus block) |
 | `data/meta.json` | per-name author + battle-tested level (`levels_source` says where levels come from); names not listed get level `new`, author defaults to Krish. `aliases` (`{name: [word, ...]}`) adds search words for the slash prompt: lowercase `a-z0-9-`, never an existing name; the build fails on unknown names or bad words. Aliases come only from here, never SKILL.md frontmatter |
-| `src/404.html`, `src/style.css` | not-found page (`noindex`), all styles |
+| `src/404.html`, `src/style.css` | not-found page (`noindex`), all styles. Two palettes as `:root` tokens: dark by default, light under `prefers-color-scheme: light` (Claude Code's dark and light themes); rules use only tokens. `--accent` is the text accent (light: darkened to pass 4.5:1), `--accent-line` the brand orange for borders, `--sel-bg` / `--accent-sel` the selected menu row (name and dim text >= 4.5:1 over `--panel`, checked by `PaletteContrastTest`), `--band` the mobile corner band. Every page has `<meta name="color-scheme" content="light dark">` |
 | `src/rocky.webp` | 128px Rocky for the krishpunjabi.com corner link (owner's asset, cropped to the carapace, no metadata); copied byte for byte |
 | `src/favicon-32.png`, `src/apple-touch-icon.png` | favicon (32px) and iOS icon (180px, solid dark bg), same Rocky crop; copied byte for byte |
 | `src/filter.js` | pure slash-search logic (browser global `SkillFilter`, CommonJS in node), see [Slash search](#slash-search) |
@@ -24,13 +24,16 @@ only), with [`site_detail.py`](../scripts/site_detail.py) for detail pages and
 [`md_render.py`](../scripts/md_render.py), a small Markdown renderer that
 escapes all raw HTML and drops non-http(s)/mailto link URLs. It reuses `scripts/lint.py`'s discovery, so the site lists exactly what
 lint counts. Groups: top-level skill dirs = core, `kanban/*` = kanban,
-`agents/*.md` (minus README) = agents.
+`agents/*.md` (minus README) = agents, `hooks/*.py` = hooks (lint doesn't
+count hooks; `agents/hooks/guard-git.py` is not listed). The home count line
+reads `N skills · M agents · K hooks`. The build fails on a name shared by
+two entries of any kind.
 
 ## Slash search
 
 The prompt (home dock and detail topbar) starts as `/`, which can't be deleted;
 everything after it is typed freely. Each page embeds the nav data
-(`name`, `kind` = `skill` | `agent` from the group, `group`, `summary`,
+(`name`, `kind` = `skill` | `agent` | `hook` from the group, `group`, `summary`,
 optional `aliases` from `meta.json`) in `#skill-data`.
 
 - **Ranking:** exact name > name prefix > word-boundary prefix (`handoff` finds
@@ -40,9 +43,10 @@ optional `aliases` from `meta.json`) in `#skill-data`.
   suggestions: OSA (Damerau-Levenshtein) distance over names, name parts and
   aliases, normalized by length, then summary words (`/review` finds `/pr-watch`).
   Nothing close: `No matches. Type / to see all.`
-- **Keys:** Up/Down highlight, Tab fills the highlighted name (the first row is
-  highlighted by default, bare `/` included; when it changes nothing, Tab moves focus), Enter
-  or click opens it, Esc clears to `/` (again: closes the menu), `/` anywhere on
+- **Keys:** the first row is highlighted every time the menu opens (prompt
+  click, `/`, Enter or Up/Down on a closed menu, bare `/` included) and every
+  time the text changes. Up/Down move the highlight, Tab fills the highlighted
+  name (when that changes nothing, Tab moves focus), Enter or click opens it, Esc clears to `/` (again: closes the menu), `/` anywhere on
   the page focuses the prompt. An exact name shows a dim `↵ to open`; typing
   never navigates by itself.
 - **ARIA:** input `role=combobox` with `aria-expanded` / `aria-activedescendant`,
@@ -51,8 +55,12 @@ optional `aliases` from `meta.json`) in `#skill-data`.
 
 ## Comments (giscus)
 
-Each detail page embeds [giscus](https://giscus.app) in `#comments` (plain
-script tag in `src/detail.html`). Setup for a repo:
+Each detail page embeds [giscus](https://giscus.app) in `#comments`: an
+inline script in `src/detail.html` creates the `client.js` tag with
+`data-theme` picked from `prefers-color-scheme` (`light` or
+`transparent_dark`) before giscus loads, and on a scheme change posts
+`{giscus: {setConfig: {theme}}}` to the giscus iframe. Built-in themes only,
+no external CSS URL. Setup for a repo:
 
 1. Install the giscus GitHub app on the repo and enable Discussions.
 2. Fetch the ids:
@@ -72,7 +80,13 @@ preview deploys.
   Role → What it does, You pass → How to invoke) plus `agents/<name>.md`
   frontmatter (model, tools / disallowedTools, preloads, guard hook). Agents
   also get the shared `## Example` and a generated Related list (preloads +
-  pages that link to them).
+  pages that link to them). Hook: its ``## `<file>.py` `` section of
+  `hooks/README.md`; paragraphs led by a label that maps (`How it works:`,
+  `Install into a repo:`, `Example output ...:`, `Related:`) start a
+  section, other paragraphs stay with the one above, the text before the
+  first label is What it does. Its summary is the heading's tagline (text
+  after the em dash), first letter capitalized and a period added like skill
+  summaries; its description is that summary plus the section's first paragraph.
 - **Sections**, in order: What it does, When to use, How to invoke, How it
   works, Design principles, Use cases, Tips, Example, Related, Prereqs, then
   any README sections that don't map (original heading kept), then Source.
@@ -81,12 +95,14 @@ preview deploys.
   section inherits its parent group README's (e.g. `kanban/README.md`).
 - **Links.** Relative links become
   `https://github.com/KrishP147/skills/blob/master/<path>` (anchors kept);
-  links to another skill's dir or README become `/<name>`, and
-  `agents/README.md#<agent>` becomes `/<agent>`.
+  links to another skill's dir or README become `/<name>`,
+  `agents/README.md#<agent>` becomes `/<agent>`, and `hooks/<hook>.py` or
+  `hooks/README.md#<hook heading anchor>` becomes `/<hook>`.
 - **Chips:** author (cross-checked in tests against
   `THIRD_PARTY_LICENSES.md`), invocation (`user only` when the SKILL.md
-  frontmatter has `disable-model-invocation: true`), model / tools / preloads
-  (agents), prereqs, tested level.
+  frontmatter has `disable-model-invocation: true`; hooks: the hook event),
+  model / tools / preloads (agents), source (hooks: the `.py` on GitHub),
+  prereqs, tested level.
 
 Never add a file named `SKILL.md` under `site/`: lint globs `*/SKILL.md` and
 `*/*/SKILL.md` and would treat it as a skill.
@@ -111,7 +127,7 @@ resolved against the current directory and may be outside the repo; skill
 sources are always read from this repo, not the cwd.
 
 Output: `index.html`, `skills.json` (name, description, summary, group,
-source, readme), `<name>/index.html` detail page per skill/agent (so `/pair` resolves
+source, readme), `<name>/index.html` detail page per skill/agent/hook (so `/pair` resolves
 statically), `404.html`, `style.css`, `filter.js`, `app.js`, `rocky.webp`, `favicon-32.png`, `apple-touch-icon.png`. Every
 `site/src/*.css|js|svg` is copied as text and every `*.webp|png|jpg` byte for byte. The build is
 deterministic.
