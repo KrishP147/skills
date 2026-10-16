@@ -232,7 +232,9 @@ def nav_entry(e, aliases):
 
 # Site pages the slash prompt can open besides entries: /<name> -> <base>/<name>.
 PAGES = ({"name": site_map.SLUG, "kind": "page", "group": "pages",
-          "summary": "Map of every skill, agent and hook, grouped by purpose, and how they connect."},)
+          "summary": "Map of every skill, agent and hook, grouped by purpose, and how they connect."},
+         {"name": site_workflows.SLUG, "kind": "page", "group": "pages",
+          "summary": "Common workflows, step by step: which skills, agents and hooks to chain and why."})
 
 
 def nav_data(entries, meta=None):

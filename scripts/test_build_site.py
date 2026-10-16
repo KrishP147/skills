@@ -350,7 +350,7 @@ class BuildSiteTest(unittest.TestCase):
     def test_nav_data_kind_and_aliases(self):
         nav = self.embedded(self.index)
         pages = [n for n in nav if n["kind"] == "page"]
-        self.assertEqual([n["name"] for n in pages], ["map"])
+        self.assertEqual([n["name"] for n in pages], ["map", "workflows"])
         nav = [n for n in nav if n["kind"] != "page"]
         self.assertEqual([n["name"] for n in nav], [e["name"] for e in self.data])
         with open(os.path.join(ROOT, "site", "data", "meta.json"), encoding="utf-8") as f:

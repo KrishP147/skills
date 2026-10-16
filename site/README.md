@@ -39,7 +39,7 @@ The prompt (home dock and detail topbar) starts as `/`, which can't be deleted;
 everything after it is typed freely. Each page embeds the nav data
 (`name`, `kind` = `skill` | `agent` | `hook` from the group, `group`, `summary`,
 optional `aliases` from `meta.json`) in `#skill-data`, then site pages the prompt
-can open (`build_site.PAGES`: `/map`, kind `page`, group `pages`).
+can open (`build_site.PAGES`: `/map` and `/workflows`, kind `page`, group `pages`).
 
 - **Ranking:** exact name > name prefix > word-boundary prefix (`handoff` finds
   `session-handoff`) > substring > alias; ties A-Z. A bare `/` lists everything
