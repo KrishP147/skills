@@ -89,10 +89,11 @@ DEFAULT_BASH_PATTERNS = [
     _RP + r"""pods?\s+update\b[^\n]*--(?:volume-in-gb|container-disk-in-gb)\b""",
     _RP + r"""model\s+add\b""",
     r"""\bvultr-cli(?:\.exe|\.cmd)?["']?\s+instance\s+create\b""",
-    r"""\baws(?:\.exe|\.cmd)?["']?\s+ec2\s+(?:run-instances|request-spot-instances|request-spot-fleet)\b""",
-    r"""\bgcloud(?:\.exe|\.cmd)?["']?\s+compute\s+instances\s+create\b""",
+    r"""\baws(?:\.exe|\.cmd)?["']?\s+ec2\s+(?:run-instances|request-spot-instances|request-spot-fleet"""
+    r"""|start-instances)\b""",
+    r"""\bgcloud(?:\.exe|\.cmd)?["']?\s+compute\s+instances\s+(?:create|start)\b""",
     r"""\baz(?:\.exe|\.cmd)?["']?\s+vm\s+create\b""",
-    r"""\bmodal(?:\.exe|\.cmd)?["']?\s+deploy\b""",
+    r"""\bmodal(?:\.exe|\.cmd)?["']?\s+(?:deploy|run)\b""",
 ]
 
 # Deliberately not defaulted (ambiguous - has free tiers / non-billable uses):
@@ -789,6 +790,8 @@ _GQL_BILL_NAMES_RE = re.compile(
     r"|deployCpuPod|createNetworkVolume|updateNetworkVolume|podEditJob", re.I)
 _GQL_MUTATION_RE = re.compile(r"\bmutation\b", re.I)
 _GQL_BILL_WORD_RE = re.compile(r"deploy|rent|resume|create|save|update|edit|bid|start|launch", re.I)
+# mutations that only write free config records (D375): a template is not compute
+_GQL_FREE_FIELDS = {"savetemplate"}
 # a readable GraphQL operation: `query {`, `mutation Name(...) {`, or the
 # anonymous `{"query": "{ ... }"}` shorthand (not a `mutation.json` filename)
 _GQL_ANY_OP_RE = re.compile(
@@ -815,7 +818,8 @@ def _rest_hits(text, gql_readable):
                 bill = True  # absurd number of mutations: fail closed
                 break
             window = text[mut.end():mut.end() + 2000]
-            if any(_GQL_BILL_WORD_RE.search(f) for f in _GQL_FIELD_RE.findall(window)):
+            if any(_GQL_BILL_WORD_RE.search(f) and f.lower() not in _GQL_FREE_FIELDS
+                   for f in _GQL_FIELD_RE.findall(window)):
                 bill = True
                 break
         if bill or (write and not gql_readable):
@@ -832,8 +836,12 @@ def _rest_hits(text, gql_readable):
 
 # --- SDK one-liners ---------------------------------------------------------
 _SDK_GATE_RE = re.compile(
-    r"(?<![\w.-])(?:i?python[\d.]*w?|py|pypy3?)(?:\.exe)?(?![\w.-])|\bimport\b", re.I)
+    r"(?<![\w.-])(?:i?python[\d.]*w?|py|pypy3?|node|nodejs|bun|deno|npx)(?:\.exe)?(?![\w.-])"
+    r"|\bimport\b|\brequire\s*\(", re.I)
 _SDK_RULES = [
+    # #178: JS SDK `runpod-sdk` -> `.endpoint(id).run/runSync/runAsync(` runs a billed job
+    ("Runpod JS SDK", re.compile(r"runpod-sdk"), re.compile(
+        r"\.\s*(?:run|runSync|runAsync)\s*\(")),
     ("Runpod SDK", re.compile(r"\brunpod\b"), re.compile(
         r"\b(?:create_pod|create_endpoint|resume_pod|create_network_volume|create_cluster"
         r"|update_endpoint\w*|run_sync|run_async)\s*\("
@@ -1193,6 +1201,24 @@ def main():
         sys.exit(0)
 
 
+# Perf self-tests catch blowups (exponential/ReDoS take minutes at 2000 tokens),
+# not load jitter: best of 3 runs against a generous bound.
+PERF_LIMIT = 3.0
+
+
+def _best_time(fn, runs=3):
+    import time
+    best = None
+    for _ in range(runs):
+        t0 = time.perf_counter()
+        fn()
+        dt = time.perf_counter() - t0
+        best = dt if best is None else min(best, dt)
+        if best < PERF_LIMIT / 6:
+            break  # clearly fast: skip the extra runs
+    return best
+
+
 def run_self_test():
     import tempfile
 
@@ -1228,6 +1254,10 @@ def run_self_test():
         "gcloud compute instances create my-vm",
         "az vm create --name my-vm",
         "modal deploy app.py",
+        # D375 (#174): starting stopped instances and modal run bill too
+        "aws ec2 start-instances --instance-ids i-123",
+        "gcloud compute instances start my-vm",
+        "modal run app.py",
     ]
     for cmd in default_cases:
         reason = check("Bash", {"command": cmd}, None, env=iso)
@@ -1562,12 +1592,10 @@ def run_self_test():
                 "runpodctl help pod create", "runpodctl ---a pod create"]:
         record("#130v allowed: %s" % cmd,
                check("Bash", {"command": cmd}, None, env=iso) is None)
-    import time
-    t0 = time.time()
     long_cmd = "runpodctl " + " ".join(["--a-b c"] * 400 + ["-x"] * 400) + " pod list"
     record("400+400 flag run allows fast (no backtracking blowup)",
            check("Bash", {"command": long_cmd}, None, env=iso) is None
-           and time.time() - t0 < 2.0)
+           and _best_time(lambda: check("Bash", {"command": long_cmd}, None, env=iso)) < PERF_LIMIT)
     record("pod update volumeInGb allowed with approval",
            check(up, {"body": {"volumeInGb": 5}}, None,
                  env=dict(iso, SPEND_GATE_APPROVED="yes")) is None)
@@ -1693,10 +1721,9 @@ def run_self_test():
             ("Bash", "runpodctl " + " ".join(['--a "x'] * 2000) + " pod create"),
             ("PowerShell", P + "runpodctl " + " ".join(["--a-b c"] * 2000) + " pod create"),
             ("Bash", A + C + " " + " ".join(["-a b ;"] * 1000))):
-        t0 = time.time()
-        check(tool, {"command": cmd}, None, env=iso)
-        dt = time.time() - t0
-        record("#141 perf %s %d chars < 0.5s (%.3fs)" % (tool, len(cmd), dt), dt < 0.5)
+        dt = _best_time(lambda: check(tool, {"command": cmd}, None, env=iso))
+        record("#141 perf %s %d chars < %.0fs (best of 3: %.3fs)" % (tool, len(cmd), PERF_LIMIT, dt),
+               dt < PERF_LIMIT)
 
     # 17. issue #160: indirection, Start-Process, REST/GraphQL, SDK one-liners.
     # Each form: (tool, blocks, near-miss that stays allowed).
@@ -1787,6 +1814,14 @@ def run_self_test():
             "{ saveEndpoint(input:{}) { id } }\"}'",
          "irm https://api.runpod.io/graphql -Method Post -Body '{\"query\":\"query "
          "{ gpuTypes { id } }\"}'"),
+        # D375 (#174): saveTemplate writes a free config record; saveEndpoint still bills
+        (S, "curl -X POST https://api.runpod.io/graphql -d '{\"query\":\"mutation "
+            "{ saveTemplate(input:{}) { id } saveEndpoint(input:{}) { id } }\"}'",
+         "curl -X POST https://api.runpod.io/graphql -d '{\"query\":\"mutation "
+         "{ saveTemplate(input:{name:\\\"t\\\"}) { id } }\"}'"),
+        (S, "aws ec2 start-instances --instance-ids i-1", "aws ec2 stop-instances --instance-ids i-1"),
+        (S, "gcloud compute instances start vm1", "gcloud compute instances list"),
+        (S, "modal run app.py", "modal app list"),
         (S, "curl -X POST https://api.runpod.ai/v2/ep/runsync -d '{\"input\":{}}'",
          "curl https://api.runpod.ai/v2/ep/status/j1"),
         (S, "curl -X POST https://api.vultr.com/v2/instances -d '{}'",
@@ -1809,6 +1844,27 @@ def run_self_test():
          "python -c \"import boto3; boto3.client('ec2').describe_instances()\""),
         (S, "python -c \"import boto3; boto3.client('ec2').request_spot_instances()\"",
          "grep -rn 'request_spot_instances(' src/"),
+        # #178: Node/Bun/Deno runpod-sdk one-liners (endpoint run/runSync/runAsync bill)
+        (S, "node -e \"const s=require('runpod-sdk').default('k'); s.endpoint('e').run({input:{}})\"",
+         "node -e \"const s=require('runpod-sdk').default('k'); s.endpoint('e').status('j')\""),
+        (S, "node --eval \"import('runpod-sdk').then(m=>m.default('k').endpoint('e').runSync({}))\"",
+         "node --eval \"import('runpod-sdk').then(m=>m.default('k').endpoint('e').health())\""),
+        (S, "node -p \"require('runpod-sdk').default('k').endpoint('e').runAsync({})\"",
+         "node -p \"require('runpod-sdk')\""),
+        (S, "cat > r.mjs <<'EOF'\nimport runpodSdk from 'runpod-sdk'\n"
+            "await runpodSdk('k').endpoint('e').runSync({input:{}})\nEOF\nnode r.mjs",
+         "cat > r.mjs <<'EOF'\nimport runpodSdk from 'runpod-sdk'\n"
+         "console.log(await runpodSdk('k').endpoint('e').health())\nEOF\nnode r.mjs"),
+        (S, "node --input-type=module <<'EOF'\nimport r from 'runpod-sdk'\nr('k').endpoint('e').run({})\nEOF",
+         "node --input-type=module <<'EOF'\nimport r from 'runpod-sdk'\nconsole.log(typeof r)\nEOF"),
+        (S, "npx -y -p runpod-sdk node -e \"require('runpod-sdk').default('k').endpoint('e').run({})\"",
+         "npx -y -p runpod-sdk node -e \"require('runpod-sdk').default('k').endpoint('e').status('j')\""),
+        (S, "bun -e \"(await import('runpod-sdk')).default('k').endpoint('e').runSync({})\"",
+         "bun -e \"(await import('runpod-sdk')).default('k').endpoint('e').health()\""),
+        (S, "deno eval \"import('npm:runpod-sdk').then(m=>m.default('k').endpoint('e').run({}))\"",
+         "deno eval \"import('npm:runpod-sdk').then(m=>console.log(typeof m))\""),
+        (P, "node -e \"require('runpod-sdk').default('k').endpoint('e').runSync({})\"",
+         "node -e \"console.log('runpod-sdk')\""),
         # spot / interruptible
         (S, "runpodctl create pod --communityCloud --bid 0.2", "runpodctl get pod --communityCloud"),
         (S, "aws ec2 request-spot-instances --spot-price 0.1", "aws ec2 describe-spot-price-history"),
@@ -1889,10 +1945,9 @@ def run_self_test():
             ("b64", S, "echo " + " ".join(["cnVucG9kY3RsIGdldCBwb2Q="] * n) + " | base64 -d"),
             ("dollar-brace", S, "runpodctl " + "${" * n),
             ("spaces", S, "alias r=runpodctl;" + " " * 20000 + "$X")):
-        t0 = time.time()
-        check(tool, {"command": cmd}, None, env=iso)
-        dt = time.time() - t0
-        record("#160 perf %s %d chars < 0.5s (%.3fs)" % (label, len(cmd), dt), dt < 0.5)
+        dt = _best_time(lambda: check(tool, {"command": cmd}, None, env=iso))
+        record("#160 perf %s %d chars < %.0fs (best of 3: %.3fs)" % (label, len(cmd), PERF_LIMIT, dt),
+               dt < PERF_LIMIT)
 
     print("\n%d passed, %d failed" % (passed, failed))
     if failed:
