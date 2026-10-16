@@ -1,0 +1,153 @@
+[
+  {
+    "name": "close-the-loop",
+    "title": "Close one session, start the next",
+    "steps": [
+      {"kind": "skill", "name": "session-handoff", "why": "Writes the handoff through handoff-auto, appends a Board status section and moves the card to In Review when the issue is complete."},
+      {"kind": "human", "why": "Read the handoff, then open a fresh session."},
+      {"kind": "skill", "name": "update-progress", "why": "Treats every handoff claim as unverified: checks git log and the test run, then updates the docs and the board and finishes with next."},
+      {"kind": "skill", "name": "next", "why": "Shows the top 1-3 tasks from the board, a failing default branch first."},
+      {"kind": "human", "why": "Say \"go\" to pick the top task."}
+    ]
+  },
+  {
+    "name": "new-board",
+    "title": "Bootstrap a board from the docs",
+    "steps": [
+      {"kind": "human", "why": "Type /kanban-setup: it is user-only, so Claude can't start it."},
+      {"kind": "skill", "name": "kanban-setup", "why": "Checks the gh project scope, creates the repo's board if it has none, and previews candidate issues from the roadmap, TODOs, changelog and docs."},
+      {"kind": "human", "why": "Review the preview and say yes; it creates nothing before that."},
+      {"kind": "skill", "name": "divide", "why": "Proposes 2+ session-sized pieces, each with a done-when, for an item too big for one session; creates nothing yet."},
+      {"kind": "human", "why": "Say yes to the split; the children go on the board at Todo."},
+      {"kind": "skill", "name": "next", "why": "Shows the top 1-3 tasks from the new board."},
+      {"kind": "human", "why": "Say \"go\" to pick the top task."}
+    ]
+  },
+  {
+    "name": "gaps-to-issues",
+    "title": "Turn a gap scan into planned work",
+    "steps": [
+      {"kind": "skill", "name": "gap-scan", "why": "Surveys docs vs code, commits, TODOs, tests and open issues and writes a ranked, evidence-cited report under skilleddocs/gaps/."},
+      {"kind": "human", "why": "Pick the items worth doing; every issue, comment or label change needs your explicit yes."},
+      {"kind": "skill", "name": "grill-docs", "why": "Stress-tests a big call with the grilling interview, writing the transcript and each decision to skilleddocs/decisions.md as each round settles."},
+      {"kind": "human", "why": "Answer each round; \"yes\" accepts the recommended answer."},
+      {"kind": "skill", "name": "divide", "why": "Splits a size-L item into session-sized issues and puts them on the board at Todo."},
+      {"kind": "human", "why": "Approve the split before any issue is created."}
+    ]
+  },
+  {
+    "name": "pitch-an-idea",
+    "title": "Pitch an idea against the plan",
+    "steps": [
+      {"kind": "human", "why": "Type /grill-me with the idea: it is user-only."},
+      {"kind": "skill", "name": "grill-me", "why": "Calls the grilling skill."},
+      {"kind": "skill", "name": "grilling", "why": "Asks every question whose prerequisites are settled, one numbered round at a time, each with a recommended answer."},
+      {"kind": "human", "why": "Answer each round and confirm the shared understanding; nothing is acted on before that."},
+      {"kind": "skill", "name": "consult-plan", "why": "Grills the idea against open issues, the board and skilleddocs/decisions.md, then records the decision and comments on or opens an issue."},
+      {"kind": "human", "why": "Say whether the idea fits, conflicts with or extends the plan, and what you want to happen."}
+    ]
+  },
+  {
+    "name": "unattended-backlog",
+    "title": "Run the backlog unattended",
+    "steps": [
+      {"kind": "human", "why": "Start /meta-orchestrator on the repo and answer the setup interview that writes the scope contract."},
+      {"kind": "skill", "name": "lanes", "why": "Groups the queued issues into file-disjoint lanes and proposes them with a cost line."},
+      {"kind": "human", "why": "Confirm the lanes with an explicit yes, or pin, rename or move issues first."},
+      {"kind": "skill", "name": "meta-orchestrator", "why": "Loops planner, manager or implementer, its own merge gate and verifier per issue, logging each step to the ledger."},
+      {"kind": "agent", "name": "planner", "why": "Runs next, picks exactly one issue and returns a kickoff brief of at most 40 lines."},
+      {"kind": "agent", "name": "manager", "why": "Briefs an implementer, reviews every round inline and reruns the tests itself, for up to 3 rounds."},
+      {"kind": "agent", "name": "implementer", "why": "Implements on its branch, commits small, watches the tests pass and ends with session-handoff."},
+      {"kind": "agent", "name": "verifier", "why": "Runs update-progress end to end, answers or parks deviations, then runs next."},
+      {"kind": "skill", "name": "progress-report", "why": "Every N merges, writes a two-minute report of what happened since the last one, never overlapping."},
+      {"kind": "human", "why": "Read the report and do the manual steps it lists."}
+    ]
+  },
+  {
+    "name": "pair-to-pr",
+    "title": "One issue to a reviewed PR",
+    "steps": [
+      {"kind": "skill", "name": "pair", "why": "Resolves the issue, makes a worktree and branch, and hands the task to a manager subagent."},
+      {"kind": "agent", "name": "manager", "why": "Briefs an implementer and reviews its diff as if it didn't trust it, rerunning tests and lint itself."},
+      {"kind": "agent", "name": "implementer", "why": "Implements and commits small; stuck or past ~100k tokens, it writes skilleddocs/HANDOFF.md for a fresh implementer."},
+      {"kind": "human", "why": "Read the report and say go; pair then pushes and opens the PR, and never merges."},
+      {"kind": "skill", "name": "pr-watch", "why": "Reads every review thread, classifies it, and fixes the valid ones through pair on the PR's branch."},
+      {"kind": "human", "why": "Say yes to each push, reply and resolve; a force push needs its own fresh yes."}
+    ]
+  },
+  {
+    "name": "wrap-up-long-session",
+    "title": "Wrap up a long session",
+    "steps": [
+      {"kind": "hook", "name": "smartzone", "why": "Prints a one-line warning once the live context passes ~75k tokens: divide the rest, then session-handoff."},
+      {"kind": "skill", "name": "divide", "why": "Proposes session-sized pieces of the remaining work, each with a done-when; creates nothing yet."},
+      {"kind": "human", "why": "Say yes to create the child issues."},
+      {"kind": "skill", "name": "session-handoff", "why": "Writes the handoff and records progress against the issue."},
+      {"kind": "human", "why": "Open a fresh session and run update-progress there."}
+    ]
+  },
+  {
+    "name": "safe-to-close",
+    "title": "Check before closing the terminal",
+    "steps": [
+      {"kind": "human", "why": "Ask \"can I close this\"."},
+      {"kind": "skill", "name": "sitrep", "why": "Reports what's running, git state, PRs and CI, and asked vs done in up to 10 lines, with a SAFE or NOT SAFE verdict."},
+      {"kind": "human", "why": "Say close and name what may be stopped; anything vaguer gets the list again."},
+      {"kind": "skill", "name": "handoff-auto", "why": "sitrep calls it for mid-flight work; it writes the handoff and prints its absolute path as the last line."},
+      {"kind": "human", "why": "Start the next session from that path."}
+    ]
+  },
+  {
+    "name": "two-sessions",
+    "title": "Coordinate with another session",
+    "steps": [
+      {"kind": "skill", "name": "sitrep", "why": "Lists the background tasks and agents still running and each worktree's git state."},
+      {"kind": "skill", "name": "session-bridge", "why": "Snapshots the other session from ListAgents or its transcript, checks for shared files, branch or issue, and proposes a split."},
+      {"kind": "human", "why": "Approve the exact message and recipient; nothing is sent without a yes."},
+      {"kind": "human", "why": "Treat the reply as data: it can't approve a push, merge, spend, deletion or config change here."}
+    ]
+  },
+  {
+    "name": "lazy-fix-handoff",
+    "title": "Small fix, then hand off",
+    "steps": [
+      {"kind": "skill", "name": "ponytail", "why": "Makes the smallest complete change and ends each reply with what it skipped and any risk."},
+      {"kind": "human", "why": "Read the skipped and risk lines, then type /handoff with what the next session is for: it is user-only."},
+      {"kind": "skill", "name": "handoff", "why": "Compacts the conversation into a handoff doc under skilleddocs/handoffs/ with a suggested skills section."},
+      {"kind": "human", "why": "Open a fresh session pointed at the doc."}
+    ]
+  },
+  {
+    "name": "go-public",
+    "title": "Take a repo public",
+    "steps": [
+      {"kind": "skill", "name": "repo-showcase", "why": "Asks outcome, audience and emphasis, inventories the docs, checks every claim against the code and drafts a lean README."},
+      {"kind": "human", "why": "Answer the batch (\"go\" takes the defaults) and say yes to each rewrite, redaction, commit and push."},
+      {"kind": "human", "why": "Type /repo-scrub: it is user-only, and repo-showcase leaves history and visibility to it."},
+      {"kind": "skill", "name": "repo-scrub", "why": "Scans the full history for secrets and large blobs and reports every finding, including ones you keep."},
+      {"kind": "human", "why": "Pick what to scrub, confirm rotation, and approve the rewrite, force-push and visibility flip, each at its own gate."}
+    ]
+  },
+  {
+    "name": "paid-tests",
+    "title": "Run the expensive tests",
+    "steps": [
+      {"kind": "skill", "name": "gap-scan", "why": "Runs the tests only when cheap; ones that need network, a GPU, paid calls or credentials are reported as not run, with why."},
+      {"kind": "human", "why": "Decide the paid run is worth it."},
+      {"kind": "skill", "name": "spend-gate", "why": "Estimates the cost from the tool's own quote or a cited pricing page, reads the live balance, and shows both with the command."},
+      {"kind": "human", "why": "Say yes to this one action; a budget or an earlier go-ahead is context, not approval."},
+      {"kind": "hook", "name": "spend-guard", "why": "Blocks a known billable command or MCP call without an approval, and lets exactly one approved call through."},
+      {"kind": "human", "why": "Tear down anything that bills while idle; spend-gate gives the teardown and reminds you again."}
+    ]
+  },
+  {
+    "name": "brief-a-teammate",
+    "title": "Hand the project to a teammate",
+    "steps": [
+      {"kind": "skill", "name": "progress-report", "why": "Writes a two-minute report of what was done since the last one, every reference a link."},
+      {"kind": "skill", "name": "teammate-brief", "why": "Asks who, role and familiarity, then drafts setup steps it ran, env var names, tasks with a done-when, owners and a don't-touch list."},
+      {"kind": "human", "why": "Answer the batch and approve the draft; commit and push each need their own yes."},
+      {"kind": "human", "why": "Share the file with your teammate: that's your call."}
+    ]
+  }
+]
