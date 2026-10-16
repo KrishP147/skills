@@ -9,9 +9,9 @@ and a `/<name>` detail page for each. No framework, no npm install, no runtime d
 | Path | What |
 |---|---|
 | `src/index.html` | home template (`{{COUNT}}`, `{{LIST}}`, `{{DATA}}` filled at build): welcome + catalog scroll in `.feed`, slash prompt pinned to the viewport bottom in `.dock` (menu opens upward), fixed GitHub link top right, fixed Rocky image link to krishpunjabi.com top left (also on 404; inline in the detail topbar). Under 600px an opaque 66px band sits behind the corner links on non-detail pages so feed text scrolls under it. Intro animation (≤1.5s, any key/click skips) runs only when the inline head script adds `html.intro`, never under `prefers-reduced-motion` |
-| `src/detail.html` | `/<name>` detail page template (sticky slash prompt, header card + chips, sections, prev/next, `#comments` giscus block) |
+| `src/detail.html` | `/<name>` detail page template (sticky slash prompt, `← all commands` link, header card + chips, sections, prev/next, `#comments` giscus block) |
 | `data/meta.json` | per-name author + battle-tested level (`levels_source` says where levels come from); names not listed get level `new`, author defaults to Krish. `aliases` (`{name: [word, ...]}`) adds search words for the slash prompt: lowercase `a-z0-9-`, never an existing name; the build fails on unknown names or bad words. Aliases come only from here, never SKILL.md frontmatter |
-| `src/404.html`, `src/style.css` | not-found page (`noindex`), all styles. Two palettes as `:root` tokens: dark by default, light under `prefers-color-scheme: light` (Claude Code's dark and light themes); rules use only tokens. `--accent` is the text accent (light: darkened to pass 4.5:1), `--accent-line` the brand orange for borders, `--sel-bg` / `--accent-sel` the selected menu row (name and dim text >= 4.5:1 over `--panel`, checked by `PaletteContrastTest`), `--band` the mobile corner band. Every page has `<meta name="color-scheme" content="light dark">` |
+| `src/404.html`, `src/style.css` | not-found page (`noindex`), all styles. Two palettes as `:root` tokens: dark by default, light under `prefers-color-scheme: light` (Claude Code's dark and light themes); rules use only tokens. `--accent` is the text accent (light: darkened to pass 4.5:1), `--accent-line` the brand orange for borders, `--sel-bg` / `--accent-sel` the selected menu row and the home list's hover row (name and dim text >= 4.5:1 over `--panel` and `--bg`, checked by `PaletteContrastTest`), `--band` the mobile corner band. Every page has `<meta name="color-scheme" content="light dark">` |
 | `src/rocky.webp` | 128px Rocky for the krishpunjabi.com corner link (owner's asset, cropped to the carapace, no metadata); copied byte for byte |
 | `src/favicon-32.png`, `src/apple-touch-icon.png` | favicon (32px) and iOS icon (180px, solid dark bg), same Rocky crop; copied byte for byte |
 | `src/filter.js` | pure slash-search logic (browser global `SkillFilter`, CommonJS in node), see [Slash search](#slash-search) |
@@ -46,7 +46,8 @@ optional `aliases` from `meta.json`) in `#skill-data`.
 - **Keys:** the first row is highlighted every time the menu opens (prompt
   click, `/`, Enter or Up/Down on a closed menu, bare `/` included) and every
   time the text changes. Up/Down move the highlight, Tab fills the highlighted
-  name (when that changes nothing, Tab moves focus), Enter or click opens it, Esc clears to `/` (again: closes the menu), `/` anywhere on
+  name (when that changes nothing, Tab moves focus), Enter or click opens it, Esc clears to `/` (again: closes the menu; detail
+  pages, once more: home), `/` anywhere on
   the page focuses the prompt. An exact name shows a dim `↵ to open`; typing
   never navigates by itself.
 - **ARIA:** input `role=combobox` with `aria-expanded` / `aria-activedescendant`,
@@ -103,6 +104,29 @@ preview deploys.
   frontmatter has `disable-model-invocation: true`; hooks: the hook event),
   model / tools / preloads (agents), source (hooks: the `.py` on GitHub),
   prereqs, tested level.
+
+- **Example = transcript.** The Example section is drawn as a Claude Code
+  session in the terminal chrome (`.tx`), from the README's own `## Example`
+  (no extra files). Default: a leading code fence (`/cmd args`) becomes the
+  `> /cmd args` prompt line and everything after it one `⏺` reply block
+  (rendered Markdown). No leading fence (hook output examples): the reply
+  block only.
+- **`transcript` fence** (opt-in, for a full session). Line grammar:
+  `> text` user prompt; `⏺ Tool(args)` a tool call, collapsed in a
+  `<details>`, with the indented `⎿ ...` line (and further indented lines)
+  under it as its result; `⏺ text` a reply (inline Markdown; indented lines
+  continue it); any other line plain dim text. Prompts and tool output stay
+  literal; all markup comes from the build (`md_render.parse_transcript`),
+  raw HTML is escaped. Prose around the fence stays prose. On GitHub it is
+  just a readable code block. Every step must trace to the SKILL.md or agent
+  `.md` (D29). Full transcripts: `meta-orchestrator`, `pair`, `pr-watch`,
+  the agents' shared example, `spend-guard`.
+- **Warning.** An entry with no Example prints
+  `WARN: <name>: no Example section ...` on stderr (the build still
+  succeeds); a test keeps all 28 entries at zero warnings.
+- **Back home.** A visible `← all commands` link above the echoed command;
+  on the prompt, Esc clears the text, then closes the menu, then (bare `/`,
+  menu closed) goes home. On the home page Esc never navigates.
 
 Never add a file named `SKILL.md` under `site/`: lint globs `*/SKILL.md` and
 `*/*/SKILL.md` and would treat it as a skill.
