@@ -19,7 +19,7 @@ Compacts the current conversation into a handoff document so a fresh session can
 ## How it works
 
 1. Summarises the conversation into a document saved in the repo under **`skilleddocs/handoffs/<date>-<slug>.md`** (OS temp dir only when there is no repo). Committed only if the repo already tracks `skilleddocs/` or opts in, never on a fork; otherwise left untracked and git-excluded ([`TRACKING.md`](../handoff-auto/TRACKING.md)).
-2. Adds a "suggested skills" section naming skills the next session should load.
+2. Records branch, base SHA (`git merge-base <default> HEAD`), head SHA and, if the tree is dirty, `git status --short`, and adds a "suggested skills" section naming skills the next session should load.
 3. References existing artifacts (specs, plans, ADRs, issues, commits, diffs) by path/URL instead of copying them.
 4. Redacts secrets and personal data.
 5. If you passed an argument, tailors the doc to that next-session focus.
