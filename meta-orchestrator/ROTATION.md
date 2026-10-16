@@ -12,7 +12,7 @@ Finish the loop in flight first; never hand off mid-merge. `parallel > 1`: start
 ## Hand off
 
 1. Write `skilleddocs/orchestrator/orchestrator-handoff.md`, then commit and push it (unless `docs_commit: uncommitted`):
-   - scope path (+ hash), last ledger entry number
+   - scope path + its hash (`git log -1 --format=%h -- <scope>`; uncommitted: `git hash-object <scope>`), and the number step 2's `handoff` entry will take (last entry + 1)
    - loop state, one line per lane (`parallel: 1` = one line): lane, issue, branch, worktree, step (plan / implement / gate / verify), last result path
    - open worktrees and unmerged branches (flag any linked `node_modules`/`.venv`; tear down only with `pair` §5's steps: move or merge every record in its doc folders into main, unlink, check, then `git worktree remove`)
    - `decisions: assume` → open assumed decisions (`A-n`, one line each)
