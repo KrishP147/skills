@@ -207,12 +207,13 @@ class Ctx:
     def block(self, reason):
         raise Block("Blocked: " + reason)
 
-    def dynamic_exec(self, what):
+    def dynamic_exec(self, what, args=()):
         """`eval $c`, `iex $c`, `& $sb`: code we can't read. Fail closed when
-        the command as a whole mentions push/merge/delete."""
-        if RISKY_WORDS.search(self.top_cmd):
+        the command as a whole mentions push/merge/delete or a gh write, or
+        its `args` read as one (`& $gh issue close 5`)."""
+        if RISKY_WORDS.search(self.top_cmd) or gh_text_write(self.top_cmd) or gh_words_write(list(args)):
             self.block("%s runs code that can't be read, in a command mentioning "
-                       "push/merge/delete; failing closed." % what)
+                       "push/merge/delete or a gh write; failing closed." % what)
         if self.decoder_seen:
             self.block("%s runs code that can't be read, in a command that decodes "
                        "base64/hex; failing closed." % what)
@@ -596,7 +597,7 @@ def is_dynamic(tok):
 def analyze(cmd, ctx, depth=0):
     """Raise Block if any command inside `cmd` is disallowed."""
     if depth > MAX_DEPTH:
-        if RISKY_WORDS.search(cmd):
+        if risky(cmd):
             ctx.block("command nested too deeply to analyse.")
         return
     ps = ctx.powershell
@@ -1160,6 +1161,9 @@ def _run_segment(toks, ctx, subs, depth):
             # `$GIT push origin main`: unknown binary, assume the worst.
             check_git(rest, ctx, subs, depth)
             check_gh(rest, ctx)
+        if not ASSIGN_RE.match(toks[0]) and gh_words_write(rest):
+            ctx.block("a command named by a variable with gh write words (`$gh issue close 5`); "
+                      "failing closed.")
         if not ctx.powershell and not ASSIGN_RE.match(toks[0]):
             ctx.dynamic_exec("a command named by a variable")  # `c='git push ...'; $c`
     elif head not in READERS and pushy(" ".join(rest)):
@@ -1180,7 +1184,7 @@ def call_op(head, rest, ctx, subs, depth):
         analyze(body[:-1] if body.endswith("}") else body, ctx, depth + 1)
         return False
     if is_dynamic(target):  # `& $sb`, `& $exe --version`
-        ctx.dynamic_exec(head + " " + target)
+        ctx.dynamic_exec(head + " " + target, rest[1:])
         return False
     return run_segment(rest, ctx, subs, depth + 1)
 
@@ -1673,7 +1677,7 @@ def check_config(args, ctx):
     if is_dynamic(key):
         ctx.block("git config write of an unreadable key '%s'; failing closed." % key)
     if key.lower().startswith("alias."):  # `git config alias.up push && git up ...`
-        if not is_dynamic(value) and RISKY_WORDS.search(value):
+        if not is_dynamic(value) and risky(value):
             ctx.block("git config %s '%s': an alias that pushes/merges is not allowed." % (key, value))
         ctx.git_aliases[key[6:].lower()] = DYNAMIC if is_dynamic(value) else value
         return
@@ -1956,6 +1960,26 @@ def gh_text_write(text):
     return False
 
 
+def gh_words_write(words):
+    """Words that read as a gh write after an unreadable command name:
+    `$gh issue close 5` -> ['issue', 'close', '5']."""
+    for k, w in enumerate(words):
+        if w not in GH_FAMILIES:
+            continue
+        for cobra in (False, True):
+            pos = gh_positionals(words[k:], cobra)
+            if pos and pos[0] == w and gh_reason(pos, words[k:]):
+                return True
+    return False
+
+
+def risky(text):
+    """Text the fail-closed gates treat as dangerous: push/merge/delete words,
+    a literal gh write, or a gh write after a `$var` command name."""
+    return bool(RISKY_WORDS.search(text) or gh_text_write(text)
+                or ("$" in text and gh_words_write(GH_WORD_RE.findall(text))))
+
+
 def pushy(text):
     """Text naming a push/merge-capable command or a gh write."""
     return PUSHY_RE.search(text) is not None or gh_text_write(text)
@@ -2133,7 +2157,7 @@ def decide(command, ctx):
     except Block as b:
         return str(b)
     except Exception as e:  # noqa: BLE001 - fail closed on risky commands
-        if RISKY_WORDS.search(command):
+        if risky(command):
             return "Blocked: guard-git could not analyse this command (%s: %s); failing closed." % (
                 type(e).__name__, e)
         return None
@@ -3034,6 +3058,26 @@ def run_self_test():
         ("git commit -m 'note: gh issue close is blocked'", A, False),
         ("rg 'gh issue edit' agents/", A, False),
         ("python scripts/gh_issue_edit.py", A, False),
+        # a command named by a variable / unreadable expression + gh write words
+        ("& $gh issue close 5", B, True),
+        ("$gh issue close 5", B, True),
+        (". $gh issue close 5", B, True),
+        ("& ${gh} issue close 5", B, True),
+        ("&$gh issue close 5", B, True),
+        ("& (gcm gh) issue close 5", B, True),
+        ("& $gh label create x", B, True),
+        ("& $x project item-edit --id i", B, True),
+        ("$gh issue close 5", B, False),
+        ("${GH} issue comment 5 -b x", B, False),
+        ("\"$gh\" pr comment 5 -b x", B, False),
+        ("& $py scripts/lint.py", A, True),
+        ("& $exe --version", A, True),
+        ("$PY -m unittest discover -s scripts", A, False),
+        ("& $gh issue view 5", A, True),
+        ("& $gh pr create --fill", A, True),
+        ("$gh pr checks 5", A, False),
+        ("\"$EDITOR\" notes.md", A, False),
+        ("git config alias.ic '!gh issue close'", B, False),
     ]
     for cmd, expect, ps in round191:
         ctx = Ctx(["main", "master"], "/repo", branch_lookup=feat, alias_lookup=lambda cwd, name: None,
