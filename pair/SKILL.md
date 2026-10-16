@@ -73,12 +73,12 @@ Print: branch, worktree, PR URL or "not pushed", test result, rounds, HANDOFF.md
 
 Teardown only after the PR merges. `git worktree remove` and any recursive delete (`rm -rf`, `Remove-Item -Recurse`) follow a link and empty the main checkout's copy: never run them while a link exists.
 
-1. Move the worktree's dated handoffs into the same folder in the main checkout (`<hf>` = AGENTS.md/CLAUDE.md's handoff folder, else `skilleddocs/handoffs`). Left behind, one blocks `git worktree remove`, or is deleted with the worktree when git-excluded, and the verifier on `<default>` never sees it. In main, `update-progress` finds it and commits it per [TRACKING.md](../handoff-auto/TRACKING.md). `mv -n` keeps a same-named file in main and leaves the worktree copy, so step 3 stops on it.
+1. Move the worktree's dated handoffs into the same folder in the main checkout (`<hf>` = AGENTS.md/CLAUDE.md's handoff folder, else `skilleddocs/handoffs`). Left behind, one blocks `git worktree remove`, or is deleted with the worktree when git-excluded, and the verifier on `<default>` never sees it. In main, `update-progress` finds it and commits it per [TRACKING.md](../handoff-auto/TRACKING.md). `mv -n` keeps a same-named file in main and leaves the worktree copy; step 3 stops on any copy left (git would delete a git-excluded one silently).
    - Git Bash or mac/linux: `mkdir -p "<main>/<hf>"; for f in "<wt>/<hf>"/*.md; do [ -e "$f" ] && mv -n "$f" "<main>/<hf>/"; done`
    - PowerShell: `New-Item -ItemType Directory -Force "<main>\<hf>" | Out-Null; Get-ChildItem "<wt>\<hf>\*.md" -ErrorAction SilentlyContinue | Move-Item -Destination "<main>\<hf>\"` (fails, not overwrites, on a name clash).
 2. Unlink each dep (removes the link only): Git Bash or mac/linux `rm "<wt>/.venv"` (no `-r`); PowerShell `cmd /c rmdir "<wt>\.venv"` (not `Remove-Item`).
 3. Hard check; remove only when it passes (`-L` catches a dangling link):
-   - Git Bash or mac/linux: `if [ -e "<wt>/.venv" ] || [ -L "<wt>/.venv" ] || [ -e "<wt>/node_modules" ] || [ -L "<wt>/node_modules" ]; then echo "STOP: dep link in <wt>"; else git worktree remove "<wt>"; fi`
-   - PowerShell: `if (Get-ChildItem -Force "<wt>" | Where-Object Name -in '.venv','node_modules') { "STOP: dep link in <wt>" } else { git worktree remove "<wt>" }`
+   - Git Bash or mac/linux: `if [ -e "<wt>/.venv" ] || [ -L "<wt>/.venv" ] || [ -e "<wt>/node_modules" ] || [ -L "<wt>/node_modules" ] || ls "<wt>/<hf>"/*.md >/dev/null 2>&1; then echo "STOP: dep link or handoff in <wt>"; else git worktree remove "<wt>"; fi`
+   - PowerShell: `if ((Get-ChildItem -Force "<wt>" | Where-Object Name -in '.venv','node_modules') -or (Test-Path "<wt>\<hf>\*.md")) { "STOP: dep link or handoff in <wt>" } else { git worktree remove "<wt>" }`
 
-   STOP → leave the worktree and report which link is left. `git worktree remove` refuses (untracked or modified files) → stop and report `git -C "<wt>" status --short`; never `--force`.
+   STOP → leave the worktree and report which link or handoff is left. `git worktree remove` refuses (untracked or modified files) → stop and report `git -C "<wt>" status --short`; never `--force`.

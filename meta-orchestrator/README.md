@@ -123,7 +123,7 @@ in full, then the rotation after the tenth merge:
 ⏺ PR #40 Add CSV export: 124 passed, diff in scope (src/export.py, tests/test_export.py). Merge?
 > yes
 ⏺ Bash(gh pr merge 40 --squash --delete-branch && git pull --ff-only)
-⏺ Bash(wt=../_worktrees/myrepo-issue-17-csv-export; mkdir -p skilleddocs/handoffs; for f in "$wt/skilleddocs/handoffs"/*.md; do [ -e "$f" ] && mv -n "$f" skilleddocs/handoffs/; done; rm "$wt/.venv"; if [ -e "$wt/.venv" ] || [ -L "$wt/.venv" ] || [ -e "$wt/node_modules" ] || [ -L "$wt/node_modules" ]; then echo "STOP: dep link in $wt"; else git worktree remove "$wt"; fi)
+⏺ Bash(wt=../_worktrees/myrepo-issue-17-csv-export; mkdir -p skilleddocs/handoffs; for f in "$wt/skilleddocs/handoffs"/*.md; do [ -e "$f" ] && mv -n "$f" skilleddocs/handoffs/; done; rm "$wt/.venv"; if [ -e "$wt/.venv" ] || [ -L "$wt/.venv" ] || [ -e "$wt/node_modules" ] || [ -L "$wt/node_modules" ] || ls "$wt/skilleddocs/handoffs"/*.md >/dev/null 2>&1; then echo "STOP: dep link or handoff in $wt"; else git worktree remove "$wt"; fi)
 ⏺ Bash(git commit -m "docs(skilleddocs): ledger 004" && git push)
 ⏺ Merged #17 as PR #40 (squash), 124 passed.
   Next: verify, then the planner picks again.
