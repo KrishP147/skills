@@ -48,7 +48,7 @@ planner → manager | implementer → merge gate (you) → verifier → repeat
    - `auto`: merge in `merge_style`, delete branch, fast-forward default.
    - `ask`: show PR + test result, merge on yes.
    - `pr-only`: leave it for the user; count it as done for the loop. Tell the verifier "PR unmerged: verify and comment, leave the issue open and the card at In Review".
-4. Tear down the issue's worktree with `pair` §5's commands: move its dated handoffs into the main checkout's handoff folder (the verifier finds and commits them there), unlink linked deps, then the hard check that `<wt>/.venv` and `<wt>/node_modules` are gone (dangling links included), and `git worktree remove` only when it passes. Check fails or `remove` refuses → leave the worktree (never `--force`), note what's left in the ledger.
+4. Tear down the issue's worktree with `pair` §5's commands: move its dated handoffs into the main checkout's handoff folder (the verifier finds them there; TRACKING.md decides the commit), unlink linked deps, then the hard check that `<wt>/.venv` and `<wt>/node_modules` are gone (dangling links included), and `git worktree remove` only when it passes. Check fails or `remove` refuses → leave the worktree (never `--force`), note what's left in the ledger.
 5. Ledger entry (§5). Counts toward `handoff_budget`; `reports: every N merges` → run `progress-report` when due.
 
 Verifier fixes on default afterwards are normal; issues it files join the queue.
