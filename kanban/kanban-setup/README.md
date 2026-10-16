@@ -21,11 +21,11 @@ Default `current`. User-invoked only (`disable-model-invocation: true`) because 
 
 ## How it works
 
-1. **Prereq:** `gh auth status` must list the `project` scope; otherwise tells you to run `gh auth refresh -s project -s read:project` and stops.
+1. **Prereq:** `gh auth status` must list the `project` scope; otherwise offers `gh auth refresh -s project -s read:project` (you run it) or label mode, and stops until you pick.
 2. **Board (read-only until you say yes):** looks for `<repo> Board` per `next`'s [`BOARD.md`](../next/BOARD.md) and, if it exists, checks the Status field via `gh project field-list` for an "In Review" option (the default only has Todo/In Progress/Done). Nothing is created in this step. Label mode (four `status:*` labels instead of a board) is used when you ask for it, the `project` scope isn't granted, or the owner can't create projects.
 3. **Scan:** README "Roadmap"/"TODO" sections, `TODO`/`FIXME` comments, `CHANGELOG.md`, `docs/` and plan-like docs; skips `skilleddocs/`, `node_modules`, `.venv` and vendored dirs.
-4. **Candidates per mode:** `current` = undone items (deduped against existing issues); `retroactive` = finished items from CHANGELOG / git log / resolved TODOs; `both` = both, separated.
-5. **Preview, then create:** shows the board actions (create the board, `gh project link <n> --owner <owner> --repo <owner>/<repo>`, add In Review via the `updateProjectV2Field` GraphQL mutation via `gh api graphql` replaying every existing option plus the new one (`gh` can't add an option to an existing field; or add it by hand in the UI), or the label creation) and every issue (title, mode, target column), then waits. On yes: board actions first, then `current` → create + `item-add` + `item-edit` to Todo; `retroactive` → create, close, `item-add` + `item-edit` to Done (`item-add` alone leaves Status empty, so the `item-edit` step is required, not optional).
+4. **Candidates per mode:** both modes drop items that already have an issue (open or closed); `current` = undone items; `retroactive` = finished items from CHANGELOG / git log / resolved TODOs; `both` = both, separated.
+5. **Preview, then create:** shows the board actions (create the board, `gh project link <n> --owner <owner> --repo <owner>/<repo>`, add In Review via the `updateProjectV2Field` GraphQL mutation via `gh api graphql` replaying every existing option plus the new one (`gh` can't add an option to an existing field; or add it by hand in the UI), or the label creation) and every issue (title, mode, target column), then waits. On yes: board actions first, then `current` → create + `item-add` + `item-edit` to Todo; `retroactive` → create, close, `item-add` + `item-edit` to Done (`item-add` alone leaves Status empty, so the `item-edit` step is required, not optional). Label mode: each issue is created with `status:todo`, or `status:done` and closed.
 
 ## Design principles
 

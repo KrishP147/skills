@@ -41,9 +41,12 @@ slash command.
 2. **Git.** For each repo this session ran git in (not only the current
    one): `git worktree list`; per worktree, `git status --porcelain` and
    `git status --porcelain --ignored -- skilleddocs` (handoffs in an excluded
-   `skilleddocs/`), and unpushed commits (`git log <default>..`, or `@{u}..`
-   with an upstream). A branch with 0 commits and a clean tree has nothing to
-   push; "never pushed" is only for commits with no upstream.
+   `skilleddocs/`, or an `AGENTS.md`-set handoff folder), and unpushed commits (`git log <ref>..`, `<ref>` = the
+   upstream, else `origin/<branch>`, else `origin/<default>`; never the local
+   default branch, which hides commits made on it). No remote ref → unpushed
+   is "unknown" and blocks SAFE. A branch with 0 commits and a clean tree has
+   nothing to push; "never pushed" is only for commits with no
+   `origin/<branch>`.
 3. **PRs + CI.** `gh pr list --author @me` with checks status.
 4. **Asked vs. done.** A short checklist built from this conversation's user
    messages — not the whole backlog.
@@ -52,8 +55,9 @@ slash command.
 6. **Verdict.** SAFE to close only if nothing's running, nothing's
    dirty/unpushed (or it's intentional and already handed off), and any
    mid-flight work has a handoff: committed and pushed, or saved on disk per
-   [`TRACKING.md`](../handoff-auto/TRACKING.md) (untracked; the only option
-   on forks). An untracked handoff covers only the work it describes, and
+   [`TRACKING.md`](../handoff-auto/TRACKING.md) (untracked, the only option
+   on forks; or, in commit mode, a dated handoff held uncommitted on a task
+   branch, which doesn't count as dirty and is never suggested for commit). An untracked handoff covers only the work it describes, and
    is NOT SAFE when its worktree is a non-main one or was made by
    pair/meta-orchestrator (it would be removed with the worktree), or when
    unsure. Otherwise NOT SAFE, with the specific reasons.

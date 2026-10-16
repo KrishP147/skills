@@ -52,7 +52,7 @@ Leave the worktree alone while it runs.
 2. Show the report verbatim.
 3. Thin report or risky change → rerun the tests yourself. One-line fixes: commit them.
 4. Unfinished (`skilleddocs/HANDOFF.md`, or the SHA that last held it) → say what's left; offer another round from it.
-5. Before any push: `git -C <worktree> diff --name-only <default>...HEAD` lists no `skilleddocs/HANDOFF.md`, no `skilleddocs/handoffs/` in commit mode, and nothing under `skilleddocs/` when untracked ([TRACKING.md](../handoff-auto/TRACKING.md)). A hit → remove it in a commit.
+5. Before any push: `git -C <worktree> diff --name-only <default>...HEAD` lists no `skilleddocs/HANDOFF.md`, nothing in the handoff folder (AGENTS.md/CLAUDE.md's, else `skilleddocs/handoffs/`) in commit mode, and nothing under `skilleddocs/` or that folder when untracked ([TRACKING.md](../handoff-auto/TRACKING.md)). A hit → remove it in a commit.
 6. `--push` or the user says go:
    ```
    git -C <worktree> push -u origin <branch>

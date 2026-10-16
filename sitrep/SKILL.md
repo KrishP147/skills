@@ -8,14 +8,14 @@ Read-only snapshot of right now; no file writes (progress-report covers history)
 ## 1. Gather
 
 - **Running**: every background `Bash`/`PowerShell`, `Monitor`, and background `Agent` launched this session without a completion notification yet. Per task: age + last line of its output file. `ListAgents` → note peers that look stalled.
-- **Git**, for each repo this session ran git in (not only the cwd's), per `git worktree list` entry: `git status --porcelain` plus `git status --porcelain --ignored -- skilleddocs` (excluded handoffs). Unpushed = commits in `git log <default>.. --oneline` (`<default>` per the `handoff-auto` skill's `TRACKING.md`; with an upstream, `@{u}..` instead). 0 commits and clean → nothing to push, not "never pushed"; commits and no upstream → "never pushed".
+- **Git**, for each repo this session ran git in (not only the cwd's), per `git worktree list` entry: `git status --porcelain` plus `git status --porcelain --ignored -- skilleddocs <handoff folder>` (excluded handoffs; folder per AGENTS.md/CLAUDE.md, if set). Unpushed = `git log <ref>.. --oneline`, `<ref>` = `@{u}`, else `origin/<branch>` if it exists, else `origin/<default>` (`<default>` per the `handoff-auto` skill's `TRACKING.md`); never local `<default>` (on `<default>` it hides everything). No such ref → unpushed "unknown", counted as unpushed. 0 commits and clean → nothing to push; commits and no `origin/<branch>` → "never pushed".
 - **PRs**: `gh pr list -R <o>/<r> --author @me --json number,title,url,isDraft,statusCheckRollup` (`<o>/<r>` per the `next` skill's `BOARD.md`, Target repo section; on a fork also `-R <parent>`, where its PRs land) → passing / failing / pending.
 - **Asked vs done**: each distinct ask in this conversation → done / in progress / not started.
 - **Needs you**: keys, approvals, manual steps, unanswered questions. "none" if none.
 
 ## 2. Verdict
 
-**SAFE** only when nothing runs and nothing is dirty or unpushed, or the mid-flight work is covered by a handoff: committed + pushed, or saved on disk per [TRACKING.md](../handoff-auto/TRACKING.md) (untracked, `skilleddocs/` excluded; the only option on forks). Cover is for the work the handoff describes; other dirty/unpushed code still needs commit/push or a mention in the handoff.
+**SAFE** only when nothing runs and nothing is dirty or unpushed, or the mid-flight work is covered by a handoff: committed + pushed, or saved on disk per [TRACKING.md](../handoff-auto/TRACKING.md): untracked, `skilleddocs/` excluded (the only option on forks), or a dated handoff held uncommitted on a task branch in commit mode. That held file isn't dirty; never suggest committing it. Cover is for the work the handoff describes; other dirty/unpushed code still needs commit/push or a mention in the handoff.
 
 An untracked handoff dies with its worktree: **NOT SAFE** if that worktree is not the main one (first `git worktree list` entry) or was created this session via pair/meta-orchestrator, or if unsure it survives. Reason names the handoff path: move it out or keep the worktree.
 
