@@ -33,16 +33,20 @@ phrases above work without the slash command.
 
 ## How it works
 
-1. **Sync.** Per repo: `git status --porcelain`; if dirty, skip the pull and
-   say so; if clean, `git pull --ff-only` (a diverged history is reported
-   the same as dirty, never force-merged). A fork also fetches `upstream`,
+1. **Sync.** Per repo: if dirty (tracked changes, or untracked files outside
+   `skilleddocs/`, so its own report doesn't count), skip the pull and say
+   so; no upstream or no remote: skip the pull and say so; otherwise
+   `git pull --ff-only` (a diverged history is reported the same as dirty,
+   never force-merged). A fork also fetches `upstream`,
    reports how far ahead/behind it is, and pulls upstream's own
    `good first issue`-labeled issues.
 2. **Survey.** README and docs (flagging doc/code drift), the last ~20
    commits (default; `--commits` overrides), a `TODO`/`FIXME`/`XXX` grep
    over code, the repo's detected test command (run if it looks cheap,
    otherwise skipped with a reason), and every open issue — so a gap that's
-   already tracked is marked as such instead of proposed again.
+   already tracked is marked as such instead of proposed again. If `gh` can't
+   reach the issues (non-GitHub remote, no auth), the summary says `Issues:
+   not checked (why)` and items read `new (issues unchecked)`.
 3. **Optional visual pass.** Only for a web/UI app, using the `run` skill or
    a screenshot capability if this session has one; skipped (with a reason)
    for libraries, CLIs, and backend-only services, or when no such tool is
@@ -51,13 +55,14 @@ phrases above work without the slash command.
    trade-off, an `S`/`L` size tag, and mandatory evidence — no evidence, no
    listing.
 5. **Write.** One file, `skilleddocs/gaps/<local-date>.md` — the only write
-   this skill makes. Never committed unless asked.
+   this skill makes. Never committed unless asked; `skilleddocs/` is excluded
+   per [`TRACKING.md`](../handoff-auto/TRACKING.md).
 6. **Report.** A short chat summary plus the top items inline; full detail
    in the file.
 7. **Gate.** Creating issues, commenting, or touching a board needs an
    explicit yes for that specific action; a vague reply means do nothing.
-   Offers `kanban-setup`, `divide`, or `grill-docs` as next steps instead of
-   taking them itself.
+   Offers `kanban-setup` (user-only: you type `/kanban-setup`), `divide`, or
+   `grill-docs` as next steps instead of taking them itself.
 
 Reads: `git`, `gh`, the repo's files and test command, optionally the `run`
 skill. Writes: `skilleddocs/gaps/<local-date>.md` only.
@@ -137,8 +142,9 @@ Report: skilleddocs/gaps/2026-09-26.md
    (evidence: site/src/detail.html:17)
 3. [S] README section backfill - already tracked: #22
 
-Tests: ran (python unittest suite), 9 passed.
-Visual pass: skipped (the site is a sub-project; not in scope this pass).
+Issues: 14 open, 1 matched.
+Tests: 9 passed (python unittest suite).
+Visual: skipped (the site is a sub-project; not in scope this pass).
 ```
 
 No issues were created — that needs an explicit yes (the gate in `SKILL.md`).
