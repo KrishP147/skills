@@ -28,7 +28,7 @@ Use the AskUserQuestion tool when available (≤4 questions per call, recommende
 
 | Round | Keys |
 |---|---|
-| 1. Run shape | `scope`, `exclude`, `stop`, `execution`, `parallel` |
+| 1. Run shape | `scope`, `exclude`, `stop`, `execution`, `parallel` + `lanes` (run the [`lanes`](../lanes/SKILL.md) grouping on the queue instead of asking a bare number) |
 | 2. Control | `merge`, `merge_style`, `pr_body`, `interview`, `escalate` |
 | 3. Documentation | `docs`, `docs_commit`, `reports`, `report_format` + `ledger_detail` |
 | 4. Models and pacing | `implementer_model`, `review_model`, `handoff_budget`, `notify` |
@@ -44,7 +44,7 @@ Use the AskUserQuestion tool when available (≤4 questions per call, recommende
 | `order` | priority label → board order → oldest · roadmap order · explicit | planner's ordering |
 | `stop` | queue empty · after N merges · after a time box | when SKILL.md §7 "done" applies |
 | `execution` | `pair` · `flat` | manager per issue, or implementer directly |
-| `parallel` | 1 · 2–3 managers in separate worktrees | concurrent issues (needs worktrees) |
+| `parallel` | 1 · the count [`lanes`](../lanes/SKILL.md) proposes (file-disjoint groups of the queue) | concurrent issues, one worktree per lane; `lanes:` maps each named lane to its issues |
 | `merge` | `auto` when the gate is green · `ask` before each merge · `pr-only` (open PRs, user merges) | SKILL.md §3 step 3 |
 | `merge_style` | repo's existing style · squash · merge commit · rebase | how PRs land |
 | `interview` | `answer` (agents answer for me from the written plan) · `park` (deviations wait for me) | verifier + consult-plan |
