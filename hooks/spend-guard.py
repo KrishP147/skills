@@ -74,7 +74,7 @@ DEFAULT_BASH_PATTERNS = [
     _RP + r"""pods?\s+update\b[^\n]*--(?:volume-in-gb|container-disk-in-gb)\b""",
     _RP + r"""model\s+add\b""",
     r"""\bvultr-cli(?:\.exe|\.cmd)?["']?\s+instance\s+create\b""",
-    r"""\baws(?:\.exe|\.cmd)?["']?\s+ec2\s+run-instances\b""",
+    r"""\baws(?:\.exe|\.cmd)?["']?\s+ec2\s+(?:run-instances|request-spot-instances|request-spot-fleet)\b""",
     r"""\bgcloud(?:\.exe|\.cmd)?["']?\s+compute\s+instances\s+create\b""",
     r"""\baz(?:\.exe|\.cmd)?["']?\s+vm\s+create\b""",
     r"""\bmodal(?:\.exe|\.cmd)?["']?\s+deploy\b""",
@@ -400,6 +400,597 @@ def powershell_inline_approved(command, spans=None):
         return False
 
 
+# --- issue #160: indirection, Start-Process, REST and SDK billers ---------
+#
+# The default patterns read the command text literally. indirect_billable()
+# also checks rewritten "variants" of the command, plus a few rules of its
+# own, so a billable call hidden behind an alias, function, variable,
+# Start-Process, encoding, REST call or SDK one-liner still blocks:
+#   1. definitions read from the command itself (bash `X=v`, `alias r=v`,
+#      `f(){ ...; }`, `function f {...}`; PowerShell `$X = v`, `Set-Alias`,
+#      `function f {...}`) are substituted back into their call sites and
+#      the patterns re-run on the result;
+#   2. Start-Process/saps/start params are reassembled into `<file> <args>`;
+#   3. quote, comma, paren and backtick noise is stripped (`'run''podctl'`,
+#      `{runpodctl,create,pod}`, `` r`unpodctl ``), `$'\x72...'` decoded and
+#      base64 (`-EncodedCommand`, `base64 -d`) decoded;
+#   4. REST/GraphQL writes to provider APIs and SDK one-liners block;
+#   5. fallback: a call target (or the first args of a billable CLI) that is
+#      a variable with no readable definition blocks when the command
+#      mentions a billable program. False positives are cheap here, false
+#      negatives are not.
+# Every rule is a regex scan or a single linear pass; the number of variants
+# and definitions is capped so a long command stays well under a second.
+
+_PROG_RE = r"(?:runpodctl|vultr-cli|aws|gcloud|az|modal)"
+_PROG_WORD_RE = re.compile(
+    r"(?<![\w.$@-])(" + _PROG_RE + r")(?:\.exe|\.cmd)?(?![\w.-])", re.I)
+_MENTION_RE = re.compile(
+    r"(?<![\w.-])" + _PROG_RE + r"(?:\.exe|\.cmd)?(?![\w.-])"
+    r"|\brunpod\b|\bboto3\b|runpod\.(?:io|ai)\b|api\.vultr\.com"
+    r"|amazonaws\.com|compute\.googleapis\.com|management\.azure\.com", re.I)
+
+_MAX_DEFS = 64
+_MAX_VARIANT_GROWTH = 8
+
+# bash NAME=value (quoted parts, $(...), backticks, plain chars, repeated)
+_BASH_ASSIGN_RE = re.compile(
+    r"""(?:^|(?<=[\s;&|(){}`]))([A-Za-z_]\w*)=((?:'[^']*'|"(?:[^"\\]|\\.)*"|\$\([^)]*\)|`[^`]*`|\$(?!\()|[^\s;&|()`'"$])*)""")
+# PowerShell $X = value / $env:X = value (to end of statement)
+_PS_ASSIGN_RE = re.compile(
+    r"""\$\{?(?:(?:env|global|script|local|private|using):)?([A-Za-z_]\w*)\}?[ \t]*=(?!=)[ \t]*([^;\n\r]*)""",
+    re.I)
+_FUNC_DEF_RE = re.compile(
+    r"""(?:(?<![\w-])(?:function|filter)\s+([\w.:-]+)\s*(?:\([^)]*\))?|(?<![\w$@.:\\/-])([A-Za-z_][\w.:-]*)\s*\(\s*\))\s*([{(])""",
+    re.I)
+_PS_FUNC_PROVIDER_RE = re.compile(r"""(?<![\w-])function:([\w.-]+)\}?""", re.I)
+_BASH_ALIAS_RE = re.compile(r"""(?<![\w-])alias\s+([^;\n\r|&]*)""")
+_ALIAS_TOKEN_RE = re.compile(r"""([\w.:-]+)=('[^']*'|"[^"]*"|\S*)""")
+_PS_ALIAS_RE = re.compile(r"""(?<![\w-])(?:Set-Alias|New-Alias|sal|nal)\s+([^;\n\r|]*)""", re.I)
+_PS_ALIAS_PROVIDER_RE = re.compile(r"""(?<![\w-])alias:([\w.-]+)\}?([^;\n\r|]*)""", re.I)
+_TOKEN_RE = re.compile(r"""'[^']*'|"[^"]*"|[^\s,]+""")
+
+_VAR_REF_RE = re.compile(
+    r"""\$\{([^}\s{$]{0,200})\}|\$(?:(?:env|global|script|local|private|using):)?([A-Za-z_]\w*)|(?<=\s)@([A-Za-z_]\w*)|%([A-Za-z_]\w*)%""",
+    re.I)
+_FORWARD_RE = re.compile(r"""["']?(?:\$@|\$\*|\$\{@\}|\$\{\*\}|@args|\$args|\$input)["']?""", re.I)
+_POSARG_RE = re.compile(r"""\$\{?([1-9])\}?|\$args\[(\d)\]""", re.I)
+
+
+def _unquote(v):
+    v = v.strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in "'\"":
+        return v[1:-1]
+    return v
+
+
+def _brace_end(s, i):
+    """Index of the bracket closing s[i] ({ or (), or len(s)."""
+    open_c = s[i]
+    close_c = "}" if open_c == "{" else ")"
+    depth = 0
+    for m in re.finditer(re.escape(open_c) + "|" + re.escape(close_c), s[i:]):
+        depth += 1 if m.group(0) == open_c else -1
+        if depth == 0:
+            return i + m.start()
+    return len(s)
+
+
+def _parse_defs(command):
+    """Return (vars, funcs, def_spans). vars: lower name -> set of values;
+    funcs: lower name -> list of bodies (aliases are bodies too); def_spans:
+    (start, end) of function/alias definitions, blanked before call-site
+    expansion so a definition is not mistaken for a call."""
+    vars_ = {}
+    funcs = {}
+    spans = []
+
+    def add_var(name, val):
+        if len(vars_) < _MAX_DEFS or name.lower() in vars_:
+            vars_.setdefault(name.lower(), set()).add(val)
+
+    def add_func(name, body, span):
+        if len(funcs) < _MAX_DEFS or name.lower() in funcs:
+            funcs.setdefault(name.lower(), []).append(body)
+            spans.append(span)
+
+    for m in _BASH_ASSIGN_RE.finditer(command):
+        add_var(m.group(1), _unquote(m.group(2)))
+    for m in _PS_ASSIGN_RE.finditer(command):
+        add_var(m.group(1), _unquote(m.group(2)))
+    for m in _FUNC_DEF_RE.finditer(command):
+        name = m.group(1) or m.group(2)
+        if name.lower() in ("if", "while", "for", "foreach", "until", "switch",
+                            "elif", "select", "case"):
+            continue
+        end = _brace_end(command, m.start(3))
+        add_func(name, command[m.end(3):end], (m.start(), end + 1))
+    for m in _PS_FUNC_PROVIDER_RE.finditer(command):
+        rest = command[m.end():]
+        stop = re.search(r"[;\n\r]", rest)
+        brace = rest.find("{")
+        if brace != -1 and (stop is None or brace < stop.start()):
+            end = _brace_end(rest, brace)
+            add_func(m.group(1), rest[brace + 1:end], (m.start(), m.end() + end + 1))
+        else:
+            seg = rest[:stop.start()] if stop else rest
+            add_func(m.group(1), seg, (m.start(), m.end() + len(seg)))
+    for m in _BASH_ALIAS_RE.finditer(command):
+        for t in _ALIAS_TOKEN_RE.finditer(m.group(1)):
+            add_func(t.group(1), _unquote(t.group(2)) + ' "$@"', (m.start(), m.end()))
+    for m in _PS_ALIAS_RE.finditer(command):
+        name = value = None
+        toks = _TOKEN_RE.findall(m.group(1))
+        i = 0
+        pos = []
+        while i < len(toks):
+            t = toks[i]
+            tl = t.lower()
+            if tl.startswith("-n"):
+                name = toks[i + 1] if i + 1 < len(toks) else None
+                i += 2
+                continue
+            if tl.startswith("-v"):
+                value = toks[i + 1] if i + 1 < len(toks) else None
+                i += 2
+                continue
+            if tl.startswith(("-s", "-o", "-d")):
+                i += 2
+                continue
+            if tl.startswith("-"):
+                i += 1
+                continue
+            pos.append(t)
+            i += 1
+        if name is None and pos:
+            name = pos.pop(0)
+        if value is None and pos:
+            value = pos.pop(0)
+        if name and value:
+            add_func(_unquote(name), _unquote(value) + " @args", (m.start(), m.end()))
+    for m in _PS_ALIAS_PROVIDER_RE.finditer(command):
+        toks = [t for t in _TOKEN_RE.findall(m.group(2)) if not t.startswith("-")]
+        if toks:
+            add_func(m.group(1), _unquote(toks[0]) + " @args", (m.start(), m.end()))
+    return vars_, funcs, spans
+
+
+def _subst_vars(text, vars_):
+    """Replace $X / ${X} / $env:X / @X with X's value when X has exactly one
+    readable definition; others are left in place (unresolved)."""
+    def rep(m):
+        raw = m.group(1)
+        if raw is not None:
+            name = raw.split(":", 1)[-1] if ":" in raw else raw
+            if not re.match(r"^[A-Za-z_]\w*$", name):
+                return m.group(0)
+        else:
+            name = m.group(2) or m.group(3) or m.group(4)
+        vals = vars_.get(name.lower())
+        if vals and len(vals) == 1:
+            return next(iter(vals))
+        return m.group(0)
+    out = text
+    limit = len(text) * _MAX_VARIANT_GROWTH + 4096
+    for _ in range(3):
+        new = _VAR_REF_RE.sub(rep, out)
+        if new == out or len(new) > limit:
+            break
+        out = new
+    return out
+
+
+def _posarg(pm, argv):
+    idx = int(pm.group(1)) if pm.group(1) else int(pm.group(2)) + 1
+    return argv[idx - 1] if idx <= len(argv) else ""
+
+
+def _expand_calls(text, funcs, prog_only):
+    """Replace each call of a defined function/alias with its body (args
+    spliced into $@/$*/$1../@args/$args), or with only the billable program
+    its body names when prog_only."""
+    names = sorted(funcs, key=len, reverse=True)
+    if not names:
+        return text
+    call_re = re.compile(
+        r"(?<![\w$@.:/\\-])(" + "|".join(re.escape(n) for n in names)
+        + r")(?![\w.:/\\-])([^;&|\n\r)}]*)", re.I)
+
+    def rep(m):
+        args = m.group(2)
+        bodies = funcs.get(m.group(1).lower()) or []
+        if prog_only:
+            for body in bodies:
+                p = _PROG_WORD_RE.search(body)
+                if p:
+                    return p.group(0) + args
+            return m.group(0)
+        parts = []
+        argv = args.split()
+        for body in bodies:
+            b = _FORWARD_RE.sub(lambda _m: " " + args + " ", body)
+            b = _POSARG_RE.sub(lambda pm: _posarg(pm, argv), b)
+            parts.append(b)
+        return " ; ".join(parts) if parts else m.group(0)
+
+    out = text
+    limit = len(text) * _MAX_VARIANT_GROWTH + 4096
+    for _ in range(3):
+        new = call_re.sub(rep, out)
+        if new == out or len(new) > limit:
+            break
+        out = new
+        if prog_only:
+            break
+    return out
+
+
+def _blank_spans(text, spans):
+    if not spans:
+        return text
+    chars = list(text)
+    for a, b in spans:
+        for i in range(max(a, 0), min(b, len(chars))):
+            chars[i] = " "
+        if 0 <= a < len(chars):
+            chars[a] = ";"
+    return "".join(chars)
+
+
+_START_PROC_RE = re.compile(r"(?<![\w-])(?:Start-Process|saps|start)(?![\w-])([^;\n\r|]*)", re.I)
+
+
+def _start_process_variant(text):
+    """`Start-Process [-FilePath] f [-ArgumentList] a,b ...` -> `f a b`, one
+    line per occurrence, so the default patterns can read it."""
+    out = []
+    for m in _START_PROC_RE.finditer(text):
+        toks = _TOKEN_RE.findall(m.group(1))
+        fp = None
+        args = []
+        in_args = False
+        i = 0
+        while i < len(toks):
+            t = toks[i]
+            tl = t.lower()
+            if tl.startswith("-") and len(tl) > 1 and tl[1].isalpha():
+                in_args = False
+                if tl.startswith("-f"):
+                    if i + 1 < len(toks):
+                        fp = toks[i + 1]
+                    i += 2
+                    continue
+                if tl.startswith("-a"):
+                    in_args = True  # following tokens are arguments
+                    i += 1
+                    continue
+                if tl.startswith(("-wa", "-n", "-p", "-u", "-l")):
+                    i += 1
+                    continue  # switch
+                if tl.startswith(("-w", "-v", "-r", "-c", "-e")):
+                    i += 2
+                    continue  # param with a value
+                i += 1
+                continue
+            if fp is None and not in_args:
+                fp = t
+            else:
+                args.append(t)
+            i += 1
+        if fp:
+            out.append(" ".join(_unquote(t) for t in [fp] + args))
+    return "\n".join(out)
+
+
+_B64_GATE_RE = re.compile(r"base64|FromBase64String|(?<![\w-])-(?:e|ec|en|enc\w*)(?![\w-])", re.I)
+_B64_TOKEN_RE = re.compile(r"[A-Za-z0-9+/]{16,}={0,2}")
+
+
+def _b64_variant(text):
+    """Decoded base64 tokens (UTF-16LE for -EncodedCommand, else UTF-8),
+    only when the command decodes base64 at all."""
+    if not _B64_GATE_RE.search(text):
+        return ""
+    import base64
+    out = []
+    for m in list(_B64_TOKEN_RE.finditer(text))[:200]:
+        tok = m.group(0)
+        try:
+            raw = base64.b64decode(tok + "=" * (-len(tok) % 4), validate=True)
+        except Exception:
+            continue
+        # UTF-16LE (-EncodedCommand) only when every high byte is zero
+        wide = len(raw) >= 2 and len(raw) % 2 == 0 and not raw[1::2].strip(b"\x00")
+        for enc in (("utf-16-le",) if wide else ("utf-8",)):
+            try:
+                s = raw.decode(enc)
+            except Exception:
+                continue
+            if s and sum(c.isprintable() or c in "\r\n\t" for c in s) >= 0.9 * len(s):
+                out.append(s)
+                break
+    return "\n".join(out)
+
+
+_ANSI_C_RE = re.compile(r"\$'((?:[^'\\]|\\.)*)'")
+_CONCAT_RE = re.compile(r"""['"]\s*\+\s*['"]""")
+
+
+def _normalize(text):
+    """Strip quoting/grouping noise: `'run''podctl'`, `"run"podctl`,
+    `('run'+'podctl')`, `{runpodctl,create,pod}`, PowerShell backtick
+    escapes, `$'\\x72unpodctl'`, and arg forwarders."""
+    def ansi(m):
+        try:
+            import codecs
+            return codecs.decode(m.group(1), "unicode_escape")
+        except Exception:
+            return m.group(1)
+    t = _ANSI_C_RE.sub(ansi, text)
+    t = _CONCAT_RE.sub("", t)
+    t = _FORWARD_RE.sub(" ", t)
+    t = re.sub(r"\)\.(?:Source|Path|Definition|Name)\b", ")", t, flags=re.I)  # (gcm x).Source
+    t = re.sub(r"""\$\(\s*\)|``|['"`]""", "", t)
+    t = re.sub(r"[(){},@\[\]]", " ", t)
+    return t
+
+
+def _norms(v):
+    """_normalize(v), plus a copy without backslashes (bash `r\\unpodctl`;
+    kept apart so a Windows path keeps its word boundary in the first)."""
+    n = _normalize(v)
+    return [n, n.replace("\\", "")] if "\\" in n else [n]
+
+
+# --- REST / GraphQL ---------------------------------------------------------
+# Write = an explicit POST/PUT/PATCH anywhere, or a body flag (curl -d,
+# --data*, --json, -F, -T; wget --post-*; PowerShell -Body/-InFile; python
+# data=/json=). Case-sensitive for the short curl flags (-f is --fail).
+_WRITE_RE = re.compile(
+    r"""(?i:(?<![\w-])(?:POST|PUT|PATCH)(?![\w-]))"""
+    r"""|(?<![\w-])-[a-zA-Z]*[dFT](?=[\s=@'"{]|$)"""
+    r"""|(?i:(?<![\w-])(?:--data[\w-]*|--json|--form[\w-]*|--upload-file|--post-data|--post-file|--body-data|--body-file|-Body|-InFile|-Form)(?![\w-]))"""
+    r"""|(?<![\w.])(?:data|json)\s*=(?!=)""")
+
+# (label, host regex capturing the path, path regex that does NOT bill)
+_REST_HOSTS = [
+    ("Runpod REST", r"rest\.runpod\.io(/[^\s'\"`\\]*)?",
+     r"^/v\d+/(?:templates|containerregistryauths?|registries|secrets|user|billing)\b|/stop\b"),
+    ("Runpod serverless", r"api\.runpod\.ai(/[^\s'\"`\\]*)?",
+     r"/(?:cancel|purge-queue|status|health|stream)\b|/graphql\b"),
+    ("Vultr", r"api\.vultr\.com(/[^\s'\"`\\]*)?",
+     r"^/v\d+/(?:ssh-keys|firewalls|startup-scripts|domains|users|account|iso)\b|/halt\b"),
+    ("Google Compute", r"compute\.googleapis\.com(/[^\s'\"`\\]*)?",
+     r"^(?!.*/instances\b)|/(?:stop|suspend|reset)\b|/delete\b"),
+    ("Azure", r"management\.azure\.com(/[^\s'\"`\\]*)?",
+     r"^(?!.*Microsoft\.Compute/virtualMachines)|/(?:powerOff|deallocate)\b"),
+]
+_REST_HOSTS = [(lab, re.compile(h, re.I), re.compile(f, re.I)) for lab, h, f in _REST_HOSTS]
+_AWS_QUERY_RE = re.compile(
+    r"Action=(?:RunInstances|RequestSpotInstances|RequestSpotFleet|CreateFleet|StartInstances)\b", re.I)
+_GRAPHQL_HOST_RE = re.compile(r"runpod\.(?:io|ai)(?::\d+)?/graphql", re.I)
+_GQL_BILL_NAMES_RE = re.compile(
+    r"podFindAndDeployOnDemand|podRentInterruptable|podResume|podBidResume|saveEndpoint"
+    r"|deployCpuPod|createNetworkVolume|updateNetworkVolume|podEditJob", re.I)
+_GQL_MUTATION_RE = re.compile(r"\bmutation\b", re.I)
+_GQL_BILL_WORD_RE = re.compile(r"deploy|rent|resume|create|save|update|edit|bid|start|launch", re.I)
+# a readable GraphQL operation: `query {`, `mutation Name(...) {`, or the
+# anonymous `{"query": "{ ... }"}` shorthand (not a `mutation.json` filename)
+_GQL_ANY_OP_RE = re.compile(
+    r"""\b(?:query|mutation)\s*(?:[A-Za-z_]\w*\s*)?(?:\([^)]*\)\s*)?\{|["']query\\?["']\s*:\s*\\?["']\s*\{""",
+    re.I)
+
+
+_GQL_FIELD_RE = re.compile(r"\b([A-Za-z_]\w*)\s*[({]")
+
+
+def _rest_hits(text, gql_readable):
+    """Distinct REST/GraphQL billing calls found in one variant's text. A
+    GraphQL mutation bills when a field or operation name under `mutation`
+    reads deploy/rent/resume/create/save/update/edit/bid/start/launch (or is
+    a known billable one); a write whose body holds no readable `query` or
+    `mutation` in any variant (gql_readable False: `-d @file`, `-InFile`)
+    is treated as billable too."""
+    hits = set()
+    write = bool(_WRITE_RE.search(text))
+    if _GRAPHQL_HOST_RE.search(text):
+        bill = bool(_GQL_BILL_NAMES_RE.search(text))
+        for k, mut in enumerate(_GQL_MUTATION_RE.finditer(text)):
+            if k >= 20:
+                bill = True  # absurd number of mutations: fail closed
+                break
+            window = text[mut.end():mut.end() + 2000]
+            if any(_GQL_BILL_WORD_RE.search(f) for f in _GQL_FIELD_RE.findall(window)):
+                bill = True
+                break
+        if bill or (write and not gql_readable):
+            hits.add("Runpod GraphQL billable mutation (or unreadable body)")
+    if write:
+        for label, host_re, free_re in _REST_HOSTS:
+            for m in host_re.finditer(text):
+                if not free_re.search(m.group(1) or ""):
+                    hits.add("%s write to %s" % (label, m.group(0)[:80]))
+    if _AWS_QUERY_RE.search(text):
+        hits.add("AWS EC2 query API launch")
+    return hits
+
+
+# --- SDK one-liners ---------------------------------------------------------
+_SDK_GATE_RE = re.compile(
+    r"(?<![\w.-])(?:i?python[\d.]*w?|py|pypy3?)(?:\.exe)?(?![\w.-])|\bimport\b", re.I)
+_SDK_RULES = [
+    ("Runpod SDK", re.compile(r"\brunpod\b"), re.compile(
+        r"\b(?:create_pod|create_endpoint|resume_pod|create_network_volume|create_cluster"
+        r"|update_endpoint\w*|run_sync|run_async)\s*\("
+        r"|\bEndpoint\b[\s\S]{0,400}?\.\s*run\w*\s*\(")),
+    ("boto3 EC2", re.compile(r"\bboto3\b"), re.compile(
+        r"\b(?:run_instances|request_spot_instances|request_spot_fleet|create_fleet"
+        r"|create_instances|start_instances)\s*\(")),
+    ("Google Compute SDK", re.compile(r"compute_v1|googleapiclient|google\.cloud\.compute"),
+     re.compile(r"\.\s*(?:insert|start|resume)\s*\(")),
+    ("Azure Compute SDK", re.compile(r"azure\.mgmt\.compute|ComputeManagementClient"),
+     re.compile(r"virtual_machines\s*\.\s*begin_(?:create_or_update|start)\s*\(")),
+    ("Modal SDK", re.compile(r"\bmodal\b"), re.compile(
+        r"\b(?:deploy|deploy_app|deploy_stub)\s*\(|\.\s*(?:deploy|remote|spawn)\s*\(")),
+]
+
+
+def _sdk_hits(text):
+    """(labels, number of billable SDK calls) in one variant's text; only
+    when a Python interpreter or an `import` is present."""
+    if not _SDK_GATE_RE.search(text):
+        return set(), 0
+    labels = set()
+    n = 0
+    for label, mod_re, call_re in _SDK_RULES:
+        if mod_re.search(text):
+            k = len(call_re.findall(text))
+            if k:
+                labels.add(label)
+                n += k
+    return labels, n
+
+
+# --- fallback: unreadable call targets ---------------------------------------
+_PS_OPS = (r"-(?:eq|ne|gt|ge|lt|le|like|notlike|match|notmatch|contains|notcontains"
+           r"|in|notin|and|or|not|xor|is|isnot|as|replace|split|join|band|bor|f)\b")
+# PowerShell automatic variables ($_, $true, ...) are never call targets
+_VAR_TOKEN = (r"""\$(?!\()(?!(?:_|psitem|true|false|null|this|matches|lastexitcode|error|input|\?)(?![\w:]))"""
+              r"""(?:\{[^}\s{$]{0,200}\}|[\w:!#?@*]+)""")
+# a variable as the command run: start of a statement / after a wrapper,
+# optional `X=y` prefixes and `&`/`.` call operator, then $var, then an arg
+# or end of statement (not `=`, `|`, `.member`, a PowerShell operator)
+_CALL_VAR_RE = re.compile(
+    r"""(?:^|[;&|({}\n\r`]|\$\(|(?<![\w-])(?:then|do|else|exec|command|builtin|sudo|nohup|time"""
+    r"""|xargs|env|source|Start-Process|saps|start|Invoke-Command|icm|-c|/c|-Command|-FilePath|-ScriptBlock)(?![\w-])"""
+    r"""|(?<![\w$.])\.)[ \t]*(?:[A-Za-z_]\w*=[^\s;&|]*[ \t]+)*(?:[&.][ \t]*)?["']?"""
+    + _VAR_TOKEN
+    + r"""["']?(?=[ \t]*(?:$|[;&)}\n\r])|[ \t]+(?![|=]|[-+*/%]=|in\b|""" + _PS_OPS + r"""))""",
+    re.I)
+# eval/iex of text holding a variable, scriptblock from a variable
+_EVAL_VAR_RE = re.compile(
+    r"""(?<![\w-])(?:eval|iex|Invoke-Expression)(?![\w-])[^;\n\r|$]{0,1000}\$(?!\()"""
+    r"""|::Create\s*\(\s*\$|\.Invoke\s*\(""", re.I)
+# first args of a billable CLI that are dynamic: (prog, prefixes that may
+# precede the dynamic arg)
+_DYN_ARG_PREFIXES = {
+    "runpodctl": [(), ("pod",), ("pods",), ("serverless",), ("sls",),
+                  ("network-volume",), ("nv",), ("model",)],
+    "vultr-cli": [(), ("instance",)],
+    "aws": [(), ("ec2",)],
+    "gcloud": [(), ("compute",), ("compute", "instances")],
+    "az": [(), ("vm",)],
+    "modal": [()],
+}
+_XARGS_TAIL_RE = re.compile(r"(?<![\w-])(?:xargs|parallel)(?![\w-])[^;&|\n\r]*$")
+
+
+def _dynamic_arg_hit(text):
+    """True if a billable CLI's verb position holds a variable, $(...),
+    @splat or (...) whose value can't be read: `runpodctl $X`,
+    `aws ec2 $ACTION`, `runpodctl @a`, `xargs -I{} runpodctl {} pod`; or
+    `xargs runpodctl [pod]`, whose verb arrives on stdin."""
+    for n, m in enumerate(_PROG_WORD_RE.finditer(text)):
+        if n >= 200:
+            return True  # absurd number of mentions: fail closed
+        prog = m.group(1).lower()
+        prefixes = _DYN_ARG_PREFIXES.get(prog, [])
+        stop = re.search(r"[;&|\n\r]", text[m.end():m.end() + 2000])
+        seg = text[m.end():m.end() + (stop.start() if stop else 2000)]
+        toks = seg.split()
+        pos = []
+        i = 0
+        while i < len(toks) and len(pos) < 4:
+            t = toks[i].strip("'\"")
+            if not t:
+                i += 1
+                continue
+            if t in (":::", "::::", ":::+"):
+                break  # GNU parallel: the args come after
+            if t.startswith("-"):
+                nxt = toks[i + 1].strip("'\"") if i + 1 < len(toks) else ""
+                if "=" not in t and nxt[:1] in ("$", "@"):
+                    i += 2  # a variable flag value, e.g. --profile $P
+                    continue
+                i += 1
+                continue
+            pos.append(t)
+            i += 1
+        for k, t in enumerate(pos):
+            if t[:1] in ("$", "@", "(", "`", "{"):
+                if tuple(p.lower() for p in pos[:k]) in prefixes:
+                    return True
+                break
+        if (tuple(p.lower() for p in pos) in prefixes
+                and _XARGS_TAIL_RE.search(text[max(0, m.start() - 300):m.start()])):
+            return True
+    return False
+
+
+def _unresolved_hit(text):
+    return bool(_CALL_VAR_RE.search(text) or _EVAL_VAR_RE.search(text)
+                or _dynamic_arg_hit(text))
+
+
+def indirect_billable(command, bash_patterns):
+    """Return (reason, count, indirect). reason: why the command bills via a
+    form the literal patterns miss, or None. count: billable actions seen
+    (max over rewritten variants of pattern matches + REST + SDK calls, +1
+    for an unreadable call). indirect: True when anything beyond the literal
+    patterns on the raw text matched, so an inline approval (which reads the
+    raw command) must not cover it."""
+    vars_, funcs, def_spans = _parse_defs(command)
+    subst = _subst_vars(command, vars_)
+    base = [command, subst]
+    if funcs:
+        blanked = _blank_spans(command, def_spans)
+        for prog_only in (False, True):
+            base.append(_subst_vars(_expand_calls(blanked, funcs, prog_only), vars_))
+    extra = [_start_process_variant(subst), _b64_variant(command)]
+    base.extend(e for e in extra if e)
+    variants = []
+    seen = set()
+    for v in base + [n for b in base for n in _norms(b)]:
+        if v and v not in seen:
+            seen.add(v)
+            variants.append(v)
+
+    raw_n = len(billable_spans(command, bash_patterns))
+    gql_readable = any(_GQL_ANY_OP_RE.search(v) for v in variants)
+    pat_n = raw_n
+    rest_labels = set()
+    sdk_labels = set()
+    side_n = 0
+    for v in variants:
+        if v is not command:
+            pat_n = max(pat_n, len(billable_spans(v, bash_patterns)))
+        r = _rest_hits(v, gql_readable)
+        labels, k = _sdk_hits(v)
+        rest_labels |= r
+        sdk_labels |= labels
+        side_n = max(side_n, len(r) + k)
+    reasons = []
+    if pat_n > raw_n:
+        reasons.append("command reaches a billable pattern through an alias, function, "
+                       "variable, Start-Process, quoting or encoding")
+    reasons.extend(sorted(rest_labels))
+    reasons.extend(sorted(sdk_labels))
+    count = pat_n + side_n
+    # Unreadable call targets count only in variants with known definitions
+    # substituted and function/alias definitions blanked: the raw
+    # `X=runpodctl; $X get pod` or `f(){ runpodctl "$@"; }` is not one.
+    resolved = base[2:] if funcs else [subst] + [e for e in extra if e]
+    resolved = resolved + [n for r in resolved for n in _norms(r)]
+    if (_MENTION_RE.search("\n".join(variants))
+            and any(_unresolved_hit(v) for v in resolved)):
+        reasons.append("command mentions a billable program and runs a variable, "
+                       "eval or argument whose value can't be read")
+        count += 1
+    if not reasons:
+        return None, raw_n, False
+    return "; ".join(reasons), max(count, 1), True
+
+
 def pod_action_billable(tool_name, tool_input):
     """Return a block reason if this is a runpod pod-action that starts or
     resumes a pod, else None. Action is tool_input["body"]["action"], with
@@ -519,11 +1110,22 @@ def check(tool_name, tool_input, cwd, env=None):
     if tool_name and fnmatch.fnmatch(tool_name.lower(), POD_UPDATE_GLOB):
         # Only a body with a storage-size key blocks; name/image allows.
         reason = pod_update_billable(tool_name, tool_input)
+    ind_count = 0
+    indirect = False
+    if tool_name in ("Bash", "PowerShell") and command:
+        try:
+            ind_reason, ind_count, indirect = indirect_billable(command, bash_patterns)
+        except Exception:
+            ind_reason, ind_count, indirect = None, 0, False  # fail open
+        if reason is None:
+            reason = ind_reason
     if reason is None:
         return None  # not billable (or unrecognized) - allow
 
     spans = billable_spans(command, bash_patterns) if command else []
-    if command:
+    # Inline approval reads the raw command, so it never covers a call that
+    # only bills through an alias/variable/REST/SDK form (#160).
+    if command and not indirect:
         if tool_name == "PowerShell":
             if powershell_inline_approved(command, spans):
                 return None
@@ -532,12 +1134,13 @@ def check(tool_name, tool_input, cwd, env=None):
     if env_approved(env):
         return None
 
-    if len(spans) > 1:
+    n_actions = max(len(spans), ind_count)
+    if n_actions > 1:
         # One approval file is one action: never let it cover two billable
         # commands chained in one call (and don't consume it).
         return ("Blocked: %s, and %d billable commands in one call; one "
                 "approval covers one action, so run them as separate calls. %s"
-                % (reason, len(spans), approval_hint()))
+                % (reason, n_actions, approval_hint()))
 
     approvals_dir = env.get("SPEND_GATE_APPROVALS_DIR") or os.path.join(
         cwd or ".", APPROVALS_DIR_REL
