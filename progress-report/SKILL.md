@@ -31,16 +31,16 @@ Bullets, one idea each, numbers in the table, 1–2 pages. Times in the user's l
 
 ## 3. Links
 
-Resolve the repo URL once: `gh repo view <o>/<r> --json url -q .url`, `<o>/<r>` per the `next` skill's `BOARD.md`, Target repo section (on a fork, the repo the run wrote issues and PRs to). Link every reference in every section with **one left-to-right pass** over each paragraph and cell, one combined regex, alternatives tried in this order at each position:
+Resolve the repo URL once: `gh repo view <o>/<r> --json url -q .url`, `<o>/<r>` per the `next` skill's `BOARD.md`, Target repo section (on a fork, the repo the run wrote issues and PRs to; issues read from the parent, as when the fork has issues off, link to the parent: resolve its URL too and use it for rule 4). Link every reference in every section with **one left-to-right pass** over each paragraph and cell, one combined regex, alternatives tried in this order at each position:
 
 1. existing markdown link `[..](..)`, `<url>` or bare `https?://\S+` → copy unchanged
 2. inline code span → copy unchanged
-3. `PR #n` or `PR#n` → link that text to `<repo>/pull/n`
+3. `PR #n`, `PR#n` or a list `PRs #n, #m` → link each `#n` in it to `<repo>/pull/n`
 4. `#n` (not preceded by a letter, digit or `&`) → link "#n" to `<repo>/issues/n`
-5. hex sha, 7–40 chars of `[0-9a-f]` with at least one digit and one a–f letter, word-bounded → link "<first 7>" to `<repo>/commit/<full>`
+5. hex sha, 7–40 chars of `[0-9a-f]` with at least one digit and one a–f letter, word-bounded and not inside a branch name or path (not touching `/`, `-` or `_`, and not joined to a word by a single `.`) → link "<first 7>" to `<repo>/commit/<full>`
 6. `D<k>`/`A-<k>`/ADR id, word-bounded → link to the decisions file (its heading anchor for that id, if it has one); no decisions file → leave as text
 
-Never link: heading lines (`#`–`######` then a space, incl. the report header), decimal-only tokens (CI run ids). Never re-scan output. Then check link count ≥ the `#n` mentions in the ledger range.
+Never link: heading lines (`#`–`######` then a space, incl. the report header), decimal-only tokens (CI run ids). Never re-scan output. Then check link count ≥ the `#n` mentions in the ledger range, counting only mentions outside code spans and URLs (rules 1–2 never link those).
 
 ## 4. Write
 

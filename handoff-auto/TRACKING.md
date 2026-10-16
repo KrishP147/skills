@@ -10,7 +10,8 @@ Shared by every skill and agent that writes under `skilleddocs/` (handoffs, `HAN
 
 **Commit** only when not a fork and either:
 - the repo already tracks `skilleddocs/`: `git ls-tree -r --name-only <default> -- skilleddocs` prints something, or
-- its `AGENTS.md` / `CLAUDE.md` opts in.
+- its `AGENTS.md` / `CLAUDE.md` opts in, or
+- for the handoff folder only: that folder, set by `AGENTS.md`/`CLAUDE.md` outside `skilleddocs/`, already has tracked files on `<default>` (`git ls-tree -r --name-only <default> -- <folder>` prints something). Other `skilleddocs/` files still follow the two bullets above.
 
 **Otherwise, and always on a fork**: leave the file untracked and exclude the folder (works in worktrees; appends only if missing):
 
@@ -19,7 +20,7 @@ ex=$(git rev-parse --git-path info/exclude); mkdir -p "$(dirname "$ex")"
 grep -qxF 'skilleddocs/' "$ex" 2>/dev/null || echo 'skilleddocs/' >> "$ex"
 ```
 
-A handoff folder set by `AGENTS.md`/`CLAUDE.md` outside `skilleddocs/` gets the same exclude line, with its path.
+A handoff folder set by `AGENTS.md`/`CLAUDE.md` outside `skilleddocs/` gets the same exclude line, with its path, unless the third bullet puts it in commit mode.
 
 **Packaging hazard.** Excluding keeps `git status` clean but not the build: in a flat-layout Python project (no `src/`, no explicit `packages`), setuptools auto-discovery scans the folder, so an untracked `skilleddocs/` fails `pip install .` with "Multiple top-level packages discovered in a flat-layout: ['pkg', 'skilleddocs']". Two remedies, both checked to work: install from a clean clone (`git clone . "$(mktemp -d)/x"`, then `pip install` that path), or, with the user's yes since it edits the project, list the real package: `[tool.setuptools.packages.find]` with `include = ["<pkg>*"]` in `pyproject.toml`. Any quickstart or install check a skill runs uses the clean clone.
 
