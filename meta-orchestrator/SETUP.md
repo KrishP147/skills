@@ -8,6 +8,7 @@ First run on a repo, or `reconfigure`. Output: `skilleddocs/orchestrator/scope.m
 - Skills the repo names exist (repo `.claude/skills/` wins over `~/.claude/skills/`). The `planner`, `manager`, `implementer`, `verifier` agents exist (`~/.claude/agents/*.md`, or `krish:<agent>` from the plugin); missing → tell the user to run the skills repo's install script or install its plugin, meanwhile use `general-purpose` with the same model and brief.
 - Branches with unpushed commits, open issues and PRs, last CI on default, untracked personal files (never commit them; offer to gitignore).
 - Repo's merge style (recent merge commits vs squash), test command, default branch, the user's branch prefix.
+- No PR host (`origin` not on GitHub, or no authenticated `gh`) → stop and ask where issues come from and how a merge lands (e.g. push the branch, local `--no-ff` merge, push default); write the answer in scope.md's notes. `pr-only` there = push the branch and leave the merge to the user.
 
 ## 2. Resolve defaults
 
