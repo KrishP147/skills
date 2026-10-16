@@ -113,12 +113,17 @@ Every skill or agent here that produces a document writes it **inside the repo i
 ```
 skilleddocs/
   README.md            what each folder holds (template below)
-  decisions.md         append-only decision register (D1, D2, ...) — grill-docs, consult-plan, verifier
+  bridge.md            cross-session message log — session-bridge
+  briefs/              teammate onboarding briefs — teammate-brief
+  decisions.md         append-only decision register (D1, D2, ...) — grill-docs, consult-plan, verifier, wayfinder
+  gaps/                gap-scan reports — gap-scan
   grills/              one transcript per grill-docs session
   handoffs/            session handoffs — handoff, handoff-auto, session-handoff, implementer
   HANDOFF.md           short "stuck" note an implementer leaves for a manager (deleted once picked up; never in a pushed branch)
   orchestrator/        scope.md, ledger.md, orchestrator-handoff.md, reports/<manager reports> — meta-orchestrator
+  pr-watch/            per-pass PR watch logs — pr-watch
   reports/             progress reports + .last-reported watermark — progress-report
+  showcase/            showcase inventory and findings — repo-showcase
   spend.md             approval log (when, amount, purpose, price source, resource id) — spend-gate
   spend-approvals/     one-shot approval files consumed by hooks/spend-guard.py — spend-gate
 ```
@@ -132,11 +137,16 @@ Template for a repo's `skilleddocs/README.md`:
 
 Documents written by Claude Code skills (github.com/KrishP147/skills). Versioned so agents and people share one record.
 
+- bridge.md — cross-session message log (session-bridge)
+- briefs/ — teammate onboarding briefs (teammate-brief)
 - decisions.md — append-only decision register; cite as D<k>
+- gaps/ — gap-scan reports (gap-scan)
 - grills/ — grilling transcripts (asked, recommended, answered)
 - handoffs/ — end-of-session handoffs; the newest is the next session's starting brief
 - orchestrator/ — meta-orchestrator scope contract, ledger, handoff, manager reports
+- pr-watch/ — per-pass PR watch logs (pr-watch)
 - reports/ — progress reports and the watermark
+- showcase/ — showcase inventory and findings (repo-showcase)
 - spend.md, spend-approvals/ — billable-action approval log and one-shot approval tokens (spend-gate)
 
 Plans and specs live in docs/; this folder records how they were decided and carried out.
