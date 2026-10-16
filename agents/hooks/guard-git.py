@@ -180,6 +180,10 @@ class Ctx:
         self.new_tags = set()
         self.ref_lookup = ref_lookup
         self._refs = {}
+        # head and args of the last simple command run_segment analysed
+        self.seg_head = None
+        # the command runs cmd.exe (`cmd /c`): `%x%` / `!x!` are dynamic
+        self.cmd_context = False
 
     def is_protected(self, name):
         return name.lower() in self.protected
@@ -303,16 +307,23 @@ def split_commands(cmd, ps=False):
     substitutions are pulled out into `subs` and replaced by a placeholder.
     Unquoted `# ...` comments are dropped. Here-doc bodies are data, kept
     in `docs` keyed by segment index (a shell reading stdin runs them).
-    Returns (segments, subs, docs). With `ps=True` the PowerShell escape rules
+    Returns (segments, subs, docs, meta); meta["piped"] holds the indexes of
+    segments whose stdin is the previous segment's pipe, meta["depth"] each
+    segment's `( ... )` subshell depth. With `ps=True` the PowerShell escape rules
     apply: backtick (not backslash) is the escape/line-continuation char, and a
     bare backslash is a literal path separator, not an escape."""
-    segs, subs, buf, docs, pending = [], [], [], {}, []
+    segs, subs, buf, docs, pending, piped, depths = [], [], [], {}, [], set(), []
     q, i, n = None, 0, len(cmd)
+    pipe_next, paren = [False], [0]
 
     def flush():
         s = "".join(buf).strip()
         if s:
+            if pipe_next[0]:
+                piped.add(len(segs))
+            pipe_next[0] = False
             segs.append(s)
+            depths.append(paren[0])
         del buf[:]
 
     def subst(start, closer):
@@ -417,12 +428,16 @@ def split_commands(cmd, ps=False):
             continue
         if c in "\n;&|()":
             flush()
+            if c == "|" and not cmd.startswith("|", i + 1) and not (i > 0 and cmd[i - 1] == "|"):
+                pipe_next[0] = True  # `a | b`, `a |& b` (not `a || b`): b reads a's output
+            elif c in "()":
+                paren[0] += 1 if c == "(" else -1
             i += 1
             continue
         buf.append(c)
         i += 1
     flush()
-    return segs, subs, docs
+    return segs, subs, docs, {"piped": piped, "depth": depths}
 
 
 def _ps_call_op(cmd, i, buf):
@@ -582,28 +597,34 @@ def analyze(cmd, ctx, depth=0):
             ctx.block("command nested too deeply to analyse.")
         return
     ps = ctx.powershell
-    segs, subs, docs = split_commands(cmd, ps=ps)
+    segs, subs, docs, meta = split_commands(cmd, ps=ps)
     for s in subs:
         analyze(s, ctx, depth + 1)
     stdin_modes, code_stdin = [], False
+    heads, modes = [], []
     for idx, seg in enumerate(segs):
         toks = tokenize(seg, ps=ps)
         if toks is None:
             fallback_check(seg, ctx)
             toks = seg.split()
         note_writes(seg, ctx)
+        ctx.seg_head = None
         mode = run_segment(toks, ctx, subs, depth)
+        heads.append(ctx.seg_head)
+        modes.append(mode)
         ctx.powershell = ps  # a nested shell must not leak its mode
         if mode == "code":  # `python - <<EOF`, `node <<< '...'`: stdin is code
             for body in docs.get(idx, []) + herestrings(seg, ps):
-                check_code(body, ctx)
+                check_code(body, ctx, (heads[-1] or ("",))[0])
             code_stdin = True
             continue
         if mode:
             stdin_modes.append(mode)
             for body in docs.get(idx, []) + herestrings(seg, ps):  # `bash <<EOF`, `bash <<< '...'`
                 analyze_in(body, ctx, depth + 1, mode == "ps")
+    check_feeds(segs, docs, meta, heads, modes, ctx, ps)
     if ps:  # after the segments, so aliases set in them apply
+        check_dotnet(cmd, ctx)
         for m in IEX_PAREN_RE.finditer(cmd):  # `iex ('git push ' + 'origin main')`
             inner, _ = _extract(cmd, m.end(), ")")
             lit = ps_literal_concat(inner)
@@ -627,6 +648,111 @@ def analyze(cmd, ctx, depth=0):
                 analyze_in(" ".join(toks[1:]), ctx, depth + 1, mode == "ps")
             elif len(toks) == 1 and not toks[0].startswith("-"):
                 analyze_in(toks[0], ctx, depth + 1, mode == "ps")
+
+
+def upstream(idx, segs, meta):
+    """Indexes of the segments whose output reaches segment `idx` through a
+    pipe: the pipeline before it, with `{ ...; }` and `( ... )` groups."""
+    piped, d, out, k = meta["piped"], meta["depth"], [], idx
+    while k in piped and k > 0:
+        k -= 1
+        out.append(k)
+        if segs[k].strip() == "}":  # `{ a; b; } | x`: the whole group
+            while k > 0 and not re.match(r"\{(\s|$)", segs[k]):
+                k -= 1
+                out.append(k)
+        while k > 0 and d[k - 1] > d[idx] and d[k] > d[idx]:  # `(a; b) | x`
+            k -= 1
+            out.append(k)
+    return out
+
+
+PRINTF_TRANSFORM_RE = re.compile(r"%|\\(x[0-9a-fA-F]|[0-7]|u|U|c|e|E)")
+
+
+def producer(k, segs, docs, heads, ctx, ps):
+    """(literal, text) for a segment feeding a pipe: literal when its output
+    is text the hook reads (echo/printf/cat here-doc, a PS string)."""
+    head, rest = heads[k] or (None, [])
+    text = "\n".join(docs.get(k, []) + herestrings(segs[k], ps))
+    if head is None:
+        return True, text
+    args = [t for t in rest if not (t.startswith("-") and len(t) > 1)]
+    if head in ("echo", "write-output", "write-host", "write-information", "echo.exe"):
+        flags = "".join(t for t in rest if re.fullmatch(r"-[neE]+", t))
+        if "e" in flags and any("\\" in a for a in args):
+            return False, text  # `echo -e '\x67it ...'`
+        return True, text + "\n" + " ".join(args)
+    if head == "printf":
+        if any(PRINTF_TRANSFORM_RE.search(a) for a in args[:1]) or "-v" in rest:
+            return False, text  # escapes / format args rebuild the text
+        return True, text + "\n" + " ".join(args)
+    if head == "cat":
+        for f in args:  # `cat x.sh | bash` reads like `bash x.sh`
+            ctx.ran.add(file_key(f))
+        return True, text
+    if ps and not rest and not is_dynamic(segs[k]) and re.fullmatch(r"\s*('[^']*'|\"[^\"]*\")\s*", segs[k]):
+        return True, text + "\n" + segs[k].strip()[1:-1]  # `'git status' | iex`
+    return False, text
+
+
+TRANSFORMERS = {"rev", "tr", "sed", "awk", "gawk", "mawk", "nawk", "xxd", "base64", "basenc", "base32", "openssl",
+                "iconv", "recode", "uudecode", "certutil", "perl", "od", "hexdump", "printf", "echo", "cut", "paste",
+                "fold", "sort", "shuf", "tac", "column", "jq", "yq"}
+
+
+def check_feeds(segs, docs, meta, heads, modes, ctx, ps):
+    """Text fed on stdin (here-doc, here-string, pipe) to a command that may
+    run it. A shell/interpreter reading a pipe needs every producer to be a
+    literal the hook read (`rev <<< ... | sh`, `printf '\\x67it ...' | bash`
+    fail closed). Any other non-data command (`at now`, `make -f -`, `crontab
+    -`, `tclsh`) blocks on fed text naming a push/merge, or on transformed
+    text (`rev ... | at now`)."""
+    for idx, seg in enumerate(segs):
+        head, rest = heads[idx] or (None, [])
+        ups = upstream(idx, segs, meta)
+        if not head or (not ups and idx not in docs and "<<<" not in seg):
+            continue
+        feeds = [producer(k, segs, docs, heads, ctx, ps) for k in ups]
+        own = "\n".join(docs.get(idx, []) + herestrings(seg, ps))
+        fed = own + "\n" + "\n".join(t for _, t in feeds)
+        mode = modes[idx]
+        if mode:  # shell / iex / interpreter reading stdin as code
+            if any(not lit for lit, _ in feeds):
+                ctx.block("%s reads a script piped from a command whose output can't be read "
+                          "(transformed/generated text); failing closed." % head)
+            continue
+        if head in STDIN_DATA or (INTERPRETER_RE.match(head) and not inline_code(rest)):
+            continue  # data: `jq . <<< ...`, `cat > f <<EOF`, `python script.py < x`
+        if PUSHY_RE.search(fed):
+            ctx.block("%s reads stdin text naming a git push / gh merge / GitHub API call, and may run "
+                      "it; failing closed." % head)
+        if any(not lit and heads[k] and heads[k][0] in TRANSFORMERS for k, (lit, _) in zip(ups, feeds)):
+            ctx.block("%s reads transformed text on stdin and may run it; failing closed." % head)
+
+
+def inline_code(rest):
+    """Interpreter args carry inline code (`-c`, `-e`, `eval`, `-p`)."""
+    return any(t in ("-c", "-e", "-E", "-p", "-r", "--eval", "--print", "eval", "-x") or re.fullmatch(r"-[a-zA-Z]*[ce]", t)
+               for t in rest)
+
+
+# PowerShell/.NET calls that write over HTTP or run code the hook can't read
+NET_WRITE_RE = re.compile(r"(?i)\.upload(string|data|file|values)\w*|\bwebclient\b|httpclient|\bwebrequest\b"
+                          r"|httpwebrequest|\.(put|post|patch|delete|send)(async)?\s*\(|getrequeststream|restsharp")
+NET_CODE_RE = re.compile(r"(?i)\badd-type\b|-comobject\b|activator\]::createinstance|gettypefromprogid"
+                         r"|\[reflection\.assembly\]|assembly\]::load")
+NET_RUN_RE = re.compile(r"(?i)\.(run|exec|shellexecute|invoke\w*|start\w*)\s*\(|::\w+\s*\(")
+GIT_NAME_RE = re.compile(r"(?i)\bgit(\.exe)?\b|\bgh(\.exe)?\b|github\.com")
+
+
+def check_dotnet(cmd, ctx):
+    """`(New-Object Net.WebClient).UploadString(github...)`, `[Net.Http.HttpClient]`
+    Put/Post/Send, `Add-Type` compiled code, `-ComObject WScript.Shell` .Run."""
+    if NET_WRITE_RE.search(cmd) and GIT_NAME_RE.search(ctx.top_cmd):
+        ctx.block(".NET HTTP client call in a command naming git/gh/GitHub can't be read; failing closed.")
+    if NET_CODE_RE.search(cmd) and (NET_RUN_RE.search(cmd) or GIT_NAME_RE.search(ctx.top_cmd)):
+        ctx.block("Add-Type / COM object code runs a call the hook can't read; failing closed.")
 
 
 IEX_PAREN_RE = re.compile(r"(?i)(?<![\w-])(iex|invoke-expression)(\s+-c(ommand)?)?\s*\(")
@@ -661,6 +787,14 @@ READERS = {"echo", "printf", "grep", "egrep", "fgrep", "rg", "ag", "ack", "cat",
            "findstr", "get-content", "gc", "type", "mkdir"}
 # commands that write their argument text to a file (write-then-run check)
 WRITERS = {"tee", "tee-object", "set-content", "sc", "add-content", "ac", "out-file", "new-item", "ni"}
+# commands that only consume stdin as data (they never run it)
+STDIN_DATA = READERS | WRITERS | {
+    "jq", "yq", "sort", "uniq", "cut", "column", "fmt", "fold", "nl", "xargs", "git", "gh", "paste", "comm", "join",
+    "iconv", "dos2unix", "unix2dos", "gzip", "gunzip", "zcat", "tar", "clip", "pbcopy", "xclip", "xsel", "sponge",
+    "patch", "cmp", "md5sum", "sha1sum", "sha256sum", "base64", "xxd", "od", "hexdump", "tr", "rev", "tac", "shuf",
+    "out-null", "out-string", "out-host", "oh", "convertfrom-json", "convertto-json", "convertfrom-csv",
+    "select-object", "select", "sort-object", "measure-object", "measure", "format-table", "ft", "format-list",
+    "fl", "set-clipboard", "get-unique", "group-object"}
 # a shell reading its script from one of these reads stdin
 STDIN_SCRIPT_RE = re.compile(r"^(/dev/stdin|/dev/fd/\d+|/proc/self/fd/\d+)$")
 OUT_REDIR_RE = re.compile(r"^\d*(?:>>?|&>>?|>\|)(.*)$")
@@ -682,15 +816,32 @@ def note_writes(seg, ctx):
         target = m.group(1) or (raw[k + 1] if k + 1 < len(raw) else "")
         if target and not target.startswith("&") and target.lower() not in ("/dev/null", "nul", "$null"):
             ctx.written.add(file_key(target))
+# inline code that spawns a process or evaluates code
+CODE_EXEC_RE = re.compile(r"(?i)subprocess|\bos\s*\.\s*(system|popen|exec|spawn)|popen|\bexec\w*\s*\(|\beval\s*\("
+                          r"|child_process|\bspawn|\bsystem\s*\(|shell_exec|passthru|proc_open|deno\s*\.\s*(command|run)"
+                          r"|bun\s*\.\s*(spawn|\$)|new\s+function\b|\bfunction\s*\(\s*['\"]|%x[\[{(]|\bopen3\b|\bpty\b"
+                          r"|\bcompile\s*\(|__import__|importlib|getattr\s*\(|process\.binding|\bruntime\b|\bsh\s*\(")
+# markers that the code builds its strings at runtime
+CODE_OBFUSC_RE = re.compile(
+    r"(?i)['\"`]\s*(\+|\.|\.\.)\s*['\"`(\w$]|[\w)\]]\s*\+\s*['\"`]|\bjoin\s*\(|\.join\b|fromhex|unhexlify"
+    r"|\bchr\s*\(|\bord\s*\(|fromcharcode|decode|atob|buffer\s*\.\s*from|\[\s*:\s*:\s*-1\s*\]|reverse"
+    r"|\.replace\s*\(|\bformat\s*\(|\.format\b|(?<![\w])f['\"]|\$\{|#\{|['\"]\s*%\s*[\w(]|getattr|__import__"
+    r"|\bcodecs\b|rot.?13|b64|base64|\\x[0-9a-f]{2}|\\u[0-9a-f]{4}|\\[0-7]{3}|\bpack\s*\(|sprintf"
+    r"|\.split\s*\(|\bslice\b|substr|\bconcat\b|\bbytes\s*\(|\bbytearray\b|`[^`]*\$\{")
+JS_LANGS = {"node", "nodejs", "bun", "deno"}
 CODE_SPAWN_RE = re.compile(r"system|subprocess|popen|exec|spawn|child_process|`|shell|process|command"
                            r"|\bgit\b|\bgh\b", re.I)
 
 
-def check_code(text, ctx):
+def check_code(text, ctx, lang=""):
     """Inline interpreter code (`python -c`, `node -e`, `deno eval`, stdin
     script): it can't be parsed, so block when it names a push/merge, or
     mentions push/merge next to a process-spawning call or a git/gh word, or
-    writes to the GitHub API."""
+    writes to the GitHub API, or spawns/evals with runtime-built strings
+    (`'g'+'it'`, `bytes.fromhex`, `[::-1]`, `String.fromCharCode`)."""
+    if CODE_EXEC_RE.search(text) or (lang not in JS_LANGS and re.search(r"`[^`]+`", text)):
+        if CODE_OBFUSC_RE.search(text):
+            ctx.block("inline interpreter code spawns/evals a string built at runtime; failing closed.")
     if CODE_GIT_RE.search(text) or (CODE_RISK_RE.search(text) and CODE_SPAWN_RE.search(text)):
         ctx.block("inline interpreter code mentions git push / merge; failing closed.")
     if DECODER_RE.search(text) and CODE_SPAWN_RE.search(text):
@@ -843,6 +994,8 @@ def run_segment(toks, ctx, subs, depth):
 
 
 def _run_segment(toks, ctx, subs, depth):
+    if ctx.cmd_context:  # cmd.exe expands `%x%` / `!x!` at run time
+        toks = [CMD_VAR_RE.sub(DYNAMIC, t) for t in toks]
     scan_config_env(toks, ctx, ctx.seg_env)
     toks = strip_prefixes(list(toks), ctx, depth)
     if not toks:
@@ -854,6 +1007,7 @@ def _run_segment(toks, ctx, subs, depth):
             toks[-1] = toks[-1][:-1]
     head = base(toks[0])
     rest = toks[1:]
+    ctx.seg_head = (head, rest)
     if ctx.powershell:
         for t in toks:  # `$env:GIT_CONFIG_PARAMETERS = '...'`
             if re.match(r"(?i)^\$env:GIT_CONFIG(?!_NOSYSTEM)", t):
@@ -970,14 +1124,14 @@ def _run_segment(toks, ctx, subs, depth):
                 analyze_in(rest[k + 1], ctx, depth + 1, False)
         return False
     if INTERPRETER_RE.match(head):  # python -c / node -e / perl -e / ruby -e
-        check_code(" ".join(rest), ctx)
+        check_code(" ".join(rest), ctx, head)
         files = [t for t in rest if not t.startswith("-")]
         if files:
             ctx.ran.add(file_key(files[0]))
         reads_stdin = "-" in rest or all(t.startswith("-") for t in rest)
         return "code" if reads_stdin else False
     if head in HTTP_CLIENTS:
-        check_http(rest, ctx)
+        check_http(rest, ctx, head)
         return False
     if not is_dynamic(toks[0]):
         ctx.ran.add(file_key(toks[0]))  # `./x.sh`, `x.ps1`: write-then-run check
@@ -1048,8 +1202,14 @@ def invoke_command(rest, ctx, depth):
         i += 1
 
 
+CMD_VAR_RE = re.compile(r"%[A-Za-z_][\w#$@.~-]*%|![A-Za-z_][\w#$@.~-]*!")
+CMD_C_RE = re.compile(r"(?i)(^|[\s;&|(\"'\\/])cmd(\.exe)?[\"']?\s+(/\w+\s+)*/[ckr]\b")
+
+
 def cmd_c(rest, ctx, depth):
-    """`cmd [/d /q /s ...] /c|/k|/r <command>`; `^` is cmd's escape char."""
+    """`cmd [/d /q /s ...] /c|/k|/r <command>`; `^` is cmd's escape char,
+    `%x%` / `!x!` expand at run time (dynamic)."""
+    ctx.cmd_context = True
     for k, t in enumerate(rest):
         lt = t.lower()
         if lt in ("/c", "/k", "/r"):
@@ -1750,10 +1910,20 @@ GITHUB_HOST_RE = re.compile(r"(^|[/@.])github\.com\b")  # github.com, api., uplo
 GITHUB_WRITE_EP = re.compile(r"(^|/)(merges|pulls|contents|git/refs|git/refs/heads/.*)(/|$)|/merge$")
 
 
-def check_http(args, ctx):
+CURL_CONFIG_RE = re.compile(r"^(--config(=.*)?|-[a-zA-Z]*K.*)$")
+WGET_CONFIG_RE = re.compile(r"^(--config|--input-file|--execute|-i|-e)(=.*)?$|^-[a-zA-Z]*[ie].*$")
+
+
+def check_http(args, ctx, head=""):
     """curl/wget/Invoke-WebRequest/Invoke-RestMethod writing to a GitHub API
-    merge, pulls, contents or git/refs endpoint (the `gh api` rules, raw)."""
+    merge, pulls, contents or git/refs endpoint (the `gh api` rules, raw).
+    `curl -K cfg` / `wget -i list -e cmd` read options/URLs from a file:
+    unreadable, so they block in a command naming GitHub or with no URL."""
     method, data, urls = None, False, []
+    cfg_re = CURL_CONFIG_RE if head == "curl" else WGET_CONFIG_RE if head == "wget" else None
+    if cfg_re and any(cfg_re.match(t) for t in args if not t.startswith("http")):
+        if re.search(r"(?i)github", ctx.top_cmd) or not any(re.match(r"(?i)^(https?|ftp)://", t) for t in args):
+            ctx.block("%s reads options/URLs from a config/input file the hook can't read; failing closed." % head)
     for k, t in enumerate(args):
         lt = t.lower()
         nxt = args[k + 1] if k + 1 < len(args) else ""
@@ -1892,6 +2062,7 @@ def decide(command, ctx):
     try:
         ctx.top_cmd = command
         ctx.decoder_seen = bool(DECODER_RE.search(command))
+        ctx.cmd_context = bool(CMD_C_RE.search(command))
         analyze(command, ctx)
         ran_written = ctx.written & ctx.ran or (DYNAMIC in ctx.written and ctx.ran) or (
             DYNAMIC in ctx.ran and ctx.written)
@@ -2616,6 +2787,58 @@ def run_self_test():
         ("trap 'rm -f tmp' EXIT", A, False),
         ("flock /tmp/l make test", A, False),
         ("python -m pytest -q > log.txt && bash scripts/ci.sh", A, False),
+        # round 3: stdin fed to non-shell runners
+        ("make -f - <<'EOF'\nall:\n\tgit push origin main\nEOF", B, False),
+        ("just --justfile /dev/stdin <<< 'a:\n  git push origin main'", B, False),
+        ("at now <<< 'git push origin main'", B, False),
+        ("batch <<< 'git push origin main'", B, False),
+        ("crontab -l | { cat; echo '* * * * * git push origin main'; } | crontab -", B, False),
+        ("tclsh <<< 'exec git push origin main'", B, False),
+        ("ssh host <<'EOF'\ngit push origin main\nEOF", B, False),
+        ("rev <<< 'niam nigiro hsup tig' | at now", B, False),
+        # round 3: text transformed before a shell reads it
+        ("rev <<< 'niam nigiro hsup tig' | sh", B, False),
+        ("echo 'tig hsup nigiro niam' | rev | bash", B, False),
+        ("tr a-z n-za-m <<< 'tvg chfu bevtva znva' | sh", B, False),
+        ("printf '\\x67it push origin main' | bash", B, False),
+        ("printf '%s' 'git push origin main' | sh", B, False),
+        ("echo -e '\\x67it push origin main' | sh", B, False),
+        ("(rev <<< 'niam nigiro hsup tig'; echo) | sh", B, False),
+        ("Get-Content x.txt | iex", B, True),
+        # round 3: obfuscated inline interpreter code
+        ("python -c \"import subprocess;subprocess.run(['g'+'it','pu'+'sh','origin','ma'+'in'])\"", B, False),
+        ("node -e \"require('child_process').spawnSync('g'+'it',['pu'+'sh','origin','ma'+'in'])\"", B, False),
+        ("python -c \"exec(bytes.fromhex('6769742070757368206f726967696e206d61696e'))\"", B, False),
+        ("python -c \"import os;os.system('niam nigiro hsup tig'[::-1])\"", B, False),
+        ("node -e \"eval(String.fromCharCode(103,105,116))\"", B, False),
+        ("perl -e 'system(\"g\".\"it\", \"push\")'", B, False),
+        # round 3: curl/wget config files, .NET/COM, cmd variables
+        ("curl -K cfg https://api.github.com/graphql", B, False),
+        ("curl --config cfg", B, False),
+        ("wget -i urls.txt", B, False),
+        ("wget -e method=PUT https://api.github.com/repos/o/r/pulls/5/merge", B, False),
+        ("(New-Object Net.WebClient).UploadString('https://api.github.com/graphql','{}')", B, True),
+        ("[Net.Http.HttpClient]::new().PutAsync('https://api.github.com/repos/o/r/pulls/5/merge',$null)", B, True),
+        ("Add-Type -TypeDefinition 'x'; [X]::Run('git push origin main')", B, True),
+        ("$s=New-Object -ComObject WScript.Shell; $s.Run('git push origin main')", B, True),
+        ("cmd /c set x=main ^& git push origin %x%", B, True),
+        ("cmd /c \"set b=main&& git push origin %b%\"", B, False),
+        # round 3 FP guards
+        ("cat > notes.txt <<'EOF'\ngit push origin main is blocked\nEOF", A, False),
+        ("python -c \"import subprocess; subprocess.run(['pytest','-q'])\"", A, False),
+        ("node -e \"console.log('a'+'b')\"", A, False),
+        ("node -e 'console.log(`hi ${1+1}`)'", A, False),
+        ("echo hi | sh", A, False),
+        ("curl -s https://api.github.com/repos/o/r", A, False),
+        ("make test", A, False),
+        ("jq . <<< '{}'", A, False),
+        ("python - <<'EOF'\nprint(1)\nEOF", A, False),
+        ("git ls-files | tr '\\n' '\\0' | xargs -0 wc -l", A, False),
+        ("cat data.json | python scripts/x.py", A, False),
+        ("npm test 2>&1 | tail -20", A, False),
+        ("cmd /c dir %USERPROFILE%", A, True),
+        ("'git status' | iex", A, True),
+        ("Invoke-RestMethod https://api.github.com/repos/o/r", A, True),
     ]
     for cmd, expect, ps in round174:
         ctx = Ctx(["main", "master"], "/repo", branch_lookup=feat, alias_lookup=lambda cwd, name: None,
