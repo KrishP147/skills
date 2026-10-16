@@ -11,7 +11,7 @@ Fill in:
 
 Every untracked or ignored file under `skilleddocs/` and `<more>` (dated handoffs, `HANDOFF.md`, the register, anything else) goes to the same subpath in main:
 - main lacks it → moved (`mv -n` / `Move-Item`, never overwriting).
-- it is `<reg>` and main has one → each worktree row whose id (`A-…`, `D…`) main lacks is appended to main's; a row main already has verbatim is skipped; when every row is in main the worktree copy is deleted. A row whose id main holds with different text → `CLASH`, the worktree copy stays.
+- it is `<reg>` and main has one → each worktree row whose id (`A-…`, `D…`: first cell, a capital letter first and a digit last, so the header is skipped) main lacks is appended to main's; a row main already has verbatim is skipped; when every row is in main the worktree copy is deleted. A row whose id main holds with different text → `CLASH`, the worktree copy stays.
 - any other file main already has → `CLASH`, left in the worktree. Never overwrite: report both copies to the user.
 
 A file left behind makes step 3 stop. In main, `update-progress` finds the dated handoffs and commits them per [TRACKING.md](../handoff-auto/TRACKING.md).
@@ -28,7 +28,7 @@ git -C "$wt" ls-files -o -z -- skilleddocs <more> | while IFS= read -r -d '' f; 
       old=$(grep -E "^\| *$id *\|" "$main/$f")
       if [ -z "$old" ]; then printf '%s\n' "$row" >> "$main/$f"; echo "appended $id"
       elif [ "$old" != "$row" ]; then ok=0; echo "CLASH: $id differs in main"; fi
-    done < <(grep -E '^\| *[A-Z]' "$wt/$f")
+    done < <(grep -E '^\| *[A-Z][A-Za-z0-9-]*[0-9] *\|' "$wt/$f")
     [ $ok = 1 ] && rm "$wt/$f"
   elif [ -e "$main/$f" ]; then echo "CLASH: $f exists in main"
   else mkdir -p "$(dirname "$main/$f")" && mv -n "$wt/$f" "$main/$f" && echo "moved $f"; fi
@@ -44,7 +44,7 @@ git -C $wt -c core.quotepath=off ls-files -o -- skilleddocs <more> | ForEach-Obj
   if ($f -eq $reg -and (Test-Path $dst)) {
     $ok = $true; $have = Get-Content -Encoding UTF8 $dst
     if ((Get-Content -Raw $dst) -notmatch '\n$') { Add-Content -Encoding UTF8 $dst '' }
-    foreach ($row in (Get-Content -Encoding UTF8 $src | Where-Object { $_ -cmatch '^\| *[A-Z]' })) {
+    foreach ($row in (Get-Content -Encoding UTF8 $src | Where-Object { $_ -cmatch '^\| *[A-Z][A-Za-z0-9-]*[0-9] *\|' })) {
       $id = ($row -split '\|')[1].Trim()
       $old = @($have | Where-Object { $_ -match "^\| *$([regex]::Escape($id)) *\|" })
       if ($old.Count -eq 0) { Add-Content -Encoding UTF8 $dst $row; "appended $id" }
