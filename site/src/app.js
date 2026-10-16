@@ -17,6 +17,8 @@
   var menu = document.getElementById("menu");
   var status = document.getElementById("status");
   var idleHint = hint.textContent;
+  // Home page vs detail page (detail opts out of autofocus).
+  var home = input.getAttribute("data-autofocus") !== "false";
 
   var buffer = "/";
   var state = F.search(buffer, items);
@@ -112,6 +114,11 @@
     render(true);
   }
 
+  function goHome() {
+    var base = (document.body && document.body.getAttribute("data-base")) || "";
+    window.location.assign(base + "/");
+  }
+
   function go(name) {
     var base = (document.body && document.body.getAttribute("data-base")) || "";
     window.location.assign(base + "/" + encodeURIComponent(name));
@@ -156,6 +163,7 @@
       case "Escape":
         if (buffer !== "/") { e.preventDefault(); setBuffer("/", false); close(); }
         else if (open) { e.preventDefault(); close(); }
+        else if (!home) { e.preventDefault(); goHome(); } // detail page: bare "/" again goes home
         return;
       case "Backspace":
         if (buffer === "/" && input.selectionStart === input.selectionEnd) e.preventDefault();
@@ -198,7 +206,6 @@
   input.value = buffer;
   render(false);
   // Home autofocuses on desktop; detail pages opt out (data-autofocus="false").
-  var home = input.getAttribute("data-autofocus") !== "false";
   var finePointer = window.matchMedia && window.matchMedia("(pointer: fine)").matches;
   if (home && finePointer) input.focus({ preventScroll: true });
 

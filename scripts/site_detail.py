@@ -7,14 +7,18 @@ section of hooks/README.md (split on paragraphs led by a "Label:" that maps,
 e.g. "How it works:", "Install into a repo:"). Headings are mapped onto the
 canonical SECTIONS with tolerant matching; sections that don't map render
 after the mapped ones, before Source. Missing sections are simply absent.
+
+The Example section renders as a Claude Code transcript (example_html); an
+entry without one gets a WARN line on stderr.
 """
 import html
 import json
 import os
 import posixpath
 import re
+import sys
 
-from md_render import Renderer, safe_url, strip_inline
+from md_render import Renderer, safe_url, strip_inline, tx_prompt, tx_reply, tx_wrap
 
 REPO_URL = "https://github.com/KrishP147/skills"
 SITE_URL = "https://www.krishpunjabi.com/skills"
@@ -48,6 +52,7 @@ ALIASES = {
 # note at the top of each README is meant for repo readers, not the site.
 _README_NOTE_RE = re.compile(r"^\*.*`SKILL\.md` is the prompt Claude follows")
 _FENCE_RE = re.compile(r"^\s*(```|~~~)")
+_TRANSCRIPT_FENCE_RE = re.compile(r"^ {0,3}(```|~~~)\s*transcript\s*$", re.M)
 
 
 def esc(s):
@@ -402,6 +407,8 @@ def build_pages(root, entries, meta, template, data_json, site_base=""):
         targets = set()
         rw = index.rewriter(base_dir, targets.add, agents_readme=agents_md)
         rendered[e["name"]] = (ordered, extras, rw, prereq_hint(pairs))
+        if missing_example(ordered):
+            sys.stderr.write("WARN: %s: no Example section (its page has no transcript)\n" % e["name"])
         # Pre-render to collect outgoing page links (for backlinks).
         probe = Renderer(rw)
         for _k, _t, body in ordered:
@@ -430,7 +437,7 @@ def build_pages(root, entries, meta, template, data_json, site_base=""):
             rd.unique_id(fixed)
         body = []
         for key, title, md in ordered:
-            body.append(_section(rd, title, md))
+            body.append(_section(rd, title, md, example=key == "example"))
         for heading, md in extras:
             body.append(_section(rd, heading, md, extra=True))
         body.append(_source_section(e))
@@ -479,12 +486,44 @@ def _with_agent_related(ordered, e, backlinks, base=""):
     return out
 
 
-def _section(rd, title, md, extra=False):
+def _section(rd, title, md, extra=False, example=False):
     from md_render import slugify
     sid = rd.unique_id(slugify(title))
     cls = "sec sec-extra" if extra else "sec"
+    inner = example_html(rd, md) if example else rd.render(md, heading_offset=1)
     return ('<section class="%s" aria-labelledby="%s">\n<h2 id="%s">%s</h2>\n%s\n</section>'
-            % (cls, esc(sid), esc(sid), rd.inline(title), rd.render(md, heading_offset=1)))
+            % (cls, esc(sid), esc(sid), rd.inline(title), inner))
+
+
+def split_example(md):
+    """(prompt, rest) of an Example section: prompt is the text of a leading
+    code fence (the '/cmd args' line), else None; rest is the markdown after."""
+    lines = md.strip("\n").split("\n")
+    if not lines or not _FENCE_RE.match(lines[0]):
+        return None, md.strip()
+    marker = lines[0].strip()[:3]
+    for j in range(1, len(lines)):
+        if lines[j].strip().startswith(marker):
+            prompt = "\n".join(l.strip() for l in lines[1:j] if l.strip())
+            return prompt or None, "\n".join(lines[j + 1:]).strip()
+    return None, md.strip()
+
+
+def example_html(rd, md):
+    """Example section as a transcript. With a ```transcript fence, md_render
+    draws the fence and prose around it stays prose; otherwise the leading
+    fence becomes the '> /cmd args' prompt and the rest one reply block."""
+    if _TRANSCRIPT_FENCE_RE.search(md):
+        return rd.render(md, heading_offset=1)
+    prompt, rest = split_example(md)
+    parts = [tx_prompt(prompt)] if prompt else []
+    if rest:
+        parts.append(tx_reply(rd.render(rest, heading_offset=1), block=True))
+    return tx_wrap(parts)
+
+
+def missing_example(ordered):
+    return not any(k == "example" for k, _t, _b in ordered)
 
 
 def _source_section(e):
