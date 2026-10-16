@@ -36,7 +36,7 @@ planner → manager | implementer → merge gate (you) → verifier → repeat
 
 - Each arrow is a **fresh** Agent call. In pair mode save the manager's report to `skilleddocs/orchestrator/reports/`; that report or the handoff is the only bridge to the verifier.
 - `parallel > 1` → one worktree per manager (`../_worktrees/<repo>-<slug>`, set up as `pair` §2 does). Never two managers on one checkout.
-- Lanes: each lane in scope.md `lanes:` works its issues in order. [`/lanes`](../lanes/SKILL.md) changes them; apply at your next loop. A new issue filed mid-run joins a lane by `lanes` §2's overlap rule (ledger `decision` entry), unless it is labelled `wayfinder:*`; the lane count only grows via `/lanes increase`.
+- Lanes: each lane in scope.md `lanes:` works its issues in order. [`/lanes`](../lanes/SKILL.md) changes them; apply at your next loop. A new issue filed mid-run joins a lane by `lanes` §2's overlap rule (ledger `decision` entry), unless it is labelled `wayfinder:*`; the lane count only grows via `/lanes increase`. A `serial` lane starts an issue only when no other lane has one in flight.
 - **Nested fan-out stalls.** Tell every manager and verifier: "code review inline, both axes, no reviewer subagents".
 - A handback titled **INTERIM** isn't a result; wait for that agent's next one.
 
@@ -77,7 +77,7 @@ Verifier fixes on default afterwards are normal; issues it files join the queue.
 - manual step for user: <only if one exists>
 ```
 
-`ledger_detail: terse` → the header line + `what` only; `verbose` → add the commands run. Detect the zone once (`python -c "import datetime as d; print(d.datetime.now().astimezone().tzname())"`). Times come from `date`, `git log --date=format-local`, or API UTC timestamps via `datetime.fromisoformat(s).astimezone()`; never estimated or offset by hand. Write `#n` / `PR #n` so `progress-report` can link them. Other `docs` entries: decisions → `skilleddocs/decisions.md`; per-issue handoffs → keep the implementer's; CHANGELOG → one line per merge.
+`ledger_detail: terse` → the header line + `what` only; `verbose` → add the commands run. Zone: scope `timezone` if set, else run `python -c "import datetime as d; n=d.datetime.now().astimezone(); z=n.tzname(); print(z if ' ' not in z else n.strftime('UTC%z'))"` once (abbreviation on Unix, UTC offset on Windows); name it at the top of the ledger. Times come from `date`, `git log --date=format-local`, or API UTC timestamps via `datetime.fromisoformat(s).astimezone()`; never estimated or offset by hand. Write `#n` / `PR #n` so `progress-report` can link them. Other `docs` entries: decisions → `skilleddocs/decisions.md`; per-issue handoffs → keep the implementer's; CHANGELOG → one line per merge.
 
 ## 6. Rotation
 
