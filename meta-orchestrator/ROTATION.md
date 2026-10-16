@@ -26,4 +26,4 @@ Finish the loop in flight first; never hand off mid-merge.
 
 1. Read `scope.md`, `orchestrator-handoff.md`, and the last 5 ledger entries. The contract stands; ask nothing from SETUP.md.
 2. Recon what changed while no orchestrator ran: new commits on default, new PRs, stray branches.
-3. Continue from the recorded step, reset the budget counter, log a `decision` entry "resumed from handoff <NNN>".
+3. Continue from the recorded step, reset the budget counter (`handoff_budget` counts merges per session; `stop: after N merges` counts per run, ledger merges since setup, and is never reset), log a `decision` entry "resumed from handoff <NNN>".
