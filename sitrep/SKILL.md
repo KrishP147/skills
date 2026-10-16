@@ -8,7 +8,7 @@ Read-only snapshot of right now; no file writes (progress-report covers history)
 ## 1. Gather
 
 - **Running**: every background `Bash`/`PowerShell`, `Monitor`, and background `Agent` launched this session without a completion notification yet. Per task: age + last line of its output file. `ListAgents` → note peers that look stalled.
-- **Git**, per `git worktree list` entry: `git status --porcelain`; no upstream → "never pushed"; else `git log @{u}.. --oneline`.
+- **Git**, for each repo this session ran git in (not only the cwd's), per `git worktree list` entry: `git status --porcelain` plus `git status --porcelain --ignored -- skilleddocs` (excluded handoffs). Unpushed = commits in `git log <default>.. --oneline` (`<default>` per the `handoff-auto` skill's `TRACKING.md`; with an upstream, `@{u}..` instead). 0 commits and clean → nothing to push, not "never pushed"; commits and no upstream → "never pushed".
 - **PRs**: `gh pr list --author @me --json number,title,url,isDraft,statusCheckRollup` → passing / failing / pending.
 - **Asked vs done**: each distinct ask in this conversation → done / in progress / not started.
 - **Needs you**: keys, approvals, manual steps, unanswered questions. "none" if none.

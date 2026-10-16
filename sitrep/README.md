@@ -38,9 +38,12 @@ slash command.
    already arrived; reports each one's age and its last output line (read
    from the task's output file, or `TaskOutput`, now deprecated). Checks `ListAgents` (if available) for
    other addressable agents.
-2. **Git.** `git worktree list`; per worktree, whether it has an upstream
-   and, if so, unpushed commits (`git log @{u}..`); `git status --porcelain`
-   for dirty trees.
+2. **Git.** For each repo this session ran git in (not only the current
+   one): `git worktree list`; per worktree, `git status --porcelain` and
+   `git status --porcelain --ignored -- skilleddocs` (handoffs in an excluded
+   `skilleddocs/`), and unpushed commits (`git log <default>..`, or `@{u}..`
+   with an upstream). A branch with 0 commits and a clean tree has nothing to
+   push; "never pushed" is only for commits with no upstream.
 3. **PRs + CI.** `gh pr list --author @me` with checks status.
 4. **Asked vs. done.** A short checklist built from this conversation's user
    messages — not the whole backlog.
