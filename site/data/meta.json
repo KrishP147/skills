@@ -33,6 +33,17 @@
     "smartzone": ["smart-zone", "context"],
     "lanes": ["concurrency", "streams"]
   },
+  "map_groups_note": "Groups on the /map page, in order. Every skill, agent and hook in exactly one. Edges are generated, not listed here.",
+  "map_groups": {
+    "plan": ["gap-scan", "grilling", "grill-me", "grill-docs", "consult-plan"],
+    "implement": ["pair", "meta-orchestrator", "lanes", "ponytail", "session-bridge"],
+    "review": ["pr-watch", "sitrep", "progress-report"],
+    "handoff": ["handoff", "handoff-auto", "session-handoff", "teammate-brief"],
+    "board": ["kanban-setup", "next", "divide", "update-progress"],
+    "repo-hygiene": ["repo-showcase", "repo-scrub", "spend-gate"],
+    "agents": ["planner", "manager", "implementer", "verifier"],
+    "hooks": ["smartzone", "spend-guard"]
+  },
   "authors_note": "Default author is Krish. Third-party entries must match THIRD_PARTY_LICENSES.md.",
   "default_author": "Krish",
   "authors": {
