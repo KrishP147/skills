@@ -20,6 +20,21 @@ Entry format for both: optional "bash:" or "mcp:" prefix, default "bash:".
   mcp:<glob>     - fnmatch'd, case-insensitive, against tool_name
 Blank lines and lines starting with # are ignored.
 
+Indirect forms (indirect_billable): the patterns are also run on rewrites
+of the command, so a billable call hidden behind indirection still blocks:
+aliases, functions and variables defined in the same command (bash
+`alias`/`f(){..}`/`X=..`, PowerShell `Set-Alias`/`function`/`$X=..`)
+substituted into their call sites; `Start-Process`/`saps`/`start` params
+reassembled; quote/backtick/brace noise stripped; base64 (`-EncodedCommand`,
+`base64 -d`) decoded. Also blocked: REST/GraphQL writes to provider APIs
+(Runpod REST/GraphQL/serverless, Vultr, EC2 `Action=RunInstances`, GCE,
+Azure VMs) and SDK one-liners (`python -c "import runpod;
+runpod.create_pod(..)"`, boto3 `run_instances`, ...). Fallback: in a command
+that mentions a billable program, a call target or verb argument held in a
+variable whose value can't be read (`$X create pod`, `runpodctl $VERB`,
+`eval "$C"`, `xargs runpodctl`) blocks. False positives are cheap here,
+false negatives are not. Inline approval never covers these forms.
+
 Approval (either one allows the single matched action):
   1. File-based, one-shot: drop a file into skilleddocs/spend-approvals/
      (relative to cwd; override the directory with

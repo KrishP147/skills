@@ -120,7 +120,7 @@ How it works: reads the hook JSON on stdin (`tool_name`,
 a list of regexes; any other tool name is checked against a list of
 `fnmatch` globs (for MCP tool names like `mcp__runpod__create-pod`).
 Default billable patterns: `runpodctl` `create`/`start` (legacy `create pod`/`start pod` and v2 `pod|serverless|network-volume|nv create|start`; `template`/`registry create` are free and stay ungated), `runpodctl network-volume|nv update ... --size` (resize; rename-only is allowed), `runpodctl serverless|sls update`, `runpodctl serverless|sls run` (job submit), `runpodctl pod|pods update ... --volume-in-gb|--container-disk-in-gb` (storage resize; other updates allowed), `runpodctl model add` (uploads to model storage), the `sls` alias for `create`/`update`/`run`, global flags before the noun (`--profile x pod create`, `-o json serverless run`), `vultr-cli instance create`,
-`aws ec2 run-instances`, `gcloud compute instances create`, `az vm create`,
+`aws ec2 run-instances|request-spot-instances|request-spot-fleet`, `gcloud compute instances create`, `az vm create`,
 `modal deploy` (also as `.exe`/`.cmd`, quoted, or full-path forms), and MCP tools matching `mcp__*runpod*__create-*` (except the free `create-template`, `create-secret`, `create-registry` and `create-delegation`, which only write config or credential records; a `mcp:` glob of your own still gates them) /
 `mcp__*runpod*__deploy-*` / `__run-endpoint` / `__runsync-endpoint` /
 `__retry-job` / `__update-endpoint` / `__set-endpoint-gpus`, plus
@@ -133,6 +133,59 @@ always billable. No match → exits 0 (allow) immediately. Any error while
 reading config or matching (bad regex, unreadable file, malformed stdin)
 **fails open** — allows the call rather than blocking unrelated work on a
 hook bug; this hook is a net under `spend-gate`, not the only gate.
+
+Indirect forms. The patterns are also run on rewrites of the command, and a
+few rules cover billers that are not a CLI. All of these block:
+
+- **Aliases, functions, variables** defined in the same command, substituted
+  into their call sites: `alias r=runpodctl; r create pod`,
+  `X=runpodctl; $X create pod` (also `${X}`, `"$X"`, `A=runpod; B=ctl; $A$B`),
+  `f(){ runpodctl "$@"; }; f create pod`, `function f { ... }`, PowerShell
+  `Set-Alias r runpodctl`, `$X='runpodctl'; & $X create pod`,
+  `function f { runpodctl @args }`, `$a='create','pod'; runpodctl @a`. The
+  near miss (`X=runpodctl; $X get pod`) is allowed.
+- **Start-Process / saps / start**: `-FilePath` and `-ArgumentList` (any
+  order, positional or comma lists) are reassembled into `<file> <args>`.
+  `cmd /c`, `bash -c`, `pwsh -c` were already covered.
+- **Quoting and encoding noise**: `'run''podctl'`, `r\unpodctl`,
+  `{runpodctl,create,pod}`, `('run'+'podctl')`, PowerShell backticks,
+  `$'\x72...'`, `(Get-Command runpodctl).Source`, base64 from
+  `-EncodedCommand` or `base64 -d`.
+- **REST/GraphQL writes** (`curl`, `wget`, `Invoke-RestMethod`/`irm`,
+  `Invoke-WebRequest`/`iwr`, python `requests`, ...). A write is an explicit
+  `POST`/`PUT`/`PATCH` or a body flag (`-d`, `--data*`, `--json`, `-F`, `-T`,
+  `--post-data`, `-Body`, `-InFile`). Blocked: writes to `rest.runpod.io`
+  except `templates`, `containerregistryauth`, `secrets`, `user`, `billing`
+  and `/stop`; `api.runpod.ai/v2/<id>/run|runsync|...` except
+  `cancel`/`purge-queue`/`status`/`health`/`stream`; Runpod GraphQL
+  (`api.runpod.io/graphql`) mutations whose field reads
+  deploy/rent/resume/create/save/update/edit/bid/start/launch
+  (`podFindAndDeployOnDemand`, `podRentInterruptable`, `podResume`,
+  `saveEndpoint`, ...) or a write whose body can't be read (`-d @file`);
+  `api.vultr.com` writes (except ssh-keys, firewalls, startup-scripts,
+  domains, users, account, iso, `/halt`); EC2 `Action=RunInstances` (and
+  spot/fleet/start); GCE `.../instances` writes; Azure
+  `Microsoft.Compute/virtualMachines` writes. GETs, DELETEs, `/stop` and a
+  query-only GraphQL body (`query { myself { pods { id } } }`) are allowed.
+- **SDK one-liners** (needs `python`/`py` or an `import` in the command, so
+  `python -c` and `python - <<EOF` heredocs): Runpod `create_pod`,
+  `create_endpoint`, `resume_pod`, `create_network_volume`, `run_sync`,
+  `Endpoint(..).run(..)`, importing one of those by name; boto3
+  `run_instances`/`request_spot_instances`/`create_instances`/...; GCE
+  `insert`; Azure `begin_create_or_update`; Modal `deploy`/`remote`/`spawn`.
+- **Fallback**: when the command mentions a billable program (or `runpod`,
+  `boto3`, a provider API host), a call target or verb argument whose value
+  can't be read blocks: `$X create pod` / `& $c create pod` with no
+  definition in the command, `eval "$C"`, `iex $c`, `runpodctl $VERB`,
+  `aws ec2 $ACTION`, `xargs runpodctl`. With no mention at all
+  (`$X create pod` alone) the hook can't tell and allows.
+
+Spot and interruptible flags (`--communityCloud`, `--bid`,
+`podRentInterruptable`, `"interruptible": true`) don't change any of this:
+the create still blocks. A call blocked only through one of these forms is
+not covered by an inline `SPEND_GATE_APPROVED` (that reads the raw command);
+use the approval file. Every rewrite is a regex scan or a single linear
+pass, capped, so a 2000-flag line stays well under a second.
 
 Approval scheme (either allows the one matched action):
 
