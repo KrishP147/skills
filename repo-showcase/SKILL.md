@@ -22,7 +22,7 @@ Every tracked doc (`README*`, `docs/**`, `CONTRIBUTING*`, stray notes): table Pa
 
 Check every factual claim (languages, versions, install steps, commands, badges, "beta", architecture) against code, config and `git log`. Report `claim file:line` — `evidence file:line or SHA`. These feed §4 and the diff gate.
 
-**License**: no `LICENSE*` file → flag it here and gate it. Offer the user the choice (name a few common ones); never pick one for them, and don't name a license in the README until they have.
+**License**: no `LICENSE*` file → flag it here and gate it. A license declared only in a manifest (`package.json` `license`, `pyproject.toml` `[project] license`, `Cargo.toml` `license`) is the user's stated pick: offer to add the matching `LICENSE` file (standard text, their name and year) and gate that. A `LICENSE` file that disagrees with the manifest → flag both `file:line`. Neither → offer the choice (name a few common ones); never pick one for them, and don't name a license in the README until they have.
 
 ## 4. README draft (lean)
 
