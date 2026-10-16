@@ -137,10 +137,67 @@
     return scored.slice(0, lim).map(function (x) { return x.e; });
   }
 
+  // Description search: the query's words against summary words. A word
+  // matches a summary word exactly, or (4+ chars) as its prefix.
+  var STOP = {};
+  ("the and for with from that this into over are was can you your its not but all any how "
+    + "what when use used").split(" ").forEach(function (w) { STOP[w] = 1; });
+
+  function words(q) {
+    return q.split(/[\s-]+/).filter(function (w) { return w; });
+  }
+  function hasWord(w, t) {
+    return t === w || (w.length >= 4 && t.indexOf(w) === 0);
+  }
+  function summaryTokens(text) {
+    return String(text || "").toLowerCase().split(/[^a-z0-9]+/).filter(function (t) { return t; });
+  }
+  // Content words count toward the threshold; short words and stopwords don't.
+  function contentWords(ws) {
+    return ws.filter(function (w) { return w.length >= 3 && !STOP[w]; });
+  }
+  // Words that must match: all of 1-2 content words, else at least half.
+  function needed(n) { return n <= 2 ? n : Math.ceil(n / 2); }
+
+  // Query words as a consecutive run of summary words (prefix rules apply).
+  function hasPhrase(ws, tk) {
+    for (var i = 0; i + ws.length <= tk.length; i++) {
+      var ok = true;
+      for (var j = 0; j < ws.length; j++) {
+        if (!hasWord(ws[j], tk[i + j])) { ok = false; break; }
+      }
+      if (ok) return true;
+    }
+    return false;
+  }
+
+  // Entries whose summary matches enough query words. Best first: phrase,
+  // then all content words, then most words; ties A-Z.
+  function describe(query, entries) {
+    var ws = words(String(query || ""));
+    var cw = contentWords(ws);
+    if (!cw.length) return [];
+    var need = needed(cw.length);
+    var hits = [];
+    for (var i = 0; i < entries.length; i++) {
+      var tk = summaryTokens(entries[i].summary);
+      var n = 0;
+      for (var k = 0; k < cw.length; k++) {
+        for (var m = 0; m < tk.length; m++) {
+          if (hasWord(cw[k], tk[m])) { n++; break; }
+        }
+      }
+      if (n < need) continue;
+      hits.push({ e: entries[i], p: ws.length > 1 && hasPhrase(ws, tk) ? 1 : 0, n: n });
+    }
+    hits.sort(function (a, b) { return b.p - a.p || b.n - a.n || byName(a.e, b.e); });
+    return hits.map(function (h) { return h.e; });
+  }
+
   // Everything the UI needs for one buffer.
   //   options: what the menu lists (results, else suggestions)
   //   exact:   the entry named exactly by the query, or null
-  //   mode:    "all" | "results" | "suggest" | "none"
+  //   mode:    "all" | "results" | "desc" | "suggest" | "none"
   function search(buffer, entries) {
     var q = queryOf(buffer);
     var results = rank(q, entries);
@@ -149,6 +206,11 @@
     if (q === "") return { query: q, mode: "all", options: results, exact: null, suggestions: [] };
     if (results.length) return { query: q, mode: "results", options: results, exact: exact, suggestions: [] };
     var sug = suggest(q, entries);
+    // A close name typo ("gril-me") beats a description hit; summary-only
+    // suggestions (score SUMMARY_SCORE) do not.
+    var nameTypo = sug.length && suggestScore(q, sug[0]) < SUMMARY_SCORE;
+    var found = nameTypo ? [] : describe(q, entries);
+    if (found.length) return { query: q, mode: "desc", options: found, exact: null, suggestions: [] };
     return { query: q, mode: sug.length ? "suggest" : "none", options: sug, exact: null, suggestions: sug };
   }
 
@@ -160,6 +222,9 @@
 
   // The line shown above suggestions (and announced) when nothing matches.
   function noMatchText(state) {
+    if (state.mode === "desc") {
+      return 'No command name matches "/' + words(state.query).join(" ") + '". Matched descriptions:';
+    }
     if (state.mode === "suggest") {
       return 'No command matches "/' + state.query + '". Did you mean ' + listNames(state.suggestions) + "?";
     }
@@ -171,6 +236,7 @@
   function statusText(state) {
     if (state.mode === "suggest" || state.mode === "none") return noMatchText(state);
     var n = state.options.length;
+    if (state.mode === "desc") return n + (n === 1 ? " command matches" : " commands match") + " by description";
     var s = n + (n === 1 ? " matching command" : " matching commands");
     return state.exact ? s + ". Enter opens /" + state.exact.name : s;
   }
@@ -203,6 +269,7 @@
     queryOf: queryOf,
     rank: rank,
     osa: osa,
+    describe: describe,
     suggest: suggest,
     search: search,
     noMatchText: noMatchText,
