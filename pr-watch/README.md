@@ -80,7 +80,7 @@ each wait for their own yes:
 ⏺ Bash(gh pr view 128 --repo you/myrepo --json headRefName,isCrossRepository)
   ⎿ {"headRefName":"feat/issue-90-retry-backoff","isCrossRepository":false}
 ⏺ you/myrepo · #128 · Retry uploads with backoff · feat/issue-90-retry-backoff · not draft · not a fork
-⏺ Bash(gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!,$after:String){ … reviewThreads … }' -F owner=you -F repo=myrepo -F pr=128)
+⏺ Bash(gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!,$after:String){ … reviewThreads … }' -f owner=you -f repo=myrepo -F pr=128)
   ⎿ 3 unresolved threads, hasNextPage: false
 ⏺ 1. valid: CodeRabbit, src/upload.py:42, the retry delay never caps (thread URL)
   2. valid: CodeRabbit, src/upload.py:57, the bare `except` swallows KeyboardInterrupt (thread URL)
@@ -102,11 +102,11 @@ each wait for their own yes:
 ⏺ Bash(git push origin feat/issue-90-retry-backoff)
 ⏺ Post the three replies above?
 > yes
-⏺ Bash(gh api graphql -f query='mutation($id:ID!,$body:String!){ addPullRequestReviewThreadReply(…) }' -F id=<thread 1> -F body="Fixed in 3e4f5a6: delay capped at 30s.")
+⏺ Bash(gh api graphql -f query='mutation($id:ID!,$body:String!){ addPullRequestReviewThreadReply(…) }' -f id=<thread 1> -f body="Fixed in 3e4f5a6: delay capped at 30s.")
   ⎿ {"data":{"addPullRequestReviewThreadReply":{"comment":{"url":"https://github.com/you/myrepo/pull/128#discussion_r101"}}}}
 ⏺ Replied to threads 2 and 3 the same way. Resolve 1 and 2 (fixed in 3e4f5a6) and 3 (outdated, removed in 1b2c3d4)?
 > yes
-⏺ Bash(gh api graphql -f query='mutation($id:ID!){ resolveReviewThread(input:{threadId:$id}){ thread{ isResolved } } }' -F id=<thread 1>)
+⏺ Bash(gh api graphql -f query='mutation($id:ID!){ resolveReviewThread(input:{threadId:$id}){ thread{ isResolved } } }' -f id=<thread 1>)
   ⎿ {"data":{"resolveReviewThread":{"thread":{"isResolved":true}}}}
 ⏺ Resolved 2 and 3 the same way. Logged the pass to skilleddocs/pr-watch/2026-09-26-myrepo.md.
   #128 Retry uploads with backoff: waiting-on-maintainer (review); 0 open threads, CI re-running on 3e4f5a6.

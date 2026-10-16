@@ -111,11 +111,11 @@ git tag -d <tag>                      # likewise
 ## 8. Expire and collect
 
 ```
-git reflog expire --expire=now HEAD $(git for-each-ref --format='%(refname)' refs/heads refs/remotes)
+git reflog expire --expire=now HEAD $(git for-each-ref --format='%(refname)' refs/heads refs/remotes | while read -r r; do git reflog exists "$r" && echo "$r"; done)
 git gc --prune=now
 ```
 
-No `refs/tags`: tags have no reflog, and naming one exits 255. Not `--all`: that also clears the stash list, while `refs/stash` itself survives and would pin the old history. The old stash entries are gone after step 7, so the stash reflog holds only new-history entries.
+Only refs that have a reflog: naming one without (any tag; a remote-tracking ref no fetch has updated since the clone) exits 255. No `refs/tags` for the same reason. Not `--all`: that also clears the stash list, while `refs/stash` itself survives and would pin the old history. The old stash entries are gone after step 7, so the stash reflog holds only new-history entries.
 
 ## 9. Restore the WIP and verify
 
@@ -123,7 +123,8 @@ No `refs/tags`: tags have no reflog, and naming one exits 255. Not `--all`: that
 git checkout <noted branch> && git stash pop     # the WIP entry; a conflicting pop keeps it: resolve, then git stash drop
 git status --short
 git stash list                                   # every non-WIP entry, re-created
-git cat-file -e <old SHA from refs-before.txt>   # must fail, unless a branch, tag or remote was kept as is
+git for-each-ref --format='%(refname) %(objectname)' | sort | comm -23 <(sort <save>/refs-before.txt) -   # refs the rewrite changed (old line)
+git cat-file -e <old SHA from each line above>   # must fail; an unchanged ref's SHA is kept and is not checked
 git log --all -m -S'<string>' --oneline          # each scrubbed personal string: no output, unless a branch or tag was kept as is
 git log --all --format='%an %ae %cn %ce %B' | grep -F -i '<string>'   # same, for messages and identities
 git rev-parse "<tag>^{commit}"                   # each re-pointed tag: the new SHA from step 5
