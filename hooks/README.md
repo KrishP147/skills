@@ -179,7 +179,7 @@ the hook exits 2 and prints this one line on stderr.
 
 ```transcript
 ⏺ Bash(runpodctl create pod --gpuType RTX4090)
-  ⎿ Blocked: command matches billable pattern '\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:(?:pods?|serverless|network-volume|nv|template|registry)\s+)?(?:create|start)\b'. Approve with ONE of: (1) drop a file into skilleddocs/spend-approvals/ (one-shot, consumed on use); (2) prefix the Bash command with SPEND_GATE_APPROVED=<label> (covers just that command), or start a PowerShell command with $env:SPEND_GATE_APPROVED='<label>'; <cmd>. MCP tool calls: use the file. See the spend-gate skill: estimate, check balance, get an explicit yes for this action, log it, before approving.
+  ⎿ Blocked: command matches billable pattern '\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:(?:pods?|serverless|network-volume|nv)\s+)?(?:create|start)\b'. Approve with ONE of: (1) drop a file into skilleddocs/spend-approvals/ (one-shot, consumed on use); (2) prefix the Bash command with SPEND_GATE_APPROVED=<label> (covers just that command), or start a PowerShell command with $env:SPEND_GATE_APPROVED='<label>'; <cmd>. MCP tool calls: use the file. See the spend-gate skill: estimate, check balance, get an explicit yes for this action, log it, before approving.
 ```
 
 After an explicit yes, `SPEND_GATE_APPROVED=yes runpodctl create pod --gpuType RTX4090`
