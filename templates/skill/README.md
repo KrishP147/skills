@@ -51,6 +51,10 @@ overriding, things that trip people up.
 
 One realistic, worked example: the invocation, then what happened.
 
+Start with a code fence holding the invocation (`/name args`); the site draws it as the
+`> /name args` prompt and the rest as the reply. For a full session use a `transcript`
+fence instead (grammar in [`site/README.md`](../../site/README.md#detail-pages)).
+
 ## Related
 
 Other skills or agents this one calls, is called by, or is commonly paired
