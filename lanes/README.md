@@ -122,7 +122,7 @@ Mid-run, after two collisions:
 ## Related
 
 - Configures [`meta-orchestrator`](../meta-orchestrator/), whose setup calls it for `parallel:`.
-- Each lane runs [`pair`](../pair/)'s worktree pattern with its own [`manager`](../agents/README.md#manager).
+- Each lane runs [`pair`](../pair/)'s worktree pattern with its own `manager` agent.
 - [`session-bridge`](../session-bridge/) checks overlap between separate sessions, not lanes of one run.
 
 ## Prereqs
