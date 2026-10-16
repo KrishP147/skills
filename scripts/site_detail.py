@@ -313,7 +313,7 @@ def _rebase_links(md, from_dir, to_dir):
         if re.match(r"^[a-z]+:|^/|^#", url):
             return m.group(0)
         target = posixpath.normpath(posixpath.join(from_dir, url))
-        return "%s(%s)" % (m.group(1), posixpath.relpath(target, to_dir) + ("/" if url.endswith("/") else ""))
+        return "%s%s)" % (m.group(1), posixpath.relpath(target, to_dir) + ("/" if url.endswith("/") else ""))
     return re.sub(r"(\]\()([^)\s]+)\)", lambda m: fix(m), md)
 
 
