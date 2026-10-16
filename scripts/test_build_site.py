@@ -26,6 +26,68 @@ def check_corner(tc, page, base, label):
     tc.assertNotIn("back", m.group(0).lower(), label)
 
 
+def _palettes(css):
+    """{"dark": tokens, "light": tokens} from style.css's two :root palettes
+    (light inherits dark tokens it doesn't override)."""
+    dark_src = re.search(r"^:root \{(.*?)^\}", css, re.S | re.M).group(1)
+    light_src = re.search(r"@media \(prefers-color-scheme: light\) \{\s*:root \{(.*?)\}", css, re.S).group(1)
+
+    def parse(src):
+        return dict(re.findall(r"(--[\w-]+):\s*([^;]+);", src))
+    dark = parse(dark_src)
+    return {"dark": dark, "light": dict(dark, **parse(light_src))}
+
+
+def _rgba(v):
+    v = v.strip()
+    m = re.fullmatch(r"#([0-9a-fA-F]{6})", v)
+    if m:
+        h = m.group(1)
+        return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4)) + (1.0,)
+    m = re.fullmatch(r"rgba\(\s*(\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\s*\)", v)
+    assert m, "unparsed color " + v
+    return tuple(int(x) for x in m.groups()[:3]) + (float(m.group(4)),)
+
+
+def _over(fg, bg):
+    a = fg[3]
+    return tuple(fg[i] * a + bg[i] * (1 - a) for i in range(3)) + (1.0,)
+
+
+def _contrast(a, b):
+    def lum(c):
+        def ch(v):
+            v /= 255
+            return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+        return 0.2126 * ch(c[0]) + 0.7152 * ch(c[1]) + 0.0722 * ch(c[2])
+    hi, lo = sorted((lum(a), lum(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+class PaletteContrastTest(unittest.TestCase):
+    """WCAG AA (4.5:1) for token pairs, both palettes, rgba composited over --panel."""
+
+    def test_selected_row_and_accent(self):
+        with open(os.path.join(ROOT, "site", "src", "style.css"), encoding="utf-8") as f:
+            css = f.read()
+        css_rules = css.split("@media (prefers-color-scheme: light)", 1)[1]
+        self.assertIn('.menu li[aria-selected="true"] .nm { color: var(--accent-sel); }', css_rules)
+        self.assertIn("background: var(--sel-bg); }", css_rules)
+        for theme, t in _palettes(css).items():
+            c = {k: _rgba(v) for k, v in t.items() if k not in ("--mono",)}
+            panel, bg = c["--panel"], c["--bg"]
+            sel = _over(c["--sel-bg"], panel)
+            pairs = {
+                "selected name": (c["--accent-sel"], sel),
+                "selected dim (.kd/.ds)": (c["--dim"], sel),
+                "accent on bg": (c["--accent"], bg),
+                "accent on panel": (c["--accent"], panel),
+            }
+            for label, (fg, back) in pairs.items():
+                r = _contrast(_over(fg, back), back)
+                self.assertGreaterEqual(r, 4.5, "%s %s: %.2f" % (theme, label, r))
+
+
 class BuildSiteTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

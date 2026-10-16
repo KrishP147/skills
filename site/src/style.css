@@ -1,7 +1,9 @@
 /* Dark is the default (Claude Code's dark theme); light follows the OS
    (Claude Code's light theme). Every color comes from these tokens.
    --accent is for text (>= 4.5:1 on --bg, --panel and a selected row);
-   --accent-line is the brand orange for borders and outlines. */
+   --accent-line is the brand orange for borders and outlines.
+   --sel-bg / --accent-sel: the selected menu row's background and name,
+   >= 4.5:1 for the name and --dim text over --panel (tested). */
 :root {
   color-scheme: dark;
   --bg: #1a1918;
@@ -11,6 +13,8 @@
   --accent: #d97757;
   --accent-line: #d97757;
   --accent-soft: rgba(217, 119, 87, 0.16);
+  --sel-bg: rgba(217, 119, 87, 0.10);
+  --accent-sel: #e08a6c;
   --border: #3d3c38;
   --hover: rgba(255, 255, 255, 0.04);
   --shadow: rgba(0, 0, 0, 0.45);
@@ -28,6 +32,8 @@
     --accent: #a3462a;
     --accent-line: #c96442;
     --accent-soft: rgba(217, 119, 87, 0.10);
+    --sel-bg: rgba(217, 119, 87, 0.10);
+    --accent-sel: #a3462a;
     --border: #d3d0c5;
     --hover: rgba(31, 30, 29, 0.05);
     --shadow: rgba(31, 30, 29, 0.14);
@@ -155,8 +161,8 @@ kbd {
 .menu li .kd { flex: 0 0 3.6em; color: var(--dim); font-size: 0.78em; }
 .menu li .ds { flex: 1 1 auto; min-width: 0; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu li[role="option"]:hover { background: var(--hover); }
-.menu li[aria-selected="true"], .menu li[aria-selected="true"]:hover { background: var(--accent-soft); }
-.menu li[aria-selected="true"] .nm { color: var(--accent); }
+.menu li[aria-selected="true"], .menu li[aria-selected="true"]:hover { background: var(--sel-bg); }
+.menu li[aria-selected="true"] .nm { color: var(--accent-sel); }
 .menu .note { padding: 6px 12px; color: var(--fg); overflow-wrap: anywhere; }
 .menu .note + li[role="option"] { margin-top: 2px; }
 
