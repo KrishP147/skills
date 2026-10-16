@@ -447,6 +447,14 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
 .wf-why { display: block; }
 .wf-human .wf-why { color: var(--dim); }
 
+/* skills map: /map page (site_map.py); graphs reuse .flow above */
+.map-group h2 .n { color: var(--dim); font-weight: 400; }
+.map-list { list-style: none; padding-left: 0 !important; }
+.map-list > li { margin: 0 0 12px; }
+.map-list > li > a { font-weight: 700; }
+.map-list > li > .dim { display: block; }
+.map-out { font-size: 0.85em; margin: 2px 0 0 !important; }
+
 /* detail page: back to the list (Esc on a bare prompt goes there too) */
 .back { display: inline-block; margin: 4px 0 0; text-decoration: none; }
 .back:hover { text-decoration: underline; }

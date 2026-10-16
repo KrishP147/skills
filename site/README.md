@@ -12,6 +12,8 @@ and a `/<name>` detail page for each. No framework, no npm install, no runtime d
 | `src/detail.html` | `/<name>` detail page template (sticky slash prompt, `← all commands` link, header card + chips, sections, prev/next, `#comments` giscus block) |
 | `data/meta.json` | per-name author + battle-tested level (`levels_source` says where levels come from); names not listed get level `new`, author defaults to Krish. `aliases` (`{name: [word, ...]}`) adds search words for the slash prompt: lowercase `a-z0-9-`, never an existing name; the build fails on unknown names or bad words. Aliases come only from here, never SKILL.md frontmatter |
 | `data/workflows.json` | sample workflows, the one source for the `/workflows` page and each detail page's Sample workflows section (machine-readable, other tools read it too): `[{name, title, steps: [{kind, name?, why}]}]`. `kind` is `skill` / `agent` / `hook` / `human` (human steps have no `name`); `why` is one line that must trace to that entry's SKILL.md, agent `.md` or hooks README. No other keys. The build fails (`scripts/site_workflows.py`) on an unknown or wrong-kind name, unknown keys, a workflow with under 2 skill/agent steps or no human step, a duplicate or page-id name, any skill in no workflow, or an entry named `workflows` |
+| `data/meta.json` `map_groups` | groups on the `/map` page, in order: `{group: [name, ...]}`, group names lowercase `a-z0-9-` (not `toc` or `key`). Every skill, agent and hook in exactly one group; the build fails (`scripts/site_map.py`) on an unknown, missing or duplicate name. Only grouping lives here: the map's edges are generated |
+| `src/map.html` | `/map` template (`{{COUNT}}`, `{{EDGES}}`, `{{LIST}}`, `{{DATA}}`): detail-page chrome, a group list, a legend, then one section per group (`#map-<group>`) with a flow_svg graph (members plus the targets of their outgoing edges, so each edge shows once) and a list linking every node and naming every edge. Edges come from Related-section links (a relative link to a missing file or heading fails the build), agent frontmatter `skills:` (preloads) and consecutive steps in `data/workflows.json`. Solid = related/preloads (preloads labelled), dotted = workflow only. The build fails on an entry named `map`; linked from the home welcome |
 | `src/workflows.html` | `/workflows` index template (`{{COUNT}}`, `{{LIST}}`, `{{DATA}}`): detail-page chrome, a contents list, then one section per workflow (`#<name>`) with its steps; linked from the home welcome |
 | `src/404.html`, `src/style.css` | not-found page (`noindex`), all styles. Two palettes as `:root` tokens: dark by default, light under `prefers-color-scheme: light` (Claude Code's dark and light themes); rules use only tokens. `--accent` is the text accent (light: darkened to pass 4.5:1), `--accent-line` the brand orange for borders, `--sel-bg` / `--accent-sel` the selected menu row and the home list's hover row (name and dim text >= 4.5:1 over `--panel` and `--bg`, checked by `PaletteContrastTest`), `--band` the mobile corner band. Every page has `<meta name="color-scheme" content="light dark">` |
 | `src/rocky.webp` | 128px Rocky for the krishpunjabi.com corner link (owner's asset, cropped to the carapace, no metadata); copied byte for byte |
@@ -36,7 +38,8 @@ two entries of any kind.
 The prompt (home dock and detail topbar) starts as `/`, which can't be deleted;
 everything after it is typed freely. Each page embeds the nav data
 (`name`, `kind` = `skill` | `agent` | `hook` from the group, `group`, `summary`,
-optional `aliases` from `meta.json`) in `#skill-data`.
+optional `aliases` from `meta.json`) in `#skill-data`, then site pages the prompt
+can open (`build_site.PAGES`: `/map`, kind `page`, group `pages`).
 
 - **Ranking:** exact name > name prefix > word-boundary prefix (`handoff` finds
   `session-handoff`) > substring > alias; ties A-Z. A bare `/` lists everything
@@ -173,7 +176,7 @@ and are not prefixed again. `--out <dir>` (default `<repo>/site/dist`) is
 resolved against the current directory and may be outside the repo; skill
 sources are always read from this repo, not the cwd.
 
-Output: `index.html`, `workflows/index.html`, `skills.json` (name, description, summary, group,
+Output: `index.html`, `workflows/index.html`, `map/index.html`, `skills.json` (name, description, summary, group,
 source, readme), `<name>/index.html` detail page per skill/agent/hook (so `/pair` resolves
 statically), `404.html`, `style.css`, `filter.js`, `app.js`, `rocky.webp`, `favicon-32.png`, `apple-touch-icon.png`. Every
 `site/src/*.css|js|svg` is copied as text and every `*.webp|png|jpg` byte for byte. The build is

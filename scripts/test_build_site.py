@@ -349,6 +349,9 @@ class BuildSiteTest(unittest.TestCase):
 
     def test_nav_data_kind_and_aliases(self):
         nav = self.embedded(self.index)
+        pages = [n for n in nav if n["kind"] == "page"]
+        self.assertEqual([n["name"] for n in pages], ["map"])
+        nav = [n for n in nav if n["kind"] != "page"]
         self.assertEqual([n["name"] for n in nav], [e["name"] for e in self.data])
         with open(os.path.join(ROOT, "site", "data", "meta.json"), encoding="utf-8") as f:
             aliases = json.load(f).get("aliases", {})
@@ -361,7 +364,7 @@ class BuildSiteTest(unittest.TestCase):
             else:
                 self.assertNotIn("aliases", n)
         with open(os.path.join(self.out, "pair", "index.html"), encoding="utf-8") as f:
-            self.assertEqual(self.embedded(f.read()), nav)
+            self.assertEqual(self.embedded(f.read()), nav + pages)
 
     def test_aliases_validated(self):
         entries = [{"name": "pair", "group": "core", "summary": "s"},
