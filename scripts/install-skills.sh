@@ -4,7 +4,8 @@
 # replaced fresh; a same-named dir NOT installed by this repo (no marker
 # file) is left alone unless --force. Also copies agents/*.md and
 # agents/hooks/ over ~/.claude/agents/; agents there that aren't in this
-# repo are warned about, never deleted.
+# repo are warned about, never deleted. Same for skill dirs in the target
+# that carry the marker but are no longer in this repo (stale skills).
 #
 # Flags:
 #   --no-lint  proceed even if no working python 3 is found (skips lint)
@@ -88,10 +89,12 @@ mkdir -p "$agents_target"
 
 installed=()
 skipped_foreign=()
+repo_skills=" "
 while IFS= read -r -d '' skill_md; do
   skill_dir="$(dirname "$skill_md")"
   name="$(basename "$skill_dir")"
   dest="$target/$name"
+  repo_skills+="$name "
   if [[ -e "$dest" && ! -f "$dest/$MARKER" && $force -eq 0 ]]; then
     echo "warning: $dest exists and wasn't installed by this repo, skipping (use --force to replace)" >&2
     skipped_foreign+=("$name")
@@ -135,6 +138,17 @@ while IFS= read -r -d '' existing; do
 done < <(find "$agents_target" -maxdepth 1 -type f -name "*.md" ! -name "README.md" -print0)
 if (( ${#stale[@]} )); then
   printf 'warning: stale agent(s) not in repo, remove manually: %s\n' "${stale[*]}" >&2
+fi
+
+stale_skills=()
+while IFS= read -r -d '' existing; do
+  name="$(basename "$existing")"
+  [[ -f "$existing/$MARKER" && "$repo_skills" != *" $name "* ]] && stale_skills+=("$name")
+done < <(find "$target" -mindepth 1 -maxdepth 1 -type d -print0)
+if (( ${#stale_skills[@]} )); then
+  # comma-joined: dir names may contain spaces (matches the .ps1 output)
+  joined="$(printf ', %s' "${stale_skills[@]}")"
+  printf 'warning: stale skill(s) not in repo, remove manually: %s\n' "${joined:2}" >&2
 fi
 
 if (( ${#skipped_foreign[@]} )); then
