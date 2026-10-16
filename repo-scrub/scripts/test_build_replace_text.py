@@ -133,6 +133,23 @@ class TestBuildReplaceText(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("no secret value", stdout)
 
+    def test_no_ids_writes_empty_file_and_succeeds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out_path, _ = self._run(Path(tmp), {}, [], [])
+            self.assertTrue(out_path.exists())
+            content = out_path.read_text(encoding="utf-8")
+        self.assertEqual(rc, 0)
+        self.assertEqual(content, "")
+
+    def test_only_personal_ids_succeeds_with_note(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out_path, stdout = self._run(Path(tmp), {}, [], ["P1", "P2"])
+            content = out_path.read_text(encoding="utf-8")
+        self.assertEqual(rc, 0)
+        self.assertEqual(content, "")
+        self.assertIn("P1 P2", stdout)
+        self.assertNotIn("not found in findings.json", stdout)
+
     def test_multiple_ids_writes_multiple_lines(self):
         v1, v2 = "secret-one", "secret-two"
         findings = {

@@ -47,7 +47,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--gitleaks", type=Path, required=True)
     ap.add_argument("--findings", type=Path, required=True)
-    ap.add_argument("--ids", nargs="+", required=True, help="Finding IDs to redact, e.g. S1 S3")
+    ap.add_argument(
+        "--ids",
+        nargs="*",
+        default=[],
+        help="Secret finding IDs to redact, e.g. S1 S3. None (only P findings picked): writes an empty file to append P lines to.",
+    )
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--replacement", default="REDACTED")
     args = ap.parse_args()
@@ -57,7 +62,9 @@ def main() -> int:
 
     lines = []
     skipped = []
-    for fid in args.ids:
+    personal = [fid for fid in args.ids if fid.upper().startswith("P")]
+    secret_ids = [fid for fid in args.ids if fid not in personal]
+    for fid in secret_ids:
         entry = findings.get(fid)
         if entry is None:
             skipped.append((fid, "not found in findings.json"))
@@ -83,8 +90,11 @@ def main() -> int:
         print("Skipped:")
         for fid, reason in skipped:
             print(f"  {fid}: {reason}")
+    if personal:
+        print(f"Personal findings ({' '.join(personal)}): append their literal: lines by file edit")
 
-    return 0 if lines else 1
+    # Empty output is only a failure when a secret ID was asked for.
+    return 0 if lines or not secret_ids else 1
 
 
 if __name__ == "__main__":
