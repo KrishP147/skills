@@ -363,6 +363,11 @@ def split_commands(cmd, ps=False):
                     subs.append(inner)
                     buf.append(SUBST % (len(subs) - 1) + " ")
             continue
+        if ps and c == "(" and "".join(buf).strip():
+            # PowerShell `(expr)` mid-command is an argument value, not a group:
+            # `git push origin ('ma' + 'in')` -> an unreadable (dynamic) token.
+            i = subst(i + 1, ")")
+            continue
         if c in "\n;&|()":
             flush()
             i += 1
@@ -596,14 +601,15 @@ INTERPRETER_RE = re.compile(r"^(python[0-9.]*w?|py|pypy[0-9.]*|node|nodejs|bun|d
 CODE_GIT_RE = re.compile(r"\bgit\b\W{0,8}(push|send-pack|http-push)\b|\bgh\b\W{0,8}pr\b\W{0,8}merge\b"
                          r"|\bgh\b\W{0,8}api\b[^\n]{0,200}merge", re.I)
 CODE_RISK_RE = re.compile(r"push|merge|send-pack", re.I)
-CODE_SPAWN_RE = re.compile(r"system|subprocess|popen|exec|spawn|child_process|`|shell|process", re.I)
+CODE_SPAWN_RE = re.compile(r"system|subprocess|popen|exec|spawn|child_process|`|shell|process|command"
+                           r"|\bgit\b|\bgh\b", re.I)
 
 
 def check_code(text, ctx):
-    """Inline interpreter code (`python -c`, `node -e`, `perl -e`, stdin
+    """Inline interpreter code (`python -c`, `node -e`, `deno eval`, stdin
     script): it can't be parsed, so block when it names a push/merge, or
-    mentions push/merge next to a process-spawning call, or writes to the
-    GitHub API."""
+    mentions push/merge next to a process-spawning call or a git/gh word, or
+    writes to the GitHub API."""
     if CODE_GIT_RE.search(text) or (CODE_RISK_RE.search(text) and CODE_SPAWN_RE.search(text)):
         ctx.block("inline interpreter code mentions git push / merge; failing closed.")
     if DECODER_RE.search(text) and CODE_SPAWN_RE.search(text):
@@ -770,7 +776,11 @@ def _run_segment(toks, ctx, subs, depth):
         m = re.match(r"(?i)^\$env:(GIT_DIR|GIT_WORK_TREE)\s*=\s*(.*)$", " ".join(toks))
         if m:  # `$env:GIT_DIR = '../other/.git'`
             ctx.git_env[m.group(1).upper()] = m.group(2).strip() or DYNAMIC
-        if re.search(r"(?i)\.invoke(returnasis|withcontext)?$|\.invokescript$", toks[0]):
+        if re.search(r"(?i)process\]::start|processstartinfo", " ".join(toks)):
+            if re.search(r"(?i)\b(git|gh)\b", ctx.top_cmd):  # `[Diagnostics.Process]::Start('git', ...)`
+                ctx.block(".NET Process.Start/ProcessStartInfo running git/gh can't be read; failing closed.")
+            ctx.dynamic_exec(".NET Process.Start")
+        if re.search(r"(?i)\.invoke(returnasis|withcontext)?$|\.invokescript$", SUBST_RE.sub("", toks[0])):
             ctx.dynamic_exec("a scriptblock .Invoke()")  # `$sb.Invoke()`
         brace = next((k for k in range(1, len(toks)) if toks[k].startswith("{")), None)
         if brace is not None and head not in ("&", ".", "invoke-command", "icm"):
@@ -856,6 +866,13 @@ def _run_segment(toks, ctx, subs, depth):
         return False
     if head == "cmd":
         cmd_c(rest, ctx, depth)
+        return False
+    if head == "script":  # util-linux `script -qc 'cmd' file` runs cmd via a shell
+        for k, t in enumerate(rest):
+            if t.startswith("--command="):
+                analyze_in(t.split("=", 1)[1], ctx, depth + 1, False)
+            elif (t == "--command" or re.fullmatch(r"-[a-zA-Z]*c", t)) and k + 1 < len(rest):
+                analyze_in(rest[k + 1], ctx, depth + 1, False)
         return False
     if INTERPRETER_RE.match(head):  # python -c / node -e / perl -e / ruby -e
         check_code(" ".join(rest), ctx)
@@ -964,6 +981,10 @@ def strip_prefixes(toks, ctx, depth):
         b = base(t)
         if ASSIGN_RE.match(t) or t in KEYWORDS:
             toks.pop(0)
+        elif t == "function" and not ctx.powershell:
+            del toks[:2]  # `function f { git push origin "$@"; }`: read the body like `f() {`
+            if toks and toks[0] == "{":
+                toks.pop(0)
         elif b == "env":
             toks.pop(0)
             scan_config_env([t for t in toks if not t.startswith("-")], ctx, ctx.seg_env)
@@ -1006,6 +1027,8 @@ def strip_prefixes(toks, ctx, depth):
                 if o in ("-I", "-n", "-L", "-P", "-d", "-E", "-s", "-a") and toks:
                     toks.pop(0)
             toks.append(DYNAMIC)  # xargs appends arguments we cannot see
+            if toks and (base(toks[0]) in SHELLS | PWSH | {"eval", "cmd"} or INTERPRETER_RE.match(base(toks[0]))):
+                ctx.dynamic_exec("xargs feeding a shell/interpreter")  # `xargs -I{} sh -c '{}'`
         else:
             break
     return toks
@@ -1036,6 +1059,8 @@ def shell_c(rest, ctx, depth):
         return False
     if not operands or operands[0] == "-" or "s" in "".join(t for t in rest[:i] if t.startswith("-")):
         return "posix"  # reads script from stdin
+    if is_dynamic(operands[0]):
+        ctx.dynamic_exec("a shell running a generated script")  # `bash <(echo ...)`
     return False  # script file: out of reach, documented limitation
 
 
@@ -1081,12 +1106,34 @@ GIT_KNOWN = {"push", "branch", "add", "commit", "status", "log", "diff", "show",
              "switch", "restore", "reset", "rebase", "merge", "stash", "tag", "remote", "config", "rev-parse",
              "worktree", "init", "clone", "mv", "rm", "grep", "blame", "cherry-pick", "revert", "clean",
              "describe", "ls-files", "symbolic-ref", "update-ref", "for-each-ref", "reflog", "submodule", "help",
-             "send-pack", "http-push"}
+             "send-pack", "http-push", "merge-base", "merge-tree", "merge-file", "rev-list", "ls-tree",
+             "ls-remote", "cat-file", "show-ref", "shortlog", "cherry", "range-diff", "whatchanged", "name-rev",
+             "apply", "am", "format-patch", "notes", "bisect", "sparse-checkout", "gc", "fsck", "archive",
+             "check-ignore", "difftool", "mergetool", "version", "maintenance", "hash-object", "update-index",
+             "count-objects", "var"}
+# an unknown (external/alias-less) git subcommand naming one of these blocks: `git subtree push`
+GIT_REMOTE_VERBS = re.compile(r"push|send-pack|dcommit|submit|merge|sync|delete", re.I)
+
+
+def git_exec_args(sub, rest):
+    """Shell commands git itself runs: `rebase -x/--exec`, `submodule foreach`,
+    `bisect run`. Returned as strings to analyse like any other command."""
+    out = []
+    if sub == "rebase":
+        for k, t in enumerate(rest):
+            if t in ("-x", "--exec") and k + 1 < len(rest):
+                out.append(rest[k + 1])
+            elif t.startswith("--exec="):
+                out.append(t[len("--exec="):])
+    for word, owner in (("foreach", "submodule"), ("run", "bisect")):
+        if sub == owner and word in rest:
+            out.append(" ".join(rest[rest.index(word) + 1:]))
+    return out
 
 
 def check_git(args, ctx, subs, depth, alias_depth=0):
     cwd = ctx.cwd
-    i, inline_aliases = 0, {}
+    i, inline_aliases, inline_values = 0, {}, []
     env = ctx.env()
     repo = {"dir": env.get("GIT_DIR"), "tree": env.get("GIT_WORK_TREE")}
     while i < len(args) and args[i].startswith("-"):
@@ -1108,6 +1155,7 @@ def check_git(args, ctx, subs, depth, alias_depth=0):
                 cwd = ctx.path(cwd, v)
             if t == "-c" and "=" in v:
                 k, val = v.split("=", 1)
+                inline_values.append(val)
                 if k.lower().startswith("alias."):
                     inline_aliases[k[6:]] = val
                 elif redirecting_config(k, val):
@@ -1136,10 +1184,15 @@ def check_git(args, ctx, subs, depth, alias_depth=0):
             else:
                 check_git((tokenize(alias) or alias.split()) + rest, ctx, subs, depth, alias_depth + 1)
             return
+    if sub not in GIT_KNOWN and any(GIT_REMOTE_VERBS.search(t) for t in [sub] + rest):
+        ctx.block("git %s is not on the allowlist and names a push/merge/sync verb; failing closed." % sub)
+    for code in git_exec_args(sub, rest) + inline_values:
+        analyze(code, ctx, depth + 1)  # commands git runs for us: rebase -x, -c core.sshCommand=...
     if sub == "push":
         check_push(rest, ctx, subs, cwd, repo)
     elif sub in ("send-pack", "http-push"):
         check_send_pack(rest, ctx, subs, cwd, sub, repo)
+        ctx.block("git %s (plumbing push) is not on the allowlist; use git push." % sub)
     elif sub == "branch":
         check_branch_delete(rest, ctx)
         track_branch_rename(rest, ctx)
@@ -1319,18 +1372,39 @@ def check_push(args, ctx, subs, cwd, repo=None):
             ctx.block("git push %s is not allowed." % t.split("=")[0])
         if lt in ("--all", "--branches", "--prune"):
             ctx.block("git push %s touches every branch." % t)
-        if t in ("--repo", "--push-option", "--receive-pack", "--exec", "-o"):
-            i += 1
-            continue
         if not t.startswith("--"):
             flags = t[1:]
             if "f" in flags:
                 ctx.block("git push -f (force) is not allowed.")
             if "d" in flags:
                 ctx.block("git push -d (delete) is not allowed.")
-            if flags.endswith("o"):
-                i += 1
+        if lt not in PUSH_OK_OPTS and not re.fullmatch(r"-[uvqn]+", t):
+            ctx.block("git push option '%s' is not on the allowlist; failing closed." % t)
+    if positional and is_dynamic(positional[0]):
+        ctx.block("git push to a remote that can't be read ('%s'); failing closed." % positional[0])
     check_refspecs(positional[1:], ctx, subs, cwd, repo)
+    for spec in positional[1:]:
+        check_push_allowlist(spec, subs)
+
+
+# allowlist: options a plain feature-branch push needs; everything else blocks.
+PUSH_OK_OPTS = {"-u", "--set-upstream", "-v", "--verbose", "-q", "--quiet", "--progress", "--no-progress",
+                "-n", "--dry-run", "--porcelain", "--no-verify", "--verify"}
+SAFE_BRANCH_RE = re.compile(r"^(?!-)(?!.*\.\.)(?!.*@\{)(?!refs/)[^\s~^:?*\[\\]+$")
+
+
+def check_push_allowlist(spec, subs):
+    """A refspec is allowed only as `<branch>`, `<branch>:<same branch>` or
+    `HEAD`/`@`/current-branch idiom `[:<branch>]`. check_refspecs has already
+    blocked protected/dynamic/force/delete forms; this rejects the rest."""
+    if spec in ("HEAD", "@") or is_current_branch_subst(spec, subs):
+        return
+    src, sep, dst = spec.partition(":")
+    dst = strip_ref(dst if sep else src)
+    if not SAFE_BRANCH_RE.match(dst) or dst in ("HEAD", "@"):
+        raise Block("Blocked: push refspec '%s' is not a plain branch name; failing closed." % spec)
+    if sep and src not in ("HEAD", "@") and strip_ref(src) != dst:
+        raise Block("Blocked: push refspec '%s' must push a branch to the same name (or HEAD:<branch>)." % spec)
 
 
 def check_send_pack(args, ctx, subs, cwd, sub, repo=None):
@@ -1435,6 +1509,26 @@ GRAPHQL_MUTATIONS = re.compile(r"mergePullRequest|enablePullRequestAutoMerge|mer
                                r"|updateRefs|deleteRepository|deleteBranchProtectionRule", re.I)
 
 
+# gh allowlist: top-level command -> allowed subcommands (None = all).
+# Anything else (merge, close, revert, alias set, repo sync/edit, extensions,
+# aliases, unreadable words) is blocked: fail closed.
+GH_ALLOW = {
+    "pr": {"create", "new", "view", "list", "ls", "checks", "diff", "status", "checkout", "co", "comment",
+           "edit", "ready", "reopen", "review"},
+    "issue": {"view", "list", "ls", "status", "comment", "create", "new", "edit", "close", "reopen",
+              "pin", "unpin", "lock", "unlock"},
+    "repo": {"view", "list", "ls", "clone", "set-default"},
+    "release": {"view", "list", "ls", "download"},
+    "workflow": {"view", "list", "ls"},
+    "alias": {"list", "ls"},
+    "extension": {"list", "ls", "search", "browse"},
+    "ext": {"list", "ls", "search", "browse"},
+    "project": None, "run": None, "label": None, "search": None, "status": None, "browse": None,
+    "auth": None, "help": None, "version": None, "config": None, "cache": None, "ruleset": None,
+    "completion": None, "gist": None,
+}
+
+
 def check_gh(args, ctx):
     pos, i = [], 0
     while i < len(args) and len(pos) < 2:
@@ -1445,12 +1539,17 @@ def check_gh(args, ctx):
         if not t.startswith("-"):
             pos.append(t)
         i += 1
-    if pos[:2] == ["pr", "merge"]:
-        ctx.block("gh pr merge is not allowed.")
-    if pos[:2] == ["repo", "delete"]:
-        ctx.block("gh repo delete is not allowed.")
-    if pos[:1] == ["api"]:
+    if not pos:
+        return  # `gh --version`, `gh --help`
+    if pos[0] == "api":
         check_gh_api(args[args.index("api") + 1:], ctx)
+        return
+    if pos[0] not in GH_ALLOW:
+        ctx.block("gh %s is not on the allowlist (aliases/extensions can't be read); failing closed." % pos[0])
+    subs = GH_ALLOW[pos[0]]
+    if subs is not None and len(pos) > 1 and pos[1] not in subs:
+        ctx.block("gh %s %s is not on the allowlist (can merge/delete/write refs); not allowed."
+                  % (pos[0], pos[1]))
 
 
 HTTP_CLIENTS = {"curl", "wget", "invoke-webrequest", "iwr", "invoke-restmethod", "irm"}
@@ -1484,6 +1583,7 @@ def check_http(args, ctx):
     method = (method or ("POST" if data else "GET")).upper()
     if method in ("GET", "HEAD", "OPTIONS"):
         return
+    ctx.block("%s to the GitHub API is not on the allowlist (only GET); use git push / gh pr create." % method)
     for url in urls:
         ep = re.sub(r"^.*?api\.github\.com(/api/v3)?|^.*?/api/v3", "", url).split("?")[0]
         prev = None
@@ -1543,6 +1643,13 @@ def check_gh_api(args, ctx):
     if method is None:
         method = "POST" if has_fields else "GET"
     write = method != "GET" or is_dynamic(method)
+    if endpoint.strip("/") == "graphql":
+        query = fields.get("query")
+        if input_file or query is None or is_dynamic(query) or re.search(r"mutation", query, re.I):
+            ctx.block("gh api graphql: only literal read queries are allowed (no mutation).")
+    elif write:
+        ctx.block("gh api %s: only GET is allowed (fields/--input imply POST); "
+                  "use git push / gh pr create." % method)
     ep = re.sub(r"^https?://[^/]+(/api/v3)?", "", endpoint).split("?")[0]
     prev = None
     while prev != ep:  # collapse `//` and `/./` so they can't hide a ref
@@ -1733,14 +1840,14 @@ CASES = [
     ("git push origin x{1..999}", B, "feat"),  # too many to expand -> dynamic
     ("git push origin {krish/a,krish/b}", A, "feat"),
     ("git push origin krish/{docs}", A, "feat"),  # no comma: bash leaves it literal
-    ("git push origin main^{}:krish/x", A, "feat"),
+    ("git push origin main^{}:krish/x", B, "feat"),  # #174: src must be the same branch or HEAD
     ("git push origin 'ma{i,}n", B, "feat"),  # unparseable + brace
     ("git push origin HEAD:heads/main", B, "feat"),
     ("git push origin x:refs/heads//main", B, "feat"),
     ("git push origin x:refs/./heads/./main", B, "feat"),
     ("git push origin x:Refs/Heads/Main", B, "feat"),
     ("git push origin @{-1}", B, "feat"),
-    ("git push origin HEAD@{0}:krish/x", A, "feat"),
+    ("git push origin HEAD@{0}:krish/x", B, "feat"),  # #174: reflog src not on allowlist
     ("git push origin HEAD:heads/krish/x", A, "feat"),
     ("git push origin 'x:heads/main", B, "feat"),  # unparseable + DWIM
     ("git send-pack origin main", B, "feat"),
@@ -1754,8 +1861,8 @@ CASES = [
     ("git send-pack --receive-pack=x origin HEAD", B, "main"),
     ("git http-push https://h/r.git main", B, "feat"),
     ("git send-pack origin 'main", B, "feat"),  # unparseable
-    ("git send-pack --thin origin krish/x", A, "feat"),
-    ("git send-pack origin HEAD", A, "krish/x"),
+    ("git send-pack --thin origin krish/x", B, "feat"),  # #174: plumbing push blocked
+    ("git send-pack origin HEAD", B, "krish/x"),  # #174: plumbing push blocked
     ("gh pr merge 123", B, "feat"),
     ("gh pr merge --squash --auto 5", B, "feat"),
     ("gh -R o/r pr merge 5", B, "feat"),
@@ -1775,11 +1882,11 @@ CASES = [
     ("gh api -X PUT repos/o/r/branches/./main/protection/", B, "feat"),
     ("gh api -X POST repos/o/r/branches/main/protection/required_signatures", B, "feat"),
     ("gh api -X PUT repos/o/r/pulls//5/merge", B, "feat"),
-    ("gh api -X DELETE repos/o/r/git/refs/heads//krish/x", A, "feat"),
+    ("gh api -X DELETE repos/o/r/git/refs/heads//krish/x", B, "feat"),  # #174: gh api GET only
     ("gh api -X DELETE repos/o/r/git/refs/heads/krish/../main", B, "feat"),
     ("gh api -X PATCH repos/o/r/git/refs/heads/%6Dain", B, "feat"),
     ("gh api -X DELETE repos/o/r/branches/x/../main/protection", B, "feat"),
-    ("gh api -X PUT repos/o/r/branches/krish/x/protection", A, "feat"),
+    ("gh api -X PUT repos/o/r/branches/krish/x/protection", B, "feat"),  # #174: gh api GET only
     ("gh api repos/o/r/branches//main/protection", A, "feat"),
     ("gh api -X DELETE repos/o/r", B, "feat"),
     ("gh api graphql -f query='mutation{mergePullRequest(input:{pullRequestId:\"x\"}){clientMutationId}}'", B, "feat"),
@@ -1922,7 +2029,7 @@ def run_self_test():
         ("gh api -X DELETE repos/o/r/contents/old.txt -f branch=main -f message=x", B, False, feat),
         ("gh api -X PUT repos/o/r/contents/x -f branch=$B -f message=y", B, False, feat),
         ("gh api -X PUT repos/o/r/contents/x -f branch=krish/../main", B, False, feat),
-        ("gh api -X PUT repos/o/r/contents/x -f branch=krish/x -f message=y", A, False, feat),
+        ("gh api -X PUT repos/o/r/contents/x -f branch=krish/x -f message=y", B, False, feat),  # #174: GET only
         ("gh api repos/o/r/contents/README.md", A, False, feat),
         ("gh api repos/o/r/contents/x --jq .sha", A, False, feat),
         # 4. PowerShell iex / Invoke-Expression / Start-Process / scriptblocks
@@ -2054,8 +2161,8 @@ def run_self_test():
         ("gh api -X PUT repos/o/r/contents/x -F branch=@b.txt -f message=x", B, False, feat),
         ("gh api -X PUT repos/o/r/contents/x -Fbranch=@- -f message=x", B, False, feat),
         ("gh api -X PUT repos/o/r/contents/x --field branch=@b.txt", B, False, feat),
-        ("gh api -X PUT repos/o/r/contents/x -f branch=@krish -f message=x", A, False, feat),  # -f is raw
-        ("gh api -X PUT repos/o/r/contents/x -F branch=krish/x -f message=x", A, False, feat),
+        ("gh api -X PUT repos/o/r/contents/x -f branch=@krish -f message=x", B, False, feat),  # #174: GET only
+        ("gh api -X PUT repos/o/r/contents/x -F branch=krish/x -f message=x", B, False, feat),  # #174: GET only
         # allow-side musts
         ("cd C:\\x; git status", A, True, feat),
         ("git log main..HEAD", A, True, feat),
@@ -2187,7 +2294,7 @@ def run_self_test():
         ("curl -s https://api.github.com/repos/o/r/git/refs/heads/main", A, False),
         ("irm https://api.github.com/repos/o/r/pulls/5", A, True),
         ("curl -X POST https://example.com/api/merges -d x", A, False),
-        ("curl -X POST https://api.github.com/repos/o/r/issues/5/comments -d x", A, False),
+        ("curl -X POST https://api.github.com/repos/o/r/issues/5/comments -d x", B, False),  # #174: GET only
         # 11. Git Bash MSYS paths
         ("cd /c/Users/x/feat && git push -u origin HEAD", A, False),
         ("cd /cygdrive/c/Users/x/feat && git push", A, False),
@@ -2196,6 +2303,49 @@ def run_self_test():
         ("cd \"C:/Users/x/feat\" && git push -u origin HEAD", A, False),
         ("Set-Location C:\\Users\\x\\feat; git push -u origin HEAD", A, True),
         ("cd C:\\Users\\x\\mainrepo; git push", B, True),
+        # #171 round-4 misses (now blocked by the #174 allowlist)
+        ("function f { git push origin \"$@\"; }; f main", B, False),
+        ("bash <(echo git push origin main)", B, False),
+        ("script -qc 'git push origin main' /dev/null", B, False),
+        ("git subtree push --prefix x origin main", B, False),
+        ("gh alias set m 'pr merge' && gh m 1", B, False),
+        ("deno eval \"new Deno.Command('git',{args:['push','origin','main']}).outputSync()\"", B, False),
+        ("xargs -I{} sh -c '{}' <<< 'git push origin main'", B, False),
+        ("git push origin ('ma' + 'in')", B, True),
+        ("[Diagnostics.Process]::Start('git','push origin main')", B, True),
+        ("$p = New-Object System.Diagnostics.ProcessStartInfo 'git'", B, True),
+        # #174 allowlist: forms outside the known-safe set
+        ("git push --tags origin", B, False),
+        ("git push --repo=origin krish/x", B, False),
+        ("git push origin refs/tags/v1", B, False),
+        ("git push $R krish/x", B, False),
+        ("git push origin krish/a:krish/b", B, False),
+        ("gh pr close 5 --delete-branch", B, False),
+        ("gh pr revert 5", B, False),
+        ("gh repo sync o/r", B, False),
+        ("gh mystery-extension go", B, False),
+        ("gh api repos/o/r/issues/5/comments -f body=x", B, False),
+        ("gh api graphql -f query='mutation{deleteRef(input:{refId:\"x\"}){clientMutationId}}'", B, False),
+        ("gh api graphql -F query=@q.graphql", B, False),
+        ("git rebase -x 'git push origin main' HEAD~2", B, False),
+        ("git submodule foreach git push origin main", B, False),
+        ("git -c core.sshCommand='git push origin main' fetch", B, False),
+        # #174 allowlist: normal agent commands stay allowed
+        ("git push -u origin krish/x", A, False),
+        ("git push -uv origin HEAD:krish/x", A, False),
+        ("git push origin krish/x:krish/x", A, False),
+        ("gh pr create -R o/r --head krish/x --base main --title t --body-file b.md --draft", A, False),
+        ("gh pr checks 5 && gh pr diff 5 && gh issue view 5 && gh repo view o/r", A, False),
+        ("gh api graphql -f query='query{repository(owner:\"o\",name:\"r\"){issue(number:1){id}}}'", A, False),
+        ("gh api -X GET search/issues -f q=repo:o/r", A, False),
+        ("gh project item-edit --id i --field-id f --project-id p --single-select-option-id o", A, False),
+        ("gh issue comment 5 --body 'Started on branch krish/x'", A, False),
+        ("git stash push -m wip && git stash pop", A, False),
+        ("git merge-base HEAD origin/main && git rebase origin/main", A, False),
+        ("git worktree add ../wt -b krish/y origin/master && git worktree remove ../wt", A, False),
+        ("Write-Host ('a' + 'b'); git status", A, True),
+        ("if ($LASTEXITCODE -ne 0) { exit 1 }", A, True),
+        ("node -e \"console.log('push')\"", A, False),
         # allow-side musts
         ("git status && git add a.txt && git commit -m 'merge push'", A, False),
         ("git push origin krish/x", A, True),
