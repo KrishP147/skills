@@ -21,7 +21,7 @@ For each queued issue (open, in scope, not excluded, not already merged), in que
 2. Area labels (`area:site`, `docs`, `hooks`, ...) mapped to the directories they cover.
 3. A quick `git grep -l` for the identifiers, commands or file names the issue mentions.
 
-Record a file set per issue. Mark it **uncertain** when it rests only on a label or a guess, or the issue says "and wherever else". Shared files every change touches (a changelog, a lockfile, a generated count) do not count as overlap; the merge gate rebases those.
+Record a file set per issue. Mark it **uncertain** when it rests only on a label or a guess, or the issue says "and wherever else". Shared files every change touches (a changelog, a lockfile, a generated count) count as overlap like any other file; name them in the proposal's Why line.
 
 ## 2. Group
 
