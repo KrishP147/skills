@@ -27,7 +27,7 @@ A handoff folder set by `AGENTS.md`/`CLAUDE.md` outside `skilleddocs/` gets the 
 
 ## Dated handoffs never ship in a task PR
 
-A dated handoff in the handoff folder (AGENTS.md/CLAUDE.md's, else `skilleddocs/handoffs/`) is not part of the task's change. Commit mode: commit it only when the current branch is `<default>`. On any other branch leave it uncommitted on disk; `update-progress` runs on `<default>` and commits it there after verifying. Untracked mode: nothing to do.
+A dated handoff in the handoff folder (AGENTS.md/CLAUDE.md's, else `skilleddocs/handoffs/`) is not part of the task's change. Commit mode: commit it only when the current branch is `<default>`. On any other branch leave it uncommitted on disk; `update-progress` runs on `<default>` and commits it there after verifying. Untracked mode: nothing to do. Either mode, worktree teardown (`pair` §5 step 1) first moves it into the main checkout's handoff folder.
 
 ## `HANDOFF.md` never ships
 
