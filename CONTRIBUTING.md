@@ -90,6 +90,18 @@ about your own skill. To test the forbidden-word check locally, drop a
 throwaway word into `.lint-forbidden.txt` at the repo root (gitignored),
 confirm `python scripts/lint.py` fails naming it, then delete the file.
 
+Adding or renaming a skill, agent or hook, or editing a description,
+`site/data/meta.json` or `site/data/workflows.json`, changes the catalog
+`find-me-a-skill` reads. Regenerate it and commit the result:
+
+```bash
+python scripts/site_catalog.py          # rewrites find-me-a-skill/CATALOG.md
+python scripts/site_catalog.py --check  # exits 1 when it is stale
+```
+
+A new entry also needs a `model_effort` line in `site/data/meta.json`
+(suggested model and `/effort`); the site build fails without one.
+
 Install into a throwaway location instead of your real `~/.claude/`, so you
 can check the result without touching your own setup:
 
