@@ -853,6 +853,9 @@ def _run_segment(toks, ctx, subs, depth):
     if INTERPRETER_RE.match(head):  # python -c / node -e / perl -e / ruby -e
         check_code(" ".join(rest), ctx)
         return "code"
+    if head in HTTP_CLIENTS:
+        check_http(rest, ctx)
+        return False
     if head == "git":
         check_git(rest, ctx, subs, depth)
     elif head == "gh":
@@ -1440,6 +1443,53 @@ def check_gh(args, ctx):
         ctx.block("gh repo delete is not allowed.")
     if pos[:1] == ["api"]:
         check_gh_api(args[args.index("api") + 1:], ctx)
+
+
+HTTP_CLIENTS = {"curl", "wget", "invoke-webrequest", "iwr", "invoke-restmethod", "irm"}
+HTTP_METHOD_OPTS = {"-X", "--request", "--method", "-method"}
+HTTP_DATA_OPTS = {"-d", "--data", "--data-raw", "--data-binary", "--data-urlencode", "--data-ascii", "-F", "--form",
+                  "--form-string", "--json", "-T", "--upload-file", "--post-data", "--post-file", "--body-data",
+                  "--body-file", "-body", "-infile"}
+GITHUB_WRITE_EP = re.compile(r"(^|/)(merges|pulls|contents|git/refs|git/refs/heads/.*)(/|$)|/merge$")
+
+
+def check_http(args, ctx):
+    """curl/wget/Invoke-WebRequest/Invoke-RestMethod writing to a GitHub API
+    merge, pulls, contents or git/refs endpoint (the `gh api` rules, raw)."""
+    method, data, urls = None, False, []
+    for k, t in enumerate(args):
+        lt = t.lower()
+        nxt = args[k + 1] if k + 1 < len(args) else ""
+        if t in HTTP_METHOD_OPTS or lt in HTTP_METHOD_OPTS or (len(lt) > 3 and "-method".startswith(lt)):
+            method = nxt
+        elif t.startswith("-X") and len(t) > 2:
+            method = t[2:]
+        elif lt.startswith(("--request=", "--method=")):
+            method = t.split("=", 1)[1]
+        elif (t in HTTP_DATA_OPTS or lt in HTTP_DATA_OPTS or t.split("=", 1)[0] in HTTP_DATA_OPTS
+              or re.match(r"^-[dFT].", t) or (len(lt) > 2 and "-body".startswith(lt))):
+            data = True
+        if "api.github.com" in lt or "/api/v3/" in lt or (is_dynamic(t) and "/repos/" in t):
+            urls.append(t)
+    if not urls:
+        return
+    method = (method or ("POST" if data else "GET")).upper()
+    if method in ("GET", "HEAD", "OPTIONS"):
+        return
+    for url in urls:
+        ep = re.sub(r"^.*?api\.github\.com(/api/v3)?|^.*?/api/v3", "", url).split("?")[0]
+        prev = None
+        while prev != ep:
+            prev = ep
+            ep = re.sub(r"/+", "/", ep).replace("/./", "/")
+        ep = ep.strip("/")
+        if GITHUB_WRITE_EP.search(ep) or ".." in ep.split("/") or "%" in ep:
+            ctx.block("%s to GitHub API endpoint '%s' (merge/pulls/contents/refs) is not allowed; "
+                      "use git push / gh pr create." % (method, ep))
+        if ep == "graphql" and any(GRAPHQL_MUTATIONS.search(a) for a in args):
+            ctx.block("GitHub graphql merge/ref/repo mutation is not allowed.")
+        if re.fullmatch(r"repos/[^/]+/[^/]+", ep) and method == "DELETE":
+            ctx.block("DELETE on a GitHub repo is not allowed.")
 
 
 def unreadable_ref(ref):
