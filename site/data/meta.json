@@ -1,22 +1,26 @@
 {
-  "levels_source": "usage in the author's sessions, Sep 2026",
+  "levels_source": "the author's use through Oct 2026, plus a full sandbox test pass of every skill, agent and hook (Oct 2026)",
   "level_labels": {
-    "in-anger": "used in anger",
+    "daily": "used daily",
     "lightly": "lightly used",
-    "untested": "untested",
+    "tested": "sandbox-tested",
     "new": "new"
   },
   "levels": {
-    "in-anger": [
-      "planner", "implementer", "verifier", "manager", "meta-orchestrator",
-      "grilling", "handoff", "handoff-auto", "session-handoff", "next",
-      "update-progress"
+    "daily": [
+      "meta-orchestrator", "planner", "manager", "implementer", "verifier",
+      "grilling", "grill-docs", "handoff", "handoff-auto", "session-handoff",
+      "next", "update-progress", "progress-report", "session-bridge", "guard-git"
     ],
     "lightly": [
-      "pair", "progress-report", "repo-scrub", "consult-plan", "divide",
-      "kanban-setup"
+      "pair", "lanes", "repo-scrub", "consult-plan", "divide", "kanban-setup",
+      "gap-scan", "sitrep", "find-me-a-skill", "smartzone", "spend-guard",
+      "spend-gate"
     ],
-    "untested": ["grill-me", "grill-docs", "lanes", "wayfinder", "score-loop"]
+    "tested": [
+      "grill-me", "wayfinder", "score-loop", "repo-showcase", "pr-watch",
+      "teammate-brief", "ponytail"
+    ]
   },
   "aliases_note": "Extra search words per name for the slash prompt. Lowercase a-z, 0-9, -; never an existing name.",
   "aliases": {
