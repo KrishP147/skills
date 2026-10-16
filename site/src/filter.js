@@ -264,7 +264,105 @@
     return e ? e.name : null;
   }
 
+  // ---- Menu keyboard state (app.js applies the result to the DOM) ----
+  // Menu: {buffer, state (from search), active (row index or -1), open}.
+  // Functions return a new menu object, never mutate.
+
+  // Row highlighted whenever a list is (re)shown: the first, bare "/" included,
+  // so Enter/Tab always act on a visible highlight.
+  function firstRow(state) { return state.options.length ? 0 : -1; }
+
+  function withMenu(m, open, active) {
+    return { buffer: m.buffer, state: m.state, active: active, open: open };
+  }
+
+  // Every path that opens a closed menu (click, "/", Enter, arrows) highlights
+  // the first row. Already open: returns m itself (caller: nothing to do).
+  function openMenu(m) {
+    return m.open ? m : withMenu(m, true, firstRow(m.state));
+  }
+
+  // Up/Down on an open menu: wrap around; no highlight yet -> first or last.
+  function move(m, delta) {
+    var n = m.state.options.length;
+    if (!n) return m;
+    var a = m.active < 0 ? (delta > 0 ? 0 : n - 1) : (m.active + delta + n) % n;
+    return withMenu(m, m.open, a);
+  }
+
+  // One keydown on the prompt. ev: {key, shift, alt, ctrl, meta, home
+  // (home page, not detail), collapsed (selectionStart === selectionEnd)}.
+  // IME composition is filtered by the caller. Returns {menu, preventDefault,
+  // action, buffer?, name?}; action:
+  //   null       nothing beyond preventDefault
+  //   "complete" set the buffer to r.buffer (engaged)
+  //   "clear"    set the buffer to "/" and close the menu
+  //   "go"       open the page for r.name
+  //   "home"     navigate to the home page
+  //   "open" / "close"  menu shown / hidden: render and announce
+  //   "move"     highlight moved: render, scroll it into view
+  function key(m, ev) {
+    var r = { menu: m, preventDefault: false, action: null };
+    var opened;
+    switch (ev.key) {
+      case "Tab": {
+        if (ev.shift || ev.alt || ev.ctrl || ev.meta || !m.open) return r;
+        var c = complete(m.buffer, m.state, m.active);
+        // Nothing to fill: let Tab move focus (no keyboard trap).
+        if (c !== null) { r.preventDefault = true; r.action = "complete"; r.buffer = c; }
+        return r;
+      }
+      case "ArrowDown":
+      case "ArrowUp":
+        if (!m.state.options.length) return r;
+        r.preventDefault = true;
+        opened = openMenu(m);
+        // First press on a closed menu only opens it (row 0), no move.
+        if (opened !== m) { r.menu = opened; r.action = "open"; }
+        else { r.menu = move(m, ev.key === "ArrowDown" ? 1 : -1); r.action = "move"; }
+        return r;
+      case "Enter": {
+        r.preventDefault = true;
+        var name = m.open ? resolve(m.state, m.active) : null;
+        if (name) { r.action = "go"; r.name = name; return r; }
+        opened = openMenu(m);
+        if (opened !== m) { r.menu = opened; r.action = "open"; }
+        return r;
+      }
+      case "Escape":
+        if (m.buffer !== "/") {
+          r.preventDefault = true; r.action = "clear"; r.menu = withMenu(m, false, m.active);
+        } else if (!ev.home) {
+          // Detail page: Esc on a bare "/" goes home in one press.
+          r.preventDefault = true; r.action = "home";
+        } else if (m.open) {
+          r.preventDefault = true; r.action = "close"; r.menu = withMenu(m, false, m.active);
+        }
+        return r;
+      case "Backspace":
+        // The leading "/" is undeletable.
+        r.preventDefault = m.buffer === "/" && !!ev.collapsed;
+        return r;
+      case "/":
+        // "/" on the bare prompt shows everything (nothing to type: it is there).
+        if (m.buffer !== "/") return r;
+        r.preventDefault = true;
+        opened = openMenu(m);
+        if (opened !== m) { r.menu = opened; r.action = "open"; }
+        return r;
+      case "ArrowLeft":
+      case "Home":
+        r.preventDefault = true; // caret stays at the end
+        return r;
+    }
+    return r;
+  }
+
   return {
+    firstRow: firstRow,
+    openMenu: openMenu,
+    move: move,
+    key: key,
     normalize: normalize,
     queryOf: queryOf,
     rank: rank,
