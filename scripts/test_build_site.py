@@ -446,6 +446,13 @@ class BaseBuildTest(unittest.TestCase):
         self.assertIn('<span class="nm">/pair</span>', self.read("index.html"))
 
 
+class EntryDescriptionTest(unittest.TestCase):
+    def test_block_scalar_description_stripped(self):
+        fm = lint.parse_frontmatter("---\nname: x\ndescription: >\n  Does a thing.\n  More.\n---\n")[0]
+        e = build_site._entry(fm, "x", "skill", "", "", "")
+        self.assertEqual(e["description"], "Does a thing. More.")
+
+
 class CliTest(unittest.TestCase):
     def test_out_outside_repo_other_cwd(self):
         with tempfile.TemporaryDirectory(prefix="site-cwd-") as cwd:
