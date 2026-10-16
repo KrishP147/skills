@@ -146,8 +146,7 @@ while IFS= read -r -d '' existing; do
   [[ -f "$existing/$MARKER" && "$repo_skills" != *" $name "* ]] && stale_skills+=("$name")
 done < <(find "$target" -mindepth 1 -maxdepth 1 -type d -print0)
 if (( ${#stale_skills[@]} )); then
-  printf 'warning: stale skill(s) not in repo, remove manually: %s
-' "${stale_skills[*]}" >&2
+  printf 'warning: stale skill(s) not in repo, remove manually: %s\n' "${stale_skills[*]}" >&2
 fi
 
 if (( ${#skipped_foreign[@]} )); then
