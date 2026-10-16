@@ -1,35 +1,184 @@
-"""UserPromptSubmit hook: warn when the session transcript suggests the
-context has left the smart zone (~100-120k tokens).
+"""UserPromptSubmit hook: warn when the session context has left the smart
+zone (~100-120k tokens).
 
-Heuristic only — transcript bytes are a rough proxy for context tokens, and
-/context remains the precise check. Stdout from this hook is injected into
-the conversation, so both the user and Claude see the warning and can act
-(/divide remaining work, then /session-handoff)."""
+Measures the last main-chain assistant usage (input + cache creation + cache
+read tokens), read from the TAIL of the transcript only. /compact appends a
+compact_boundary line and never truncates, so usage before the last boundary
+is ignored; with no usable usage it falls back to bytes after the boundary
+(~20 bytes per token). Threshold: SMARTZONE_TOKENS (default 75000).
+
+Stdout from this hook is injected into the conversation, so both the user and
+Claude see the warning (/divide remaining work, then /session-handoff).
+Never blocks, silent on any error. Stdlib only."""
 
 import json
 import os
 import sys
+import tempfile
 
-THRESHOLD_MB = 1.5  # rough proxy for ~100k tokens of live context
+DEFAULT_TOKENS = 75000  # = old 1.5 MB threshold at ~20 bytes/token
+BYTES_PER_TOKEN = 20
+TAIL_START = 2 * 1024 * 1024
+MAX_WINDOW = 32 * 1024 * 1024  # lower-bound estimate beyond this
+
+
+def threshold(env=None):
+    env = os.environ if env is None else env
+    try:
+        v = int(str(env.get("SMARTZONE_TOKENS", "")).strip())
+        return v if v > 0 else DEFAULT_TOKENS
+    except (ValueError, TypeError):
+        return DEFAULT_TOKENS
+
+
+def _is_boundary(o):
+    return o.get("type") == "system" and o.get("subtype") == "compact_boundary"
+
+
+def _usage_tokens(o):
+    if o.get("type") != "assistant" or o.get("isSidechain"):
+        return None
+    msg = o.get("message")
+    u = msg.get("usage") if isinstance(msg, dict) else None
+    if not isinstance(u, dict):
+        return None
+    total = 0
+    for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"):
+        v = u.get(k)
+        if isinstance(v, int) and not isinstance(v, bool):
+            total += v
+    return total
+
+
+def context_tokens(path):
+    """Estimated live context tokens, or None if unknown."""
+    size = os.path.getsize(path)
+    window = TAIL_START
+    with open(path, "rb") as f:
+        while True:
+            start = max(0, size - window)
+            f.seek(start)
+            data = f.read(size - start).decode("utf-8", errors="replace")
+            lines = data.split("\n")
+            if start > 0:
+                lines = lines[1:]  # first line is probably partial
+            # walk from the end
+            usage = None
+            boundary_found = False
+            after_bytes = 0
+            for line in reversed(lines):
+                s = line.strip()
+                if not s:
+                    after_bytes += len(line.encode("utf-8", "replace")) + 1
+                    continue
+                try:
+                    o = json.loads(s)
+                except ValueError:
+                    o = None
+                if isinstance(o, dict):
+                    if _is_boundary(o):
+                        boundary_found = True
+                        break
+                    if usage is None:
+                        usage = _usage_tokens(o)
+                        if usage is not None:
+                            return usage
+                after_bytes += len(line.encode("utf-8", "replace")) + 1
+            if boundary_found or start == 0:
+                return after_bytes // BYTES_PER_TOKEN
+            # no boundary and no usage in this window: grow it
+            if window >= size or window >= MAX_WINDOW:
+                return after_bytes // BYTES_PER_TOKEN
+            window *= 4
+
+
+def check(path, env=None):
+    """Warning text or None."""
+    if not path or not os.path.exists(path):
+        return None
+    tokens = context_tokens(path)
+    if tokens is None or tokens < threshold(env):
+        return None
+    return (
+        f"[smart-zone] Session transcript context is ~{tokens // 1000}k tokens - "
+        "context has likely left the smart zone (~100-120k tokens; this is a "
+        "heuristic, verify with /context). Wrap up: run /divide on the remaining "
+        "work, then /session-handoff, and continue in a fresh session."
+    )
 
 
 def main() -> None:
     data = json.load(sys.stdin)
-    path = data.get("transcript_path") or ""
-    if not path or not os.path.exists(path):
-        return
-    mb = os.path.getsize(path) / 1_000_000
-    if mb >= THRESHOLD_MB:
-        print(
-            f"[smart-zone] Session transcript is ~{mb:.1f} MB - context has likely "
-            "left the smart zone (~100-120k tokens; this is a heuristic, verify "
-            "with /context). Wrap up: run /divide on the remaining work, then "
-            "/session-handoff, and continue in a fresh session."
-        )
+    msg = check(data.get("transcript_path") or "")
+    if msg:
+        print(msg)
+
+
+def run_self_test() -> int:
+    passed = failed = 0
+    d = tempfile.mkdtemp(prefix="smartzone-selftest-")
+
+    def mk(name, lines):
+        p = os.path.join(d, name)
+        with open(p, "w", encoding="utf-8") as f:
+            for ln in lines:
+                f.write((ln if isinstance(ln, str) else json.dumps(ln)) + "\n")
+        return p
+
+    def asst(inp=0, cc=0, cr=0, side=False):
+        o = {"type": "assistant", "message": {"usage": {
+            "input_tokens": inp, "cache_creation_input_tokens": cc,
+            "cache_read_input_tokens": cr}}}
+        if side:
+            o["isSidechain"] = True
+        return o
+
+    boundary = {"type": "system", "subtype": "compact_boundary"}
+    pad = {"type": "user", "message": {"content": "x" * 1000}}
+
+    def rec(label, ok):
+        nonlocal passed, failed
+        if ok:
+            passed += 1
+        else:
+            failed += 1
+        print("%s: %s" % ("PASS" if ok else "FAIL", label))
+
+    big_pre = [pad] * 3000 + [asst(cr=190000)]
+    p = mk("a.jsonl", big_pre + [boundary, pad, asst(inp=5, cc=3000, cr=10000)])
+    rec("big pre-compact + small post-compact: no warn", check(p, {}) is None)
+    p = mk("b.jsonl", [pad, asst(inp=10, cc=2000, cr=82000)])
+    m = check(p, {})
+    rec("over threshold via usage: warn", bool(m) and "~84k tokens" in m)
+    p = mk("c.jsonl", [asst(cr=190000), boundary] + [pad] * 3000)
+    rec("no usage after boundary: byte fallback warns", check(p, {}) is not None)
+    p = mk("c2.jsonl", [asst(cr=190000), boundary, pad])
+    rec("post-compact, no new usage, small: no warn", check(p, {}) is None)
+    p = mk("d.jsonl", [pad] * 3000)
+    rec("no usage, no boundary: byte fallback warns", check(p, {}) is not None)
+    rec("missing file: silent", check(os.path.join(d, "nope.jsonl"), {}) is None)
+    p = mk("e.jsonl", ["{not json", asst(cr=90000), "also bad", "[1,2]"])
+    rec("malformed lines tolerated", check(p, {}) is not None)
+    p = mk("f.jsonl", [asst(cr=50000)])
+    rec("env override lowers threshold", check(p, {"SMARTZONE_TOKENS": "40000"}) is not None)
+    rec("env override raises threshold", check(mk("g.jsonl", [asst(cr=90000)]), {"SMARTZONE_TOKENS": "200000"}) is None)
+    rec("bad env value uses default", threshold({"SMARTZONE_TOKENS": "abc"}) == DEFAULT_TOKENS)
+    p = mk("h.jsonl", [asst(cr=10000), asst(cr=500000, side=True)])
+    rec("sidechain entry ignored", check(p, {}) is None)
+    p = mk("i.jsonl", [asst(cr=90000)] + [pad] * 3000)
+    rec("usage beyond first 2 MB window found (grows)", check(p, {}) is not None)
+    p = mk("j.jsonl", [asst(cr=90000)] + [pad] * 3000 + [asst(cr=1000)])
+    rec("last usage wins over earlier big one", check(p, {}) is None)
+
+    print("%d passed, %d failed" % (passed, failed))
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
+    if "--self-test" in sys.argv[1:]:
+        sys.exit(run_self_test())
     try:
         main()
     except Exception:
         pass  # a broken heuristic must never break the session
+    sys.exit(0)
