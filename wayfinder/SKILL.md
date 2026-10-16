@@ -10,6 +10,8 @@ An idea has arrived that no single session can hold, and the way from here to th
 
 Naming the destination is the first act: it fixes the scope and shapes every ticket. It may be a spec, a decision to lock, or a change such as a data migration. The map fits any domain.
 
+`origin` not on GitHub (`gh repo view` fails) → stop and say this skill needs a GitHub remote.
+
 ## Plan, don't do
 
 Each ticket resolves a decision; the map is done when the way is clear. The urge to start building means you've reached the map's edge: hand off (see [Hand off](#hand-off)). The map's **Notes** may override this for one effort; absent that, produce decisions, not deliverables.

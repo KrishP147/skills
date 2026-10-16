@@ -4,6 +4,7 @@ description: Grill a proposed change, deviation, or new idea against a repo's ex
 argument-hint: "the idea, deviation, or innovation"
 ---
 
+0. `origin` not on GitHub (`gh repo view` fails) → stop and say this skill needs a GitHub remote.
 1. **Baseline**, whatever exists: open issues, board state, roadmap doc, `skilleddocs/decisions.md` and `skilleddocs/grills/` (cite decisions as `D<k>`).
 2. **Grill**: call the Skill tool with `"grilling"`, baseline as context. The question tree: does the idea fit, conflict with, or extend the plan, and what does the user want to happen?
 3. **Record** once settled:
