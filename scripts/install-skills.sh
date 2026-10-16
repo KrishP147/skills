@@ -146,7 +146,9 @@ while IFS= read -r -d '' existing; do
   [[ -f "$existing/$MARKER" && "$repo_skills" != *" $name "* ]] && stale_skills+=("$name")
 done < <(find "$target" -mindepth 1 -maxdepth 1 -type d -print0)
 if (( ${#stale_skills[@]} )); then
-  printf 'warning: stale skill(s) not in repo, remove manually: %s\n' "${stale_skills[*]}" >&2
+  # comma-joined: dir names may contain spaces (matches the .ps1 output)
+  joined="$(printf ', %s' "${stale_skills[@]}")"
+  printf 'warning: stale skill(s) not in repo, remove manually: %s\n' "${joined:2}" >&2
 fi
 
 if (( ${#skipped_foreign[@]} )); then
