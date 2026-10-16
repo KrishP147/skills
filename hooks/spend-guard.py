@@ -50,12 +50,12 @@ import re
 import sys
 
 DEFAULT_BASH_PATTERNS = [
-    r"\brunpodctl\s+create\b",
-    r"\bvultr-cli\s+instance\s+create\b",
-    r"\baws\s+ec2\s+run-instances\b",
-    r"\bgcloud\s+compute\s+instances\s+create\b",
-    r"\baz\s+vm\s+create\b",
-    r"\bmodal\s+deploy\b",
+    r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+create\b""",
+    r"""\bvultr-cli(?:\.exe|\.cmd)?["']?\s+instance\s+create\b""",
+    r"""\baws(?:\.exe|\.cmd)?["']?\s+ec2\s+run-instances\b""",
+    r"""\bgcloud(?:\.exe|\.cmd)?["']?\s+compute\s+instances\s+create\b""",
+    r"""\baz(?:\.exe|\.cmd)?["']?\s+vm\s+create\b""",
+    r"""\bmodal(?:\.exe|\.cmd)?["']?\s+deploy\b""",
 ]
 
 # Deliberately not defaulted (ambiguous - has free tiers / non-billable uses):
@@ -362,6 +362,39 @@ def run_self_test():
     for cmd in default_cases:
         reason = check("Bash", {"command": cmd}, None, env=iso)
         record("default pattern blocks: %s" % cmd, reason is not None)
+
+    # 2b. Windows .exe/.cmd, quoted and path forms block
+    win_cases = [
+        ("Bash", "runpodctl.exe create pod x"),
+        ("Bash", "'C:/x/runpodctl.exe' create pod x"),
+        ("Bash", "/usr/local/bin/runpodctl create pod x"),
+        ("PowerShell", r'& "C:\Program Files\runpod\runpodctl.exe" create pod x'),
+        ("Bash", "vultr-cli.exe instance create --region ewr"),
+        ("Bash", "'C:/x/vultr-cli.exe' instance create --region ewr"),
+        ("PowerShell", r'& "C:\tools\vultr-cli.exe" instance create --region ewr'),
+        ("Bash", "aws.exe ec2 run-instances --image-id ami-1"),
+        ("Bash", "'C:/x/aws.exe' ec2 run-instances --image-id ami-1"),
+        ("PowerShell", r'& "C:\Program Files\Amazon\aws.exe" ec2 run-instances --image-id ami-1'),
+        ("Bash", "gcloud.exe compute instances create my-vm"),
+        ("Bash", "gcloud.cmd compute instances create my-vm"),
+        ("Bash", "'C:/x/gcloud.cmd' compute instances create my-vm"),
+        ("PowerShell", r'& "C:\sdk\bin\gcloud.cmd" compute instances create my-vm'),
+        ("Bash", "az.exe vm create --name my-vm"),
+        ("Bash", "az.cmd vm create --name my-vm"),
+        ("Bash", "'C:/x/az.cmd' vm create --name my-vm"),
+        ("PowerShell", r'& "C:\az\wbin\az.cmd" vm create --name my-vm'),
+        ("Bash", "modal.exe deploy app.py"),
+        ("Bash", "'C:/x/modal.exe' deploy app.py"),
+        ("PowerShell", r'& "C:\py\Scripts\modal.exe" deploy app.py'),
+    ]
+    for tool, cmd in win_cases:
+        reason = check(tool, {"command": cmd}, None, env=iso)
+        record("win form blocks: %s %s" % (tool, cmd), reason is not None)
+
+    # 2c. near-miss forms stay allowed
+    for cmd in ["runpodctl.exe get pod", "myrunpodctl create pod x"]:
+        reason = check("Bash", {"command": cmd}, None, env=iso)
+        record("near-miss allowed: %s" % cmd, reason is None)
 
     # 3. unrelated tool name with no command is allowed
     reason = check("Read", {"file_path": "x.txt"}, None, env=iso)

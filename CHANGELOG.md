@@ -6,6 +6,7 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 
 ## [0.1.0] - 2026-10-15
 
+- `spend-guard` default patterns also match `.exe`/`.cmd`, quoted and full-path CLI forms (e.g. `& "C:\...\runpodctl.exe" create`).
 - `spend-guard` also covers the PowerShell tool (inline `$env:SPEND_GATE_APPROVED='x';` approval) and more Runpod MCP tools (job submits, endpoint updates, pod start).
 - Installable as a Claude Code plugin: `/plugin marketplace add KrishP147/skills`, then `/plugin install krish@krish`.
 - Plugin ships every skill (as `/krish:<skill>`), the four agents (as `krish:<agent>`) and the `guard-git` hook.
@@ -13,7 +14,7 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 - `pair`, `meta-orchestrator`, `implementer` and `manager` name agents and skill files in a form that works under both installs.
 - `scripts/lint.py` checks this file's top version against `plugin.json`.
 - Skill evals under `evals/` (trigger, near-miss and behaviour cases in the `claude plugin eval` format); `python scripts/evals.py` validates them and prints the paid run command without running it.
-- Sample workflows: a `/workflows` page on the site and a Sample workflows section on each skill page, from `site/data/workflows.json`.
+- Sample workflows: a `/workflows` page on the site (also `/workflows` in the slash prompt) and a Sample workflows section on each skill page, from `site/data/workflows.json`.
 - Skills map: a `/map` page on the site (also `/map` in the slash prompt) grouping every skill, agent and hook, with arrows built from Related links, agent preloads and the sample workflows.
 - New `wayfinder` skill (adapted from Matt Pocock's): plans an effort too big for one session as a `wayfinder:map` issue of decision tickets, then hands off to `divide`; `next` and `planner` skip `wayfinder:*` issues.
 - `find-me-a-skill`: suggests the skill or workflow for a task with model and effort per step, from a generated `CATALOG.md`; site pages show a "suggested model · effort" chip.

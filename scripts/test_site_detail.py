@@ -402,7 +402,8 @@ class SectionMappingTest(unittest.TestCase):
     def test_bad_mermaid_fails_build(self):
         import flow_svg
         e = dict(build_site.collect(ROOT)[0], readme="## Flow\n\n```mermaid\nflowchart TD\n  A --- B\n```\n")
-        with self.assertRaisesRegex(flow_svg.FlowError, "^%s: line 2" % re.escape(e["name"])),                 contextlib.redirect_stderr(io.StringIO()):  # fixture README has no Example
+        with self.assertRaisesRegex(flow_svg.FlowError, "^%s: line 2" % re.escape(e["name"])), \
+                contextlib.redirect_stderr(io.StringIO()):  # fixture README has no Example
             site_detail.build_pages(ROOT, [e], {}, "{{BODY}}", "[]")
 
     def test_install_heading_maps_to_invoke(self):
