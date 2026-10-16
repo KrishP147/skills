@@ -14,6 +14,7 @@ Name `origin`: on a fork clone a bare `gh repo view`, and any `gh` call without 
 
 - `<owner>/<repo>` = `nameWithOwner`. Pass it on every `gh` call that takes one: `-R <owner>/<repo>` (`issue`, `pr`, `label`, `run`, `workflow`, `release`); `gh project` takes `--owner <owner>` (`item-edit` takes none: its ids come from that owner's lookup); `gh api` uses explicit `repos/<owner>/<repo>/…` paths (graphql: `owner:`/`name:` from it); `gh repo view`/`edit` take it positionally.
 - **Fork** (`isFork` true): before the first write (issue, comment, label, card move, PR, repo edit), stop and ask which repo to write to: the fork `<owner>/<repo>` or the parent `<parent.owner.login>/<parent.name>`. Write to the parent only after an explicit yes naming it; that repo is then the target for writes. Unattended with no answer in the brief → write nothing to GitHub and say so in the handoff. Reading the parent for context (its issues, PRs, CI) is fine.
+  - **Fork issues off** (GitHub's default for forks): check `gh repo view <owner>/<repo> --json hasIssuesEnabled -q .hasIssuesEnabled`. `false` → tell the user the fork has issues disabled, read issues and the board from the parent (`-R <parent>`), and keep the write rule above: no write to the parent without the explicit yes naming it. Or offer to enable them on the fork (`gh repo edit <owner>/<repo> --enable-issues`), itself a write needing a yes. Never fall back to the parent for a write silently.
 - Not a fork: unchanged, apart from the explicit `-R`.
 
 ## Find the board
@@ -64,7 +65,8 @@ gh issue edit <n> -R <owner>/<repo> --remove-label status:<old> --add-label stat
 |---|---|---|
 | Branch created | `pair` / `implementer` | In Progress + comment "Started on branch `<b>`" |
 | Session ends complete | `session-handoff` | In Review |
-| Verified | `update-progress` | Done, issue closed |
+| Verified, merged | `update-progress` | Done, issue closed |
+| Verified, not merged | `update-progress` | In Review + comment |
 | New issue (divide, consult-plan) | that skill | Todo |
 
 A board error never blocks the task: note it and carry on.
