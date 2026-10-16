@@ -762,7 +762,7 @@ def _norms(v):
 # --data*, --json, -F, -T; wget --post-*; PowerShell -Body/-InFile; python
 # data=/json=). Case-sensitive for the short curl flags (-f is --fail).
 _WRITE_RE = re.compile(
-    r"""(?i:(?<![\w-])(?:POST|PUT|PATCH)(?![\w-]))"""
+    r"""(?i:(?<![\w-])(?:-X)?(?:POST|PUT|PATCH)(?![\w-]))"""
     r"""|(?<![\w-])-[a-zA-Z]{0,3}[dFT](?=[\s=@'"{]|$)"""
     r"""|(?i:(?<![\w-])(?:--data[\w-]*|--json|--form[\w-]*|--upload-file|--post-data|--post-file|--body-data|--body-file|-Body|-InFile|-Form)(?![\w-]))"""
     r"""|(?<![\w.])(?:data|json)\s*=(?!=)""")
@@ -1761,6 +1761,8 @@ def run_self_test():
          "curl -X POST https://rest.runpod.io/v1/pods/p1/stop"),
         (S, "curl -X POST https://rest.runpod.io/v1/endpoints -d '{}'",
          "curl -X POST https://rest.runpod.io/v1/templates -d '{}'"),
+        (S, "curl -XPOST https://rest.runpod.io/v1/pods/p1/start",
+         "curl -XPOST https://rest.runpod.io/v1/pods/p1/stop"),
         (S, "wget --post-data '{}' https://rest.runpod.io/v1/networkvolumes",
          "wget https://rest.runpod.io/v1/networkvolumes"),
         (P, "Invoke-RestMethod -Uri https://rest.runpod.io/v1/pods -Method Post -Body $b",
