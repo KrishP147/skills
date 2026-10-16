@@ -204,6 +204,7 @@ class Redaction(unittest.TestCase):
         self.check(c + " " + u + " " + cred + " https://h.test", pw)
         self.check(c + " --user " + cred + " https://h.test", pw)
         self.check(c + " -s " + u + " '" + cred + "' https://h.test", pw)
+        self.check(c + " " + u + cred + " https://h.test", pw)
         self.assertIn("admin:", snap.red(c + " " + u + " " + cred + " x"))
 
     def test_mysql_attached_password(self):
@@ -217,7 +218,8 @@ class Redaction(unittest.TestCase):
                     "postgresql://app:" + pw + "@db.test/x",
                     "mysql://app:" + pw + "@db.test/x",
                     "mongodb+srv://app:" + pw + "@c.test/x",
-                    "redis://:" + pw + "@cache.test:6379"):
+                    "redis://:" + pw + "@cache.test:6379",
+                    "postgres://app:ab/" + pw + "@db.test/x"):
             with self.subTest(url):
                 self.check("DB=" + url, pw)
                 self.assertIn("@", snap.red(url))

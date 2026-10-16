@@ -40,9 +40,9 @@ SECRETS = [(re.compile(p), r) for p, r in (
     (r"(_auth(?:Token|Password)?\s*=\s*)[^\s'\"]+", r"\1" + R),
     # Password in a connection URL; keep scheme, user, host. Before the email rule.
     (r"((?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|rediss?|amqps?)://"
-     r"[^\s:/@]*:)[^\s@/]+(?=@)", r"\1" + R),
+     r"[^\s:/@]*:)[^\s@]+(?=@)", r"\1" + R),
     # curl basic-auth flag with user:secret (a bare "-u root" has no colon).
-    (r"(\bcurl\b[^\n|;&]*?\s(?:-u|--user)(?:\s+|=)['\"]?[^\s:'\"]+:)[^\s'\"]+",
+    (r"(\bcurl\b[^\n|;&]*?\s(?:-u\s*|--user(?:\s+|=))['\"]?[^\s:'\"]+:)[^\s'\"]+",
      r"\1" + R),
     # mysql -psecret (attached; "-p 8080", "ssh -p 22", "mkdir -p d" are not).
     (r"(\b(?:mysql|mysqldump|mysqladmin|mariadb)\b[^\n|;&]*?\s-p)(?=[^\s-])\S+",
