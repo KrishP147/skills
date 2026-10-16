@@ -4,8 +4,8 @@ name: upstream-sync
 # scripts/upstream_sync.py). Verbatim changes -> one PR from
 # upstream-sync/verbatim; each modified file -> one issue titled
 # "upstream-sync: <path>". Skips any already open. Default GITHUB_TOKEN only;
-# opening the PR needs "Allow GitHub Actions to create and approve pull
-# requests" enabled in Settings > Actions > General.
+# if Actions may not create PRs, opens an issue linking the pushed branch
+# instead. Each step runs even if another fails; the job fails if any did.
 
 on:
   schedule:
