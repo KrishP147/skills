@@ -79,7 +79,7 @@ python <skill-dir>/scripts/build_replace_text.py --gitleaks <tmp>/scrub-work/git
   --findings <tmp>/scrub-work/findings.json --ids S1 S3 --out <tmp>/scrub-work/expressions.txt
 ```
 
-The script writes `--replace-text` expressions without printing a value. Large blobs, per finding: strip entirely, or strip history but keep the current file (re-add it in a commit after the rewrite: path/size stripping removes HEAD's copy too).
+The script writes `--replace-text` expressions without printing a value. Location-only findings (`secret_sha256: null`) have no value to replace; it skips them, so scrub those by `--path` or by hand. Large blobs, per finding: strip entirely, or strip history but keep the current file (re-add it in a commit after the rewrite: path/size stripping removes HEAD's copy too).
 
 One combined call, only the flags for what was selected:
 
