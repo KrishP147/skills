@@ -234,7 +234,7 @@ test("real nav data shape: kind derived from group, aliases optional", () => {
   assert.ok(REAL.length > 10);
   for (const x of REAL) {
     assert.deepEqual(Object.keys(x).filter((k) => k !== "aliases"), ["name", "kind", "group", "summary"], x.name);
-    assert.equal(x.kind, { agents: "agent", hooks: "hook" }[x.group] || "skill", x.name);
+    assert.equal(x.kind, { agents: "agent", hooks: "hook", pages: "page" }[x.group] || "skill", x.name);
     if ("aliases" in x) assert.ok(Array.isArray(x.aliases) && x.aliases.length, x.name);
   }
   assert.ok(F.search("/review", REAL).options.some((x) => x.name === "pr-watch"));
@@ -252,6 +252,18 @@ test("hooks are in the real nav data and searchable", () => {
   }
 });
 
+test("site pages in the real nav data: /map opens the map", () => {
+  const pages = REAL.filter((x) => x.kind === "page");
+  assert.deepEqual(names(pages), ["map"]);
+  assert.equal(pages[0].group, "pages");
+  const st = F.search("/map", REAL);
+  assert.equal(st.exact && st.exact.name, "map");
+  assert.equal(F.resolve(st), "map");
+  assert.equal(F.complete("/ma", F.search("/ma", REAL)), "/manager", "prefix A-Z keeps entries first");
+  assert.ok(names(F.search("/ma", REAL).options).includes("map"));
+  for (const typo of ["/mpa", "/amp", "/mqp"]) assert.equal(F.search(typo, REAL).options[0].name, "map", typo);
+});
+
 function surfaces(buf, name) {
   return names(F.search(buf, REAL).options).includes(name);
 }
@@ -259,7 +271,9 @@ function swap(s, i) {
   return s.slice(0, i) + s[i + 1] + s[i] + s.slice(i + 2);
 }
 
-for (const { name } of REAL) {
+// Entries only: a 3-letter page name ("map") has no room for the deletion
+// typo ("mp" is inside "implementer"); its own test above covers it.
+for (const { name } of REAL.filter((x) => x.kind !== "page")) {
   test(`every name surfaces: /${name}`, () => {
     assert.equal(opts("/" + name, REAL)[0], name, "exact first");
     const pre = name.slice(0, Math.max(2, Math.ceil(name.length / 2)));
