@@ -8,11 +8,16 @@ tool other than Bash/PowerShell -> exit 0. An internal error while analysing a
 command that mentions push/merge/delete -> exit 2 (fail closed).
 
 It is a guardrail, not a sandbox: it parses the shell command the agent is
-about to run (quote-aware, recursing into `bash -c`, `pwsh -Command`, `eval`,
-`iex`, `& { }`, `$(...)`, each nested shell in its own POSIX/PowerShell mode)
-but cannot see into script files or pre-existing shell aliases. Code it can't
-read (`eval $c`, `& $sb`) fails closed when the command mentions push/merge/delete.
-Pair it with GitHub branch protection.
+about to run (quote-aware, recursing into `bash -c`, `busybox sh -c`,
+`pwsh -Command`, `eval`, `iex`, `& { }`, `$(...)`, here-docs/here-strings fed
+to a shell, each nested shell in its own POSIX/PowerShell mode), expands
+aliases defined in the command (`alias`, `Set-Alias`, `git config alias.*`),
+reads `--git-dir`/`GIT_DIR` repos and MSYS `/c/...` paths, and checks inline
+interpreter code (`python -c`, `node -e`) and curl/wget/iwr/irm writes to the
+GitHub API. It cannot see into script files, profile aliases, or code built at
+runtime. Code it can't read (`eval $c`, `& $sb`, `git $a`, non-literal
+`iex (...)`) fails closed when the command mentions push/merge/delete or
+decodes base64/hex. Pair it with GitHub branch protection.
 
 Protected branches: env GUARD_PROTECTED_BRANCHES (comma list), default
 "main,master".
