@@ -104,7 +104,7 @@ def _check_step(st, where, kinds):
             _fail("%s: a human step has no name" % where)
     else:
         name = st.get("name")
-        if name not in kinds:
+        if not isinstance(name, str) or name not in kinds:
             _fail("%s: unknown %s %r" % (where, kind, name))
         if kinds[name] != kind:
             _fail("%s: %r is a %s, not a %s" % (where, name, kinds[name], kind))
