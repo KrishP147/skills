@@ -262,6 +262,13 @@ test("site pages in the real nav data: /map opens the map", () => {
   assert.equal(F.complete("/ma", F.search("/ma", REAL)), "/manager", "prefix A-Z keeps entries first");
   assert.ok(names(F.search("/ma", REAL).options).includes("map"));
   for (const typo of ["/mpa", "/amp", "/mqp"]) assert.equal(F.search(typo, REAL).options[0].name, "map", typo);
+  const wf = F.search("/workflows", REAL);
+  assert.equal(wf.exact && wf.exact.name, "workflows");
+  assert.equal(F.resolve(wf), "workflows");
+  assert.ok(names(F.search("/workf", REAL).options).includes("workflows"));
+  for (const typo of ["/wrokflows", "/workflow", "/worklfows"]) {
+    assert.ok(names(F.search(typo, REAL).options).includes("workflows"), typo);
+  }
 });
 
 function surfaces(buf, name) {
