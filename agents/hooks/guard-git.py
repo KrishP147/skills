@@ -525,14 +525,6 @@ def analyze(cmd, ctx, depth=0):
             ctx.block("command nested too deeply to analyse.")
         return
     ps = ctx.powershell
-    if ps:
-        for m in IEX_PAREN_RE.finditer(cmd):  # `iex ('git push ' + 'origin main')`
-            inner, _ = _extract(cmd, m.end(), ")")
-            lit = ps_literal_concat(inner)
-            if lit is None:
-                ctx.dynamic_exec("Invoke-Expression (expression)")
-            else:
-                analyze(lit, ctx, depth + 1)
     segs, subs, docs = split_commands(cmd, ps=ps)
     for s in subs:
         analyze(s, ctx, depth + 1)
@@ -553,6 +545,14 @@ def analyze(cmd, ctx, depth=0):
             stdin_modes.append(mode)
             for body in docs.get(idx, []) + herestrings(seg, ps):  # `bash <<EOF`, `bash <<< '...'`
                 analyze_in(body, ctx, depth + 1, mode == "ps")
+    if ps:  # after the segments, so aliases set in them apply
+        for m in IEX_PAREN_RE.finditer(cmd):  # `iex ('git push ' + 'origin main')`
+            inner, _ = _extract(cmd, m.end(), ")")
+            lit = ps_literal_concat(inner)
+            if lit is None:
+                ctx.dynamic_exec("Invoke-Expression (expression)")
+            else:
+                analyze(lit, ctx, depth + 1)
     if (stdin_modes or code_stdin) and ctx.decoder_seen:
         ctx.block("decoded base64/hex text piped into a shell; failing closed.")
     if code_stdin:  # `echo "..." | python`
@@ -2131,6 +2131,8 @@ def run_self_test():
         ("iex ('git pu' + 'sh origin main')", B, True),
         ("iex (Get-Content run.ps1 -Raw); git push origin krish/x", B, True),
         ("iex (Get-Content run.ps1 -Raw)", A, True),
+        ("Set-Alias g git; iex ('g push ' + 'origin main')", B, True),
+        ("alias g=git; g config alias.p push; g p origin main", B, False),
         # 7. busybox <shell>
         ("busybox sh -c 'git push origin main'", B, False),
         ("busybox ash -c 'git push --force origin x'", B, False),
