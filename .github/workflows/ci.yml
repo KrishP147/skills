@@ -31,5 +31,6 @@ jobs:
         run: |
           python3 agents/hooks/guard-git.py --self-test
           python3 hooks/spend-guard.py --self-test
+          python3 hooks/smartzone.py --self-test
       - name: Node tests
         run: node --test site/test/filter.test.mjs
