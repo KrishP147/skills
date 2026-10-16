@@ -41,7 +41,7 @@ When you want to type something short to start a grilling session.
 /grill-me my plan to split the monolith into three services
 ```
 
-The Skill tool loads `grilling` and the interview runs exactly as `/grilling …` would. Round 1 asks the whole frontier at once, numbered, each with a recommendation:
+The Skill tool loads `grilling` and the interview runs as `/grilling …` would (repeat the plan if asked, see Tips). Round 1 asks the whole frontier at once, numbered, each with a recommendation:
 
 ```
 ❓ **Q1** - **Service boundaries**: split by domain (orders, billing, accounts) rather than by layer?

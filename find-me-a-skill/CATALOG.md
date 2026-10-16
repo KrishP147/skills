@@ -18,7 +18,7 @@ Install section.
 |---|---|---|---|---|---|---|
 | find-me-a-skill | skill | haiku | low | `/find-me-a-skill` | Suggest which skill or workflow fits a task, with model and /effort per step and paste-ready commands; runs nothing. | new-board |
 | gap-scan | skill | opus | high | `/gap-scan` | Survey one or more repos (code, commits, docs, tests, issues) and return a ranked, evidence-cited list of gaps, bugs, and extension ideas as issue-ready items. | gaps-to-issues, paid-tests |
-| grill-docs | skill | opus | high | `/grill-docs` | Grill the user about a plan (same interview as grilling) and record it — Q→A transcript in skilleddocs/grills/, each decision appended to skilleddocs/decisions.md. | gaps-to-issues, big-effort |
+| grill-docs | skill | opus | high | `/grill-docs` | Grill the user about a plan (same interview as grilling) and record it — Q→A transcript in grills/, each decision appended to the repo's decisions doc (both under skilleddocs/ by default). | gaps-to-issues, big-effort |
 | grill-me | skill (user only) | opus | high | `/grill-me` | A relentless interview to sharpen a plan or design. | pitch-an-idea |
 | grilling | skill | opus | high | `/grilling` | Grill the user relentlessly about a plan, decision, or idea. | pitch-an-idea |
 | handoff | skill (user only) | sonnet | medium | `/handoff` | Compact the current conversation into a handoff document for another agent to pick up. | lazy-fix-handoff |
@@ -78,7 +78,7 @@ human-in-the-loop points: nothing continues without you.
 
 1. /gap-scan (skill, opus · high): Surveys docs vs code, commits, TODOs, tests and open issues and writes a ranked, evidence-cited report under skilleddocs/gaps/.
 2. you: Pick the items worth doing; every issue, comment or label change needs your explicit yes.
-3. /grill-docs (skill, opus · high): Stress-tests a big call with the grilling interview, writing the transcript to skilleddocs/grills/ and each decision to skilleddocs/decisions.md as each round settles.
+3. /grill-docs (skill, opus · high): Stress-tests a big call with the grilling interview, writing the transcript to grills/ and each decision to the repo's decisions doc (both under skilleddocs/ by default) as each round settles.
 4. you: Answer each round; "yes" accepts the recommended answer.
 5. /divide (skill, opus · medium): Splits a size-L item into session-sized issues and puts them on the board at Todo.
 6. you: Approve the split before any issue is created.
@@ -87,7 +87,7 @@ human-in-the-loop points: nothing continues without you.
 
 1. you: Type /wayfinder with the loose idea: it is user-only, so Claude can't start it.
 2. /wayfinder (skill, opus · high): Grills you to a destination, then charts a wayfinder:map issue whose sub-issues are decision tickets, with blocking wired through GitHub's issue dependencies.
-3. /grill-docs (skill, opus · high): Resolves a grilling ticket: runs the grilling interview, writing the transcript to skilleddocs/grills/ and each decision to skilleddocs/decisions.md as each round settles.
+3. /grill-docs (skill, opus · high): Resolves a grilling ticket: runs the grilling interview, writing the transcript to grills/ and each decision to the repo's decisions doc (both under skilleddocs/ by default) as each round settles.
 4. you: Answer each round yourself, one ticket per session, until no tickets or fog remain.
 5. /divide (skill, opus · medium): Proposes 2+ session-sized issues from the map, each with a done-when; creates nothing yet.
 6. you: Say yes to the split: the issues go on the board at Todo, the map gets a Handed off list and closes.
@@ -99,7 +99,7 @@ human-in-the-loop points: nothing continues without you.
 2. /grill-me (skill, opus · high): Calls the grilling skill.
 3. /grilling (skill, opus · high): Asks every question whose prerequisites are settled, one numbered round at a time, each with a recommended answer.
 4. you: Answer each round and confirm the shared understanding; nothing is acted on before that.
-5. /consult-plan (skill, opus · high): Grills the idea against open issues, the board and skilleddocs/decisions.md, then records the decision and comments on or opens an issue.
+5. /consult-plan (skill, opus · high): Grills the idea against open issues, the board and the repo's decisions doc, then records the decision and comments on or opens an issue.
 6. you: Say whether the idea fits, conflicts with or extends the plan, and what you want to happen.
 
 ### unattended-backlog: Run the backlog unattended
