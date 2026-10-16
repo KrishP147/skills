@@ -119,7 +119,7 @@ How it works: reads the hook JSON on stdin (`tool_name`,
 `tool_input.command` for `Bash` and `PowerShell`, `cwd`). A `Bash` or `PowerShell` command is checked against
 a list of regexes; any other tool name is checked against a list of
 `fnmatch` globs (for MCP tool names like `mcp__runpod__create-pod`).
-Default billable patterns: `runpodctl create`, `vultr-cli instance create`,
+Default billable patterns: `runpodctl create` (and `runpodctl pod|serverless|network-volume create`), `vultr-cli instance create`,
 `aws ec2 run-instances`, `gcloud compute instances create`, `az vm create`,
 `modal deploy` (also as `.exe`/`.cmd`, quoted, or full-path forms), and MCP tools matching `mcp__*runpod*__create-*` /
 `mcp__*runpod*__deploy-*` / `__run-endpoint` / `__runsync-endpoint` /
