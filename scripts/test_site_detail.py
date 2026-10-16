@@ -166,6 +166,30 @@ class DetailPagesTest(unittest.TestCase):
         self.assertIn("/next, /divide", planner)
         self.assertIn("all except Edit, Write, NotebookEdit", planner)
         self.assertIn("used in anger", planner)
+        self.assertIn('<li class="chip chip-suggested"><span class="k">suggested model · effort</span> opus · medium</li>',
+                      planner)
+        for name, page in self.pages.items():
+            self.assertIn("chip-suggested", page, name)
+
+    def test_model_effort_validated(self):
+        meta = site_detail.load_meta(ROOT)
+        self.assertEqual(set(site_detail.model_effort(meta, self.entries)), set(self.by))
+        good = meta["model_effort"]
+        first = next(iter(good))
+        bads = [
+            ({**good, "no-such-entry": {"model": "haiku", "effort": "low"}}, "unknown name"),
+            ({k: v for k, v in good.items() if k != first}, "missing " + first),
+            ({**good, first: {"model": "gpt", "effort": "low"}}, "model must be"),
+            ({**good, first: {"model": "haiku", "effort": "huge"}}, "effort must be"),
+            ({**good, first: {"model": "haiku"}}, "exactly {model, effort}"),
+            ({**good, "planner": {"model": "haiku", "effort": "low"}}, "differs from its frontmatter"),
+        ]
+        for raw, needle in bads:
+            with self.assertRaises(SystemExit) as cm:
+                site_detail.model_effort({"model_effort": raw}, self.entries)
+            self.assertIn(needle, str(cm.exception))
+        with self.assertRaises(SystemExit):
+            site_detail.model_effort({}, self.entries)
 
     def test_agent_page_from_readme_section(self):
         mgr = self.pages["manager"]
