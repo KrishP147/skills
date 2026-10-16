@@ -55,7 +55,7 @@ Per experiment:
    - Correctness check fails → `git revert --no-edit <sha>`, `invalid`; not counted toward K.
    - Gain = the median's relative improvement over the best median (direction-aware); m = the margin.
    - Gain > m → `keep`; it is the new best.
-   - m/2 < gain ≤ m → **borderline**: rerun both now, interleaved so drift hits both alike: N single runs each, alternating checkouts best, candidate, best, candidate, ... (harness at N=1; correctness already passed), and take each fresh median. Candidate's fresh median beats the best's fresh median by more than m/2 → `keep`; else `git revert --no-edit <sha>`, `noise`. The fresh medians only decide this row; the best stays unless the candidate is kept (then its fresh median is the new best). Note: `borderline: fresh best <b> (was <best>), fresh cand <c> (was <cand>), gain <g>% vs m/2 <h>%`.
+   - m/2 < gain ≤ m → **borderline**: rerun both now, interleaved so drift hits both alike: N single runs each in ABBA order (best, candidate, candidate, best, repeated), which cancels steady drift exactly (harness at N=1; correctness already passed), and take each fresh median. Candidate's fresh median beats the best's fresh median by more than m/2 → `keep`; else `git revert --no-edit <sha>`, `noise`. The fresh medians only decide this row; the best stays unless the candidate is kept (then its fresh median is the new best). Note: `borderline: fresh best <b> (was <best>), fresh cand <c> (was <cand>), gain <g>% vs m/2 <h>%`.
    - 0 ≤ gain ≤ m/2 → `git revert --no-edit <sha>`, `noise`.
    - Worse (gain < 0) → `git revert --no-edit <sha>`, `revert`.
 5. A failed idea moves from Next ideas to Tried with one line why. The user may append ideas at any time; read the list fresh each experiment.
