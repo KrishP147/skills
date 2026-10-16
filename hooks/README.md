@@ -109,20 +109,25 @@ python hooks/smartzone.py --self-test
 
 ## `spend-guard.py` — block billable commands without an approval
 
-`PreToolUse` hook for `Bash` and MCP tool calls. Enforces the
+`PreToolUse` hook for `Bash`, `PowerShell` and MCP tool calls. Enforces the
 [`spend-gate`](../spend-gate/) skill's gate at the tool-call level: blocks a
 command or MCP call that matches a known billable pattern unless an
 approval already exists, so a billable action can't slip through even if
 the gate steps get skipped in the prompt.
 
 How it works: reads the hook JSON on stdin (`tool_name`,
-`tool_input.command` for `Bash`, `cwd`). A `Bash` command is checked against
+`tool_input.command` for `Bash` and `PowerShell`, `cwd`). A `Bash` or `PowerShell` command is checked against
 a list of regexes; any other tool name is checked against a list of
 `fnmatch` globs (for MCP tool names like `mcp__runpod__create-pod`).
 Default billable patterns: `runpodctl create`, `vultr-cli instance create`,
 `aws ec2 run-instances`, `gcloud compute instances create`, `az vm create`,
 `modal deploy`, and MCP tools matching `mcp__*runpod*__create-*` /
-`mcp__*runpod*__deploy-*`. Deliberately **not** defaulted: `fly deploy` and
+`mcp__*runpod*__deploy-*` / `__run-endpoint` / `__runsync-endpoint` /
+`__retry-job` / `__update-endpoint` / `__set-endpoint-gpus`, plus
+`__pod-action` only when its action is `start` or `resume` (read from
+`tool_input.body.action`, else `tool_input.action`; `stop`, `restart`,
+`terminate` and an unrecognised shape are allowed). Trade-off: more approval
+prompts, since every job submit and endpoint update now needs approval. Deliberately **not** defaulted: `fly deploy` and
 similar commands with a real free tier — add them yourself if your usage is
 always billable. No match → exits 0 (allow) immediately. Any error while
 reading config or matching (bad regex, unreadable file, malformed stdin)
@@ -141,7 +146,9 @@ Approval scheme (either allows the one matched action):
    `SPEND_GATE_APPROVED=yes runpodctl create pod ...` — this is a shell
    per-command env assignment, read out of the command string itself (the
    hook never executes the command), so it only ever covers that one
-   invocation. For an MCP tool call use the approval file: `export` inside a
+   invocation. For `PowerShell`, start the command with
+   `$env:SPEND_GATE_APPROVED='<label>'; <cmd>` (leading only, `;` required,
+   non-empty value; a Bash-style prefix is not honoured). For an MCP tool call use the approval file: `export` inside a
    Bash tool call never reaches the hook's environment. The hook does also
    honour `SPEND_GATE_APPROVED` in the environment Claude Code was launched
    with, but that approves every matching call for the whole session, so
@@ -171,7 +178,7 @@ the hook exits 2 and prints this one line on stderr.
 
 ```transcript
 ⏺ Bash(runpodctl create pod --gpuType RTX4090)
-  ⎿ Blocked: command matches billable pattern '\brunpodctl\s+create\b'. Approve with ONE of: (1) drop a file into skilleddocs/spend-approvals/ (one-shot, consumed on use); (2) prefix the Bash command with SPEND_GATE_APPROVED=<label> (covers just that command). MCP tool calls: use the file. See the spend-gate skill: estimate, check balance, get an explicit yes for this action, log it, before approving.
+  ⎿ Blocked: command matches billable pattern '\brunpodctl\s+create\b'. Approve with ONE of: (1) drop a file into skilleddocs/spend-approvals/ (one-shot, consumed on use); (2) prefix the Bash command with SPEND_GATE_APPROVED=<label> (covers just that command), or start a PowerShell command with $env:SPEND_GATE_APPROVED='<label>'; <cmd>. MCP tool calls: use the file. See the spend-gate skill: estimate, check balance, get an explicit yes for this action, log it, before approving.
 ```
 
 After an explicit yes, `SPEND_GATE_APPROVED=yes runpodctl create pod --gpuType RTX4090`
@@ -192,7 +199,7 @@ one):
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|mcp__.*",
+        "matcher": "Bash|PowerShell|mcp__.*",
         "hooks": [
           {
             "type": "command",
