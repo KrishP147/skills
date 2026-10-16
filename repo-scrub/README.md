@@ -21,23 +21,20 @@ Defaults to the current repo. User-invoked only (`disable-model-invocation: true
 
 ## How it works
 
-0. Confirms the target repo and that you accept a history rewrite + force-push.
-1. **Prereq check** — version-checks each tool; stops with the install command if one is missing.
-2. **Confirm target** — `gh repo view … --json name,owner,isPrivate,defaultBranchRef`.
-3. **Git LFS check** — bails with a warning before scanning if `.gitattributes` shows LFS-tracked paths; `git filter-repo` has no LFS awareness.
-4. **Scan (throwaway clone #1)** — `gitleaks git` (or `detect --source` pre-8.19) over all history, `git filter-repo --analyze`. [`scripts/summarize_findings.py`](scripts/summarize_findings.py) merges them into `findings.json` — written to a work dir *outside* the clone — with IDs `S1…` (secrets, deduped by rule + value, or by location when the value is empty; fingerprint only, no raw value on disk) and `L1…` (large blobs, sized by bytes accumulated across all versions of that path in history). The clone is then discarded.
-5. **Report** — table of every finding (no raw secret values, just fingerprints) + summary line.
-6. **Select** — you pick per ID or in bulk; Claude echoes back scrub vs keep lists.
-7. **Rotate first (mandatory)** — rotate/revoke every selected secret at its source before any rewrite; a rewrite doesn't un-leak a secret that was ever pushed. Checklist by type (cloud keys, API tokens, private keys/certs, DB passwords, webhook URLs). Hard gate.
-8. **Collaborator / open-PR safety** — lists collaborators, invitations, open PRs, fork count; drafts a re-clone notice. Hard gate.
-9. **Rewrite (fresh clone #2)** — [`scripts/build_replace_text.py`](scripts/build_replace_text.py) re-derives each secret's value from the gitleaks report by fingerprint and writes `expressions.txt` without ever echoing a value; one `git filter-repo` call, `--replace-text`/`--path …--invert-paths` each included only if that category was actually selected. For large files you choose: strip entirely, or strip history and re-add the current version.
-10. **Verify** — re-run gitleaks, spot-check sizes, before/after `git count-objects -vH`. Confirm gate.
-11. **Force-push** — re-adds `origin`, `push --force --all` and `--tags`.
-12. **Post-push** — lists PRs that must be recreated; notes that old commits can still be reachable on GitHub via `refs/pull/*`/cached views until GitHub Support GCs them.
-13. **Visibility flip** — `gh repo edit --visibility public …` after a separate gate explaining the consequences; verifies `isPrivate`.
-14. **Cleanup** — deletes the work dir (gitleaks report, findings.json, expressions.txt) and leftover clones.
+1. **Prereqs and target** — version-checks each tool (stops with the install command if one is missing), then `gh repo view … --json name,owner,isPrivate,defaultBranchRef` and confirms you accept a history rewrite + force-push. `<tmp>` is one `mktemp -d` path, echoed once.
+2. **Git LFS bail-out** — stops with a warning if the root `.gitattributes` shows LFS-tracked paths; `git filter-repo` has no LFS awareness. The same check runs over all history in step 3 to catch nested files and other branches.
+3. **Scan (throwaway clone #1)** — `gitleaks git` (or `detect --source` pre-8.19) over all history, `git filter-repo --analyze`. [`scripts/summarize_findings.py`](scripts/summarize_findings.py) merges them into `findings.json` — written to a work dir *outside* the clone — with IDs `S1…` (secrets, deduped by rule + value, or by location when the value is empty; fingerprint only, no raw value on disk) and `L1…` (large blobs, sized by bytes accumulated across all versions of that path in history). The clone is then discarded.
+4. **Report** — table of every finding (no raw secret values, just fingerprints) + summary line.
+5. **Select** — you pick per ID or in bulk; Claude echoes back scrub vs keep lists.
+6. **Gates before any rewrite** — **rotate first (mandatory)**: rotate/revoke every selected secret at its source; a rewrite doesn't un-leak a secret that was ever pushed. Checklist by type (cloud keys, API tokens, private keys/certs, DB passwords, webhook URLs). Then **collaborator / open-PR safety**: lists collaborators, invitations, open PRs, fork count; drafts a re-clone notice. Both are hard gates.
+7. **Rewrite (fresh clone #2)** — [`scripts/build_replace_text.py`](scripts/build_replace_text.py) re-derives each secret's value from the gitleaks report by fingerprint and writes `expressions.txt` without ever echoing a value; one `git filter-repo` call, `--replace-text`/`--path …--invert-paths` each included only if that category was actually selected. For large files you choose: strip entirely, or strip history and re-add the current version.
+8. **Verify** — re-run gitleaks, spot-check sizes, before/after `git count-objects -vH`. Confirm gate.
+9. **Force-push** — re-adds `origin`, checks `git branch` lists every branch to keep (the fresh clone's `origin/*` became local branches, which is what `--all` pushes), then `push --force --all` and `--tags`.
+10. **Post-push** — every local copy, yours included, still holds the old history: re-clone, or stash and `git fetch && git reset --hard origin/<branch>` per branch, never `git pull`. Lists PRs that must be recreated; notes that old commits can still be reachable on GitHub via `refs/pull/*`/cached views until GitHub Support GCs them.
+11. **Visibility flip** — `gh repo edit --visibility public …` after a separate gate explaining the consequences; verifies `isPrivate`.
+12. **Cleanup** — deletes the work dir (gitleaks report, findings.json, expressions.txt) and leftover clones.
 
-Bails out on Git LFS repos (step 3). Never scans or rewrites your working clone.
+Bails out on Git LFS repos (steps 2-3). Never scans or rewrites your working clone; step 10 tells you how to reset it afterwards.
 
 ## Design principles
 
