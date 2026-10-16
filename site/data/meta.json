@@ -16,7 +16,7 @@
       "pair", "progress-report", "repo-scrub", "consult-plan", "divide",
       "kanban-setup"
     ],
-    "untested": ["grill-me", "grill-docs", "lanes", "wayfinder"]
+    "untested": ["grill-me", "grill-docs", "lanes", "wayfinder", "score-loop"]
   },
   "aliases_note": "Extra search words per name for the slash prompt. Lowercase a-z, 0-9, -; never an existing name.",
   "aliases": {
@@ -37,7 +37,7 @@
   "map_groups_note": "Groups on the /map page, in order. Every skill, agent and hook in exactly one. Edges are generated, not listed here.",
   "map_groups": {
     "plan": ["gap-scan", "grilling", "grill-me", "grill-docs", "wayfinder", "consult-plan", "find-me-a-skill"],
-    "implement": ["pair", "meta-orchestrator", "lanes", "ponytail", "session-bridge"],
+    "implement": ["pair", "meta-orchestrator", "lanes", "score-loop", "ponytail", "session-bridge"],
     "review": ["pr-watch", "sitrep", "progress-report"],
     "handoff": ["handoff", "handoff-auto", "session-handoff", "teammate-brief"],
     "board": ["kanban-setup", "next", "divide", "update-progress"],
@@ -65,6 +65,7 @@
     "handoff": {"model": "sonnet", "effort": "medium"},
     "handoff-auto": {"model": "sonnet", "effort": "medium"},
     "lanes": {"model": "sonnet", "effort": "medium"},
+    "score-loop": {"model": "opus", "effort": "high"},
     "meta-orchestrator": {"model": "opus", "effort": "high"},
     "pair": {"model": "sonnet", "effort": "medium"},
     "ponytail": {"model": "sonnet", "effort": "medium"},

@@ -70,6 +70,7 @@ Each tier builds on the one above: `pair` is one orchestrator loop without the b
 | [`gap-scan`](gap-scan/README.md) | Surveys one or more repos (sync, README/docs, recent commits, TODOs, tests, open issues, an optional visual pass for UI apps) and returns a ranked, evidence-cited list of gaps, bugs, and extensions as issue-ready items. Read-only: writes one report under `skilleddocs/gaps/`; creating issues needs an explicit yes. | `gh` |
 | [`repo-showcase`](repo-showcase/README.md) | Gets a repo's working tree ready to be seen: rewrites the README around outcome and demo, prunes stale docs, fixes claims the code has outdated, scans for secrets and private names, proposes GitHub metadata. Never touches history or visibility — hands off to `repo-scrub` for that. | `gh` (metadata step only) |
 | [`teammate-brief`](teammate-brief/README.md) | Writes a handoff document for a person joining or picking up a project: setup steps verified by running them, an env/keys table (names only, never values), numbered tasks with a "done when" each, an ownership map, and a don't-touch list. Saved to `skilleddocs/briefs/`; commits and pushes gated separately. | none |
+| [`score-loop`](score-loop/README.md) | Pushes one rerunnable numeric score up or down unattended: builds a local harness that mirrors the grader (correctness check, median of N runs, noise margin from baseline runs), commits one hypothesis at a time on `<prefix>score-loop/<slug>`, keeps a commit only when it beats the best by more than the margin and `git revert`s the rest, and logs every experiment to `skilleddocs/experiments.md`. Stops on budget, deadline freeze or plateau; official submissions stay inside a quota you approve, paid ones go through `spend-gate`. | a score you can compute locally |
 | [`ponytail`](ponytail/README.md) *(DietrichGebert)* | Lazy-senior-developer mode for the whole session: the smallest change that fully solves the task, plus a closing line on what was skipped and any risk. Levels `lite`, `full` (default), `ultra`; stays on until "stop ponytail". | none |
 | [`find-me-a-skill`](find-me-a-skill/README.md) | Suggests which skill or sample workflow fits a task (from the text, the conversation, or the top board tasks), with the model and `/effort` for each step, the points where you decide, and commands to paste. Read-only, runs on Haiku, reads a catalog generated from this repo (`python scripts/site_catalog.py`). | none; `gh` for board mode |
 
@@ -117,6 +118,7 @@ skilleddocs/
   bridge.md            cross-session message log — session-bridge
   briefs/              teammate onboarding briefs — teammate-brief
   decisions.md         append-only decision register (D1, D2, ...) — grill-docs, consult-plan, verifier, wayfinder
+  experiments.md       setup header, results ledger and next ideas — score-loop
   gaps/                gap-scan reports — gap-scan
   grills/              one transcript per grill-docs session
   handoffs/            session handoffs — handoff, handoff-auto, session-handoff, implementer
