@@ -41,7 +41,7 @@ slash command.
 2. **Git.** For each repo this session ran git in (not only the current
    one): `git worktree list`; per worktree, `git status --porcelain` and
    `git status --porcelain --ignored -- skilleddocs` (handoffs in an excluded
-   `skilleddocs/`), and unpushed commits (`git log <ref>..`, `<ref>` = the
+   `skilleddocs/`, or an `AGENTS.md`-set handoff folder), and unpushed commits (`git log <ref>..`, `<ref>` = the
    upstream, else `origin/<branch>`, else `origin/<default>`; never the local
    default branch, which hides commits made on it). No remote ref → unpushed
    is "unknown" and blocks SAFE. A branch with 0 commits and a clean tree has

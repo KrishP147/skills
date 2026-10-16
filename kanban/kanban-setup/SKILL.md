@@ -21,7 +21,7 @@ The Status field needs an **In Review** option (`session-handoff` moves cards th
 
 ## 3. Candidates
 
-Scan whatever exists: README roadmap/TODO sections, `TODO`/`FIXME` comments, `CHANGELOG.md`, `docs/`, plan docs, and (retroactive) `git log`. Skip `skilleddocs/`, `node_modules`, `.venv` and vendored dirs. In every mode, drop items that already have an issue, open or closed (`gh issue list -R <owner>/<repo> --state all`).
+Scan whatever exists: README roadmap/TODO sections, `TODO`/`FIXME` comments, `CHANGELOG.md`, `docs/`, plan docs, and (retroactive) `git log`. Skip `skilleddocs/`, `node_modules`, `.venv` and vendored dirs. In every mode, drop items that already have an issue, open or closed (`gh issue list -R <owner>/<repo> --state all --limit 1000`; the default is 30).
 
 - **current**: planned/undone items.
 - **retroactive**: finished items, created then immediately closed, for a clean history.
