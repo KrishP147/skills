@@ -117,6 +117,22 @@ class TestBuildReplaceText(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("could not recover value", stdout)
 
+    def test_skips_location_only_finding(self):
+        findings = {
+            "S1": {
+                "type": "secret",
+                "rule": "private-key",
+                "secret_sha256": None,
+                "location_key": "c1:k.pem:private-key:1",
+                "paths": [],
+                "commits": [],
+            }
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out_path, stdout = self._run(Path(tmp), findings, [], ["S1"])
+        self.assertEqual(rc, 1)
+        self.assertIn("no secret value", stdout)
+
     def test_multiple_ids_writes_multiple_lines(self):
         v1, v2 = "secret-one", "secret-two"
         findings = {

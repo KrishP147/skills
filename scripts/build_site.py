@@ -128,6 +128,7 @@ def _entry(fm, fallback_name, group, source, readme, text):
     description = fm.get("description") or ""
     if not isinstance(description, str):
         description = ""
+    description = description.strip()  # block scalars keep a trailing newline
     return {
         "name": fm.get("name") or fallback_name,
         "description": description,

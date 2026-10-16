@@ -60,5 +60,55 @@ class WarnMissing(unittest.TestCase):
         self.assertNotIn("How to invoke", err.getvalue())
 
 
+class BlockScalarFrontmatter(unittest.TestCase):
+    def fm(self, body):
+        data, _ = lint.parse_frontmatter("---\n" + body + "---\nbody\n")
+        return data
+
+    def test_folded_with_paragraph_break(self):
+        d = self.fm("name: x\ndescription: >\n  Lazy senior dev mode.\n  Second line.\n\n  New para.\nnext: v\n")
+        self.assertEqual(d["description"], "Lazy senior dev mode. Second line.\nNew para.\n")
+        self.assertEqual(d["next"], "v")
+
+    def test_literal_keeps_newlines(self):
+        d = self.fm("description: |\n  a\n  b\nk: v\n")
+        self.assertEqual(d["description"], "a\nb\n")
+        self.assertEqual(d["k"], "v")
+
+    def test_chomp_strip(self):
+        self.assertEqual(self.fm("d: >-\n  a\n  b\n\n")["d"], "a b")
+        self.assertEqual(self.fm("d: |-\n  a\n  b\n")["d"], "a\nb")
+
+    def test_chomp_keep(self):
+        self.assertEqual(self.fm("d: |+\n  a\n\n\nk: v\n")["d"], "a\n\n\n")
+        self.assertEqual(self.fm("d: >+\n  a\n  b\n\nk: v\n")["d"], "a b\n\n")
+
+    def test_indent_digit(self):
+        self.assertEqual(self.fm("d: |2\n  a\n    b\n")["d"], "a\n  b\n")
+
+    def test_list_still_works(self):
+        d = self.fm("tools:\n  - a\n  - b\nempty:\nk: v\n")
+        self.assertEqual(d["tools"], ["a", "b"])
+        self.assertEqual(d["empty"], [])
+        self.assertEqual(d["k"], "v")
+
+    def test_quoted_unchanged(self):
+        d = self.fm('argument-hint: "[lite|full|ultra]"\n')
+        self.assertEqual(d["argument-hint"], '"[lite|full|ultra]"')
+
+    def test_lint_common_flags_raw_indicator(self):
+        for raw in (">", "|", ">-", "|+", ">2"):
+            failures = []
+            lint.lint_common("p", {"name": "x", "description": raw}, "body", "x", failures)
+            self.assertTrue(any("block scalar" in f for f in failures), raw)
+
+    def test_real_ponytail(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, "ponytail", "SKILL.md"), encoding="utf-8") as f:
+            d, _ = lint.parse_frontmatter(f.read())
+        self.assertTrue(d["description"].startswith("Lazy senior dev mode"))
+        self.assertNotIn(">", d["description"])
+
+
 if __name__ == "__main__":
     unittest.main()

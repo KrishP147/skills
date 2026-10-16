@@ -69,6 +69,49 @@ def find_agent_files(root):
     )
 
 
+BLOCK_SCALAR_RE = re.compile(r"^[>|](?:[+-]\d?|\d[+-]?)?$")
+
+
+def _block_scalar(header, block):
+    """Value of a YAML block scalar (`>` folded, `|` literal; optional
+    chomping `-`/`+`, optional indent digit). Clip keeps one trailing
+    newline. Folded: single newlines become spaces, blank lines become
+    newlines. More-indented lines are not specially preserved."""
+    folded = header[0] == ">"
+    chomp = "-" if "-" in header else "+" if "+" in header else ""
+    digit = re.search(r"\d", header)
+    nonblank = [l for l in block if l.strip()]
+    if not nonblank:
+        return "" if chomp != "+" else "\n" * len(block)
+    if digit:
+        indent = int(digit.group())
+    else:
+        indent = min(len(l) - len(l.lstrip()) for l in nonblank)
+    lines = [l[indent:].rstrip() if l.strip() else "" for l in block]
+    trailing = 0
+    while lines and lines[-1] == "":
+        lines.pop()
+        trailing += 1
+    if folded:
+        text = ""
+        breaks = 0
+        for l in lines:
+            if l == "":
+                breaks += 1
+                continue
+            if text:
+                text += "\n" * breaks if breaks else " "
+            text += l
+            breaks = 0
+    else:
+        text = "\n".join(lines)
+    if chomp == "-":
+        return text
+    if chomp == "+":
+        return text + "\n" * (1 + trailing)
+    return text + "\n"
+
+
 def parse_frontmatter(text):
     """Minimal '---' delimited frontmatter parser. Top-level `key: value`
     lines are captured. A key with an empty value followed by indented
@@ -88,7 +131,10 @@ def parse_frontmatter(text):
 
     data = {}
     current_key = None
-    for line in fm_lines:
+    i = 0
+    while i < len(fm_lines):
+        line = fm_lines[i]
+        i += 1
         if not line.strip():
             continue
         if not line[0].isspace():
@@ -99,6 +145,16 @@ def parse_frontmatter(text):
                 if val == "":
                     data[key] = []
                     current_key = key
+                elif BLOCK_SCALAR_RE.match(val):
+                    block = []
+                    while i < len(fm_lines):
+                        nxt = fm_lines[i]
+                        if nxt.strip() and not nxt[0].isspace():
+                            break
+                        block.append(nxt)
+                        i += 1
+                    data[key] = _block_scalar(val, block)
+                    current_key = None
                 else:
                     data[key] = val
                     current_key = None
@@ -123,7 +179,9 @@ def lint_common(path, fm, body, expected_name, failures):
         failures.append("%s: name '%s' != expected '%s'" % (path, name, expected_name))
 
     description = fm.get("description")
-    if not description:
+    if isinstance(description, str) and BLOCK_SCALAR_RE.match(description.strip()):
+        failures.append("%s: description is an unparsed block scalar '%s'" % (path, description.strip()))
+    elif not description:
         failures.append("%s: missing 'description' in frontmatter" % path)
     elif len(description) > 1024:
         failures.append("%s: description exceeds 1024 chars (%d)" % (path, len(description)))
