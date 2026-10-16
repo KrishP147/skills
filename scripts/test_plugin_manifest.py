@@ -58,6 +58,15 @@ class PluginManifest(unittest.TestCase):
             parent = os.path.dirname(os.path.dirname(skill_md))
             self.assertIn(parent, scanned, "skill not shipped by plugin.json: %s" % skill_md)
 
+    def test_find_me_a_skill_catalog_shipped(self):
+        # The skill reads its sibling CATALOG.md; the whole folder ships under a skills dir.
+        scanned = {resolve(rel) for rel in as_list(self.plugin["skills"])}
+        catalog = resolve("./find-me-a-skill/CATALOG.md")
+        self.assertTrue(os.path.isfile(catalog))
+        self.assertIn(os.path.dirname(os.path.dirname(catalog)), scanned)
+        with open(resolve("./find-me-a-skill/SKILL.md"), encoding="utf-8") as f:
+            self.assertIn("](CATALOG.md)", f.read())
+
     def test_template_not_shipped(self):
         scanned = {resolve(rel) for rel in as_list(self.plugin["skills"])}
         self.assertNotIn(resolve("./templates/"), scanned)
