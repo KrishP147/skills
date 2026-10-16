@@ -131,7 +131,7 @@ preview deploys.
   the agents' shared example, `spend-guard`.
 - **Warning.** An entry with no Example prints
   `WARN: <name>: no Example section ...` on stderr (the build still
-  succeeds); a test keeps all 28 entries at zero warnings.
+  succeeds); a test keeps all 29 entries at zero warnings.
 - **Back home.** A visible `← all commands` link above the echoed command;
   on the prompt, Esc clears the text, then (bare `/`, menu open or not)
   goes home. On the home page Esc never navigates.
