@@ -49,10 +49,18 @@ import os
 import re
 import sys
 
+# runpodctl prefix: binary (optionally .exe/.cmd/quoted) plus any global
+# flags before the noun (`--profile x`, `--output=json`, `-o json`). A flag
+# value may not be a noun/verb word, so it cannot swallow the real noun.
+_RP = r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:-{1,2}[\w-]+(?:[= ](?!(?:pods?|serverless|sls|network-volume|nv|model|template|registry|hub|create|start)\b)[^\s-]\S*)?\s+)*"""
+
 DEFAULT_BASH_PATTERNS = [
-    r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:(?:pods?|serverless|network-volume|nv)\s+)?(?:create|start)\b""",
-    r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:network-volume|nv)\s+update\b[^\n]*--size\b""",
-    r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+serverless\s+update\b""",
+    _RP + r"""(?:(?:pods?|serverless|sls|network-volume|nv)\s+)?(?:create|start)\b""",
+    _RP + r"""(?:network-volume|nv)\s+update\b[^\n]*--size\b""",
+    _RP + r"""(?:serverless|sls)\s+update\b""",
+    _RP + r"""(?:serverless|sls)\s+run\b""",
+    _RP + r"""pods?\s+update\b[^\n]*--(?:volume-in-gb|container-disk-in-gb)\b""",
+    _RP + r"""model\s+add\b""",
     r"""\bvultr-cli(?:\.exe|\.cmd)?["']?\s+instance\s+create\b""",
     r"""\baws(?:\.exe|\.cmd)?["']?\s+ec2\s+run-instances\b""",
     r"""\bgcloud(?:\.exe|\.cmd)?["']?\s+compute\s+instances\s+create\b""",
@@ -84,6 +92,10 @@ POD_BILLABLE_ACTIONS = ("start", "resume")
 # current size: the hook cannot know it). update-global-volume is NOT gated:
 # it only takes a name, nothing billable to change.
 NETVOL_UPDATE_GLOB = "mcp__*runpod*__update-network-volume"
+
+# update-pod body: only storage size keys bill (name/imageName do not).
+POD_UPDATE_GLOB = "mcp__*runpod*__update-pod"
+POD_UPDATE_BILLABLE_KEYS = ("volumeInGb", "containerDiskInGb")
 
 PATTERNS_FILE_REL = os.path.join(".claude", "spend-guard-patterns.txt")
 APPROVALS_DIR_REL = os.path.join("skilleddocs", "spend-approvals")
@@ -249,6 +261,21 @@ def netvol_update_billable(tool_name, tool_input):
     return None
 
 
+def pod_update_billable(tool_name, tool_input):
+    """Return a block reason if this is a runpod update-pod whose body is a
+    dict containing "volumeInGb" or "containerDiskInGb" (storage resize
+    bills), else None. Fails open."""
+    try:
+        if not tool_name or not fnmatch.fnmatch(tool_name.lower(), POD_UPDATE_GLOB):
+            return None
+        body = (tool_input or {}).get("body")
+        if isinstance(body, dict) and any(k in body for k in POD_UPDATE_BILLABLE_KEYS):
+            return "tool '%s' sets pod storage size (resize bills)" % tool_name
+    except Exception:
+        pass
+    return None
+
+
 def env_approved(env):
     return bool(env.get("SPEND_GATE_APPROVED"))
 
@@ -307,6 +334,9 @@ def check(tool_name, tool_input, cwd, env=None):
     if tool_name and fnmatch.fnmatch(tool_name.lower(), NETVOL_UPDATE_GLOB):
         # Only a body containing "size" blocks; rename-only allows.
         reason = netvol_update_billable(tool_name, tool_input)
+    if tool_name and fnmatch.fnmatch(tool_name.lower(), POD_UPDATE_GLOB):
+        # Only a body with a storage-size key blocks; name/image allows.
+        reason = pod_update_billable(tool_name, tool_input)
     if reason is None:
         return None  # not billable (or unrecognized) - allow
 
@@ -613,6 +643,48 @@ def run_self_test():
     record("global-volume update name allowed",
            check("mcp__plugin_runpod_runpod__update-global-volume",
                  {"body": {"name": "a"}}, None, env=iso) is None)
+
+    # 15. issue #130: serverless run, sls alias, pod update storage, model add,
+    # global flags before noun, update-pod MCP
+    new_block = [
+        "runpodctl serverless run ep1 --input '{}'", "runpodctl sls run ep1 --input x",
+        "runpodctl sls create --name z", "runpodctl sls update ep --workers-max 2",
+        "runpodctl pod update p1 --volume-in-gb 50",
+        "runpodctl pods update p1 --name a --container-disk-in-gb 80",
+        "runpodctl model add --name m", "runpodctl --profile x pod create --image y",
+        "runpodctl --output=json pod create", "runpodctl -o json serverless run ep",
+        "runpodctl --verbose create pod x", "runpodctl.exe -o json sls run ep",
+        "runpodctl --profile a --output=json nv create",
+    ]
+    for cmd in new_block:
+        record("#130 blocks: %s" % cmd,
+               check("Bash", {"command": cmd}, None, env=iso) is not None)
+    new_allow = [
+        "runpodctl pod update p1 --name y", "runpodctl serverless status ep j",
+        "runpodctl serverless health ep", "runpodctl serverless logs ep",
+        "runpodctl hub search vllm", "runpodctl model list", "runpodctl model remove m",
+        "runpodctl --output=json pod list", "myrunpodctl sls run ep",
+        "runpodctl pod list --output json create", "runpodctl --profile x pod stop p",
+        "runpodctl -o json template create --name t",
+    ]
+    for cmd in new_allow:
+        record("#130 allowed: %s" % cmd,
+               check("Bash", {"command": cmd}, None, env=iso) is None)
+    up = "mcp__plugin_runpod_runpod__update-pod"
+    record("pod update volumeInGb blocks",
+           check(up, {"id": "p", "body": {"volumeInGb": 50}}, None, env=iso) is not None)
+    record("pod update containerDiskInGb blocks",
+           check(up, {"id": "p", "body": {"name": "a", "containerDiskInGb": 9}},
+                 None, env=iso) is not None)
+    record("pod update name/imageName allowed",
+           check(up, {"id": "p", "body": {"name": "a", "imageName": "i"}},
+                 None, env=iso) is None)
+    record("pod update missing/string body allowed",
+           check(up, {"id": "p"}, None, env=iso) is None
+           and check(up, {"body": "volumeInGb"}, None, env=iso) is None)
+    record("pod update volumeInGb allowed with approval",
+           check(up, {"body": {"volumeInGb": 5}}, None,
+                 env=dict(iso, SPEND_GATE_APPROVED="yes")) is None)
 
     print("\n%d passed, %d failed" % (passed, failed))
     if failed:
