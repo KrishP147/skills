@@ -20,14 +20,14 @@ Grills a proposed change, deviation or new idea against the repo's existing plan
 1. **Baseline** (whatever exists): open issues (`gh issue list --state open`), board state (`gh project item-list` or `status:*` labels), a roadmap doc (`ROADMAP.md`, `docs/roadmap.md`, …), plus `skilleddocs/decisions.md` and `skilleddocs/grills/`. Earlier decisions are cited as `D<k>`.
 2. **Grill:** calls [`grilling`](../../grilling/) with that baseline, framed as fit / conflict / extension and what you want to happen.
 3. **Record** once settled, both:
-   - **Decision:** append to the repo's decisions doc. An existing `docs/decisions.md` or ADR folder wins; otherwise `skilleddocs/decisions.md` (header from [`grill-docs`](../../grill-docs/)).
-   - **Issue:** comment on the relevant issue, or open a new one and put it on the board at Todo (Projects v2: `item-add` + `item-edit`; label mode: `status:todo`, created first if missing).
+   - **Decision:** append to the repo's decisions doc: the one `AGENTS.md` / `CLAUDE.md` names, else an existing `docs/decisions.md` or ADR folder, else `skilleddocs/decisions.md` (header and rows as in [`grill-docs`](../../grill-docs/)). Source column: `consult-plan <date>` plus the issue or PR link if any.
+   - **Issue** (accepted or changed ideas): comment on the relevant issue, or open a new one and put it on the board at Todo (Projects v2: `item-add` + `item-edit`; label mode: `status:todo`, created first if missing). A **rejected** idea gets the decision row only, plus a comment if a related issue exists; no new issue.
 
 ## Design principles
 
 - **Ideas meet the plan before they enter it.** A deviation or new idea is tested against open issues, the board, the roadmap and earlier decisions, not added on enthusiasm.
 - **Reuse the interview.** The questioning is `grilling`, with the plan as context; this skill adds the baseline and the record.
-- **Record where the repo already does.** An existing `docs/decisions.md` or ADR folder wins over `skilleddocs/decisions.md`, and the outcome lands on an issue as well.
+- **Record where the repo already does.** A decisions doc named in `AGENTS.md` / `CLAUDE.md` wins, then an existing `docs/decisions.md` or ADR folder, then `skilleddocs/decisions.md`; an accepted outcome lands on an issue as well.
 
 ## Use cases
 
@@ -40,7 +40,7 @@ Grills a proposed change, deviation or new idea against the repo's existing plan
 
 - State the idea in one line as the argument; the baseline supplies the context.
 - Earlier decisions are cited as `D<k>`, so a conflict with a past decision is visible in the questions.
-- A settled idea that needs work becomes a new issue at Todo; one that only refines existing work becomes a comment.
+- A settled idea that needs work becomes a new issue at Todo; one that only refines existing work becomes a comment; a rejected one is a decision row only.
 - Want the full Q and A transcript kept too? Run [`grill-docs`](../../grill-docs/) on it instead; it also writes a transcript under `skilleddocs/grills/`.
 
 ## Example
@@ -58,4 +58,4 @@ Reads 12 open issues and `ROADMAP.md`, asks a round of questions (does it replac
 
 ## Prereqs
 
-`gh`, authenticated with the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)). [`grilling`](../../grilling/) installed.
+`gh`, authenticated, and `origin` on GitHub. Projects v2 boards also need the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)); label mode doesn't. [`grilling`](../../grilling/) installed.
