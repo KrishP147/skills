@@ -33,6 +33,14 @@ Note whether it's user-invoked only or also model-invocable.
 Numbered steps of what actually happens when the skill runs — inputs it
 reads, decisions it makes, what it writes and where.
 
+## Flow
+
+Optional; delete the section if the steps above are a straight line. A
+diagram of the loop or branches, as a `mermaid` code fence in the strict
+subset in [`site/README.md`](../../site/README.md#detail-pages)
+(`flowchart TD`, `A[label] --> B[label]`, `-->|label|`, `-.->`). Every
+node must be a step the SKILL.md really takes.
+
 ## Design principles
 
 The 1-3 principles that shaped how this skill is built (why it's structured
