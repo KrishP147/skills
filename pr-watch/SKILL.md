@@ -26,7 +26,7 @@ query($owner:String!,$repo:String!,$pr:Int!,$after:String){
       nodes{ id isResolved isOutdated path line
         comments(last:20){ pageInfo{hasPreviousPage startCursor}
           nodes{ author{login} body url createdAt } } } } } } }' \
-  -F owner=<o> -F repo=<r> -F pr=<n>
+  -f owner=<o> -f repo=<r> -F pr=<n>
 ```
 
 Threads: while `hasNextPage`, rerun with `-f after=<endCursor>`. Comments come newest-last (`last:20`); a thread whose `comments.pageInfo.hasPreviousPage` is true has older ones, so page back until false:

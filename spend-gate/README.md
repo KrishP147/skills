@@ -94,8 +94,8 @@ once the job finishes.
 
 [`hooks/spend-guard.py`](../hooks/spend-guard.py) - optional `PreToolUse`
 hook that enforces the same gate at the tool-call level, blocking a
-matching command/MCP call unless an approval token from this skill's step 7
-already exists.
+matching command/MCP call unless an approval file exists (written after the
+explicit yes at step 4, Gate; see [HOOK.md](HOOK.md)).
 
 ## Prereqs
 
