@@ -10,9 +10,9 @@ A document the user reads in two minutes.
 
 - **Folder**: the one given, else `skilleddocs/reports/`.
 - **Ledger**: `skilleddocs/orchestrator/ledger.md` (older runs: `ledger.md` in the folder). None → reconstruct from `git log`, merged PRs, issues, and this conversation, and say so in the report.
-- **Watermark**: `.last-reported` in the folder, one line `<NNN> <report filename>` (e.g. `007 002-2026-10-16-x.md`). NNN = last ledger entry reported. No ledger → NNN = the last reported commit SHA instead. No file → report 001, covers everything.
+- **Watermark**: `.last-reported` in the folder, one line `<NNN> <report filename>` (e.g. `007 002-2026-10-16-x.md`): NNN = last ledger entry reported (no ledger → last reported commit SHA). The report number is that filename's number + 1. No file → report 001, covers everything.
 
-**No overlap**: cover entries `watermark+1 … latest` (no ledger: commits after the SHA). Ledger present → also scan `git log` and merged PRs since the watermark's time; work with no ledger entry goes in the report marked "not in ledger". Something already reported that later changed (revert, reversed decision, broken "done") goes under *Revisions*, citing the earlier report. `full` → ignore the watermark; title it "Full report".
+**No overlap**: cover entries `watermark+1 … latest` (no ledger: commits after the SHA). Ledger present → also scan `git log` and merged PRs since the watermark entry's timestamp; work with no ledger entry goes in the report marked "not in ledger". Something already reported that later changed (revert, reversed decision, broken "done") goes under *Revisions*, citing the earlier report. `full` → ignore the watermark; title it "Full report".
 
 ## 2. Sections (this order; an empty one says "none")
 
@@ -36,11 +36,11 @@ Resolve the repo URL once: `gh repo view --json url -q .url`. Link every referen
 1. existing markdown link `[..](..)` or `<url>` → copy unchanged
 2. inline code span → copy unchanged
 3. `PR #n` → link "PR #n" to `<repo>/pull/n`
-4. `#n` → link "#n" to `<repo>/issues/n`
-5. hex sha, 7–40 chars of `[0-9a-f]` with at least one a–f letter, word-bounded → link "<first 7>" to `<repo>/commit/<full>`
-6. `D<k>`/`A-<k>`/ADR id → anchor in the decisions file, if one exists
+4. `#n` (not preceded by a letter, digit or `&`) → link "#n" to `<repo>/issues/n`
+5. hex sha, 7–40 chars of `[0-9a-f]` with at least one digit and one a–f letter, word-bounded → link "<first 7>" to `<repo>/commit/<full>`
+6. `D<k>`/`A-<k>`/ADR id, word-bounded → link to the decisions file (its heading anchor for that id, if it has one); no decisions file → leave as text
 
-Never link: heading lines (start `#`, incl. the report header), decimal-only tokens (CI run ids). Never re-scan output. Then check link count ≥ the `#n` mentions in the ledger range.
+Never link: heading lines (`#`–`######` then a space, incl. the report header), decimal-only tokens (CI run ids). Never re-scan output. Then check link count ≥ the `#n` mentions in the ledger range.
 
 ## 4. Write
 

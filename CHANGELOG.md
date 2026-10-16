@@ -6,7 +6,7 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 
 ## [0.1.0] - 2026-10-15
 
-- `progress-report`: one-pass link rule (no links in headings, CI run ids or code spans; short numbers no longer mis-linked), `Progress report NNN` header, `.last-reported` is `<NNN> <filename>`, un-ledgered git work is reported as "not in ledger", and the zone prints a UTC offset on Windows.
+- `progress-report`: one-pass link rule (headings, code spans, existing links and decimal CI run ids left alone; no `PR #n` double links), `Progress report NNN` header, `.last-reported` is `<NNN> <filename>`, un-ledgered git work is reported as "not in ledger", and the zone prints a UTC offset on Windows.
 - `pair`/`meta-orchestrator`: Windows `.venv`/`node_modules` link and teardown commands work from Git Bash and PowerShell; a hard check stops `git worktree remove` while a dep link (dangling included) remains.
 - Agents: manager, implementer and verifier honour `decisions=assume` (open `A-n` recorded and reported); planner README lists **Assumptions needed**.
 - `meta-orchestrator`: `decisions: ask|assume` (assume = agent picks its recommendation, logs open `A-n` until you confirm; shown in handoffs and `progress-report`) and a `haiku` chores tier for mechanical no-judgment tasks.
