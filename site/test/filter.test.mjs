@@ -254,7 +254,7 @@ test("hooks are in the real nav data and searchable", () => {
 
 test("site pages in the real nav data: /map opens the map", () => {
   const pages = REAL.filter((x) => x.kind === "page");
-  assert.deepEqual(names(pages), ["map"]);
+  assert.deepEqual(names(pages), ["map", "workflows"]);
   assert.equal(pages[0].group, "pages");
   const st = F.search("/map", REAL);
   assert.equal(st.exact && st.exact.name, "map");
