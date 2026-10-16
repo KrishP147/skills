@@ -12,27 +12,37 @@ summary; the build fails if a hook has no section). See [`../site/README.md`](..
 ## `smartzone.py` — "your context has left the smart zone" warning
 
 `UserPromptSubmit` hook. Prints a one-line warning into the conversation when
-the session transcript passes ~1.5 MB (a rough proxy for ~100k tokens), so
-both you and Claude see it and can wrap up: `/divide` the rest, then
-`/session-handoff` (or, for an orchestrator, the rotation step (`ROTATION.md`) in
-`meta-orchestrator`). Heuristic only; `/context` is the precise check.
+the live context passes ~75k tokens, so both you and Claude see it and can
+wrap up: `/divide` the rest, then `/session-handoff` (or, for an orchestrator,
+the rotation step (`ROTATION.md`) in `meta-orchestrator`). Heuristic only;
+`/context` is the precise check.
 
 How it works: on every prompt you submit, Claude Code passes the hook JSON
-on stdin; the script reads `transcript_path`, and if that file is at least
-`THRESHOLD_MB` (1.5) it prints the warning (stdout is injected into the
-conversation). Below the threshold, or on any error, it prints nothing and
-never blocks the prompt.
+on stdin; the script reads `transcript_path` and only the tail of that file
+(never the whole transcript). It takes the last main-chain assistant entry
+(not a sidechain) with `message.usage` and sums `input_tokens +
+cache_creation_input_tokens + cache_read_input_tokens`. `/compact` appends a
+`compact_boundary` line and never truncates the file, so usage from before the
+last boundary is ignored; if there is no usage after it (or at all), it falls
+back to the bytes after the last boundary (whole file if none) at ~20 bytes
+per token. If the result is at least the threshold it prints the warning
+(stdout is injected into the conversation). Below it, or on any error
+(missing file, malformed lines, bad env), it prints nothing and never blocks.
+
+Threshold: env var `SMARTZONE_TOKENS` (integer tokens), default `75000` (the
+old 1.5 MB size check at ~20 bytes per token). A bad value falls back to the
+default. Set it in the hook `command` or your shell env.
 
 Related: [`divide`](../kanban/divide/), [`session-handoff`](../kanban/session-handoff/),
 [`meta-orchestrator`](../meta-orchestrator/) (rotates early on this warning).
 
-Example output once a long session crosses the threshold:
+Example output once the context crosses the threshold:
 
 ```
-[smart-zone] Session transcript is ~1.6 MB - context has likely left the smart zone (~100-120k tokens; this is a heuristic, verify with /context). Wrap up: run /divide on the remaining work, then /session-handoff, and continue in a fresh session.
+[smart-zone] Session transcript context is ~82k tokens - context has likely left the smart zone (~100-120k tokens; this is a heuristic, verify with /context). Wrap up: run /divide on the remaining work, then /session-handoff, and continue in a fresh session.
 ```
 
-Install into a repo:
+Install per repo:
 
 ```bash
 mkdir -p .claude/hooks
@@ -58,10 +68,43 @@ cp <skills repo>/hooks/smartzone.py .claude/hooks/
 }
 ```
 
-Claude Code asks you to approve the hook once per repo. Tune `THRESHOLD_MB`
-at the top of the script if your prompts are unusually large or small.
-Global instead of per-repo: put the same block in `~/.claude/settings.json`
-with an absolute path to the script.
+Claude Code asks you to approve the hook once per repo.
+
+Install at user level (covers sessions started in your home directory too).
+In a home-dir session `$CLAUDE_PROJECT_DIR` is `~`, so a per-repo
+`.claude/hooks/` copy is never loaded there. Copy the script to
+`~/.claude/hooks/` and register it in `~/.claude/settings.json` with an
+absolute path:
+
+```bash
+mkdir -p ~/.claude/hooks
+cp <skills repo>/hooks/smartzone.py ~/.claude/hooks/
+```
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"/home/you/.claude/hooks/smartzone.py\" || exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Use your real absolute path (on Windows e.g. `C:/Users/you/.claude/hooks/smartzone.py`).
+
+Self-test (fixtures in temp dirs, no network):
+
+```bash
+python hooks/smartzone.py --self-test
+```
 
 ## `spend-guard.py` — block billable commands without an approval
 
