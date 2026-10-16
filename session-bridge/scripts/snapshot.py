@@ -48,6 +48,11 @@ def red(text):
     return text
 
 
+def one_line(text, limit):
+    """Redact, then fold whitespace so each item stays on one line, then cut."""
+    return " ".join(red(text).split())[:limit]
+
+
 def blocks(entry):
     msg = entry.get("message")
     content = msg.get("content") if isinstance(msg, dict) else None
@@ -129,7 +134,7 @@ def main(argv):
                 entries.append(obj)
 
     asks = [t for e in entries if e.get("type") == "user" for t in [user_text(e)] if t]
-    print("LAST USER ASK:", red(asks[-1])[:500] if asks else "(none found)")
+    print("LAST USER ASK:", one_line(asks[-1], 500) if asks else "(none found)")
 
     # Only assistant entries: other entry types (e.g. API request blobs) repeat
     # the same tool calls. Dedupe by tool_use id when one is present.
@@ -145,7 +150,7 @@ def main(argv):
                         continue
                     seen.add(tid)
                 what = action_text(b.get("name"), b.get("input"))
-                actions.append((e.get("timestamp", "?"), b.get("name"), red(str(what))[:160]))
+                actions.append((e.get("timestamp", "?"), b.get("name"), one_line(str(what), 160)))
     print(f"LAST {n} ACTIONS:")
     for ts, name, what in actions[-n:]:
         print("-", ts, name, what)

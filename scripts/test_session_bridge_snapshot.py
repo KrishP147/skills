@@ -223,6 +223,14 @@ class Redaction(unittest.TestCase):
 
 
 class Robustness(unittest.TestCase):
+    def test_multiline_folded_to_one_line(self):
+        out = run([user("line one\nline two"),
+                   tool("Bash", {"command": "echo a\n  echo b"}, "t1"),
+                   tool("Bash", {"command": "echo c"}, "t2")])
+        lines = out.splitlines()
+        self.assertEqual(lines[0], "LAST USER ASK: line one line two")
+        self.assertEqual(lines[2:], ["- t1 Bash echo a echo b", "- t2 Bash echo c"])
+
     def test_non_object_lines_skipped(self):
         out = run([user("real ask"), tool("Bash", {"command": "c1"})],
                   raw=["[1, 2]", '"str"', "5", "null", '{"type": "user", "message": "x"}'])
