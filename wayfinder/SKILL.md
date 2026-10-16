@@ -10,7 +10,7 @@ An idea has arrived that no single session can hold, and the way from here to th
 
 Naming the destination is the first act: it fixes the scope and shapes every ticket. It may be a spec, a decision to lock, or a change such as a data migration. The map fits any domain.
 
-`gh repo view` fails → stop and say why: `origin` isn't a GitHub remote (this skill needs one), or `gh` isn't authenticated (`gh auth status`).
+**Target repo** per the `next` skill's `BOARD.md`, Target repo section (`~/.claude/skills/next/` or, as the plugin, `kanban/next/`): resolve `origin` (this skill needs it on GitHub), `-R <o>/<r>` on every `gh` call, and on a fork ask which repo to write to before charting; `<o>/<r>` below is that repo.
 
 ## Plan, don't do
 
@@ -62,7 +62,7 @@ Map: <map link>
 
 Each ticket carries exactly one `wayfinder:<type>` label: `research`, `prototype`, `grilling` or `task`. `wayfinder:*` labels are the only labels a map or ticket carries: never `status:*`, never put them on the board. `next`, the `planner` agent and `meta-orchestrator` skip anything labelled `wayfinder:*`.
 
-**Claim** a ticket by assigning it to yourself first, before any work (`gh issue edit <n> --add-assignee @me`), so parallel sessions skip it. Open + unassigned = unclaimed.
+**Claim** a ticket by assigning it to yourself first, before any work (`gh issue edit <n> -R <o>/<r> --add-assignee @me`), so parallel sessions skip it. Open + unassigned = unclaimed.
 
 **Blocking** uses GitHub's native issue dependencies, so the frontier shows in GitHub's own UI. A ticket is **unblocked** when every ticket blocking it is closed; the **frontier** is the open, unblocked, unclaimed sub-issues.
 
@@ -73,7 +73,7 @@ The answer is never in the body; it's recorded on resolution. Assets made while 
 The REST APIs take the issue's numeric `id` (`gh api repos/<o>/<r>/issues/<n> -q .id`), not its number.
 
 ```
-gh label create wayfinder:<type> --color <hex> --force                    # before first use, every label incl. wayfinder:map
+gh label create wayfinder:<type> --color <hex> --force -R <o>/<r>        # before first use, every label incl. wayfinder:map
 gh api repos/<o>/<r>/issues/<map>/sub_issues -X POST -F sub_issue_id=<id> # attach ticket to map
 gh api repos/<o>/<r>/issues/<map>/sub_issues                              # list tickets (state, assignees, labels)
 gh api repos/<o>/<r>/issues/<n>/dependencies/blocked_by -X POST -F issue_id=<blocker id>

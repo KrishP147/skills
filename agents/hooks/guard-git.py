@@ -8,11 +8,16 @@ tool other than Bash/PowerShell -> exit 0. An internal error while analysing a
 command that mentions push/merge/delete -> exit 2 (fail closed).
 
 It is a guardrail, not a sandbox: it parses the shell command the agent is
-about to run (quote-aware, recursing into `bash -c`, `pwsh -Command`, `eval`,
-`iex`, `& { }`, `$(...)`, each nested shell in its own POSIX/PowerShell mode)
-but cannot see into script files or pre-existing shell aliases. Code it can't
-read (`eval $c`, `& $sb`) fails closed when the command mentions push/merge/delete.
-Pair it with GitHub branch protection.
+about to run (quote-aware, recursing into `bash -c`, `busybox sh -c`,
+`pwsh -Command`, `eval`, `iex`, `& { }`, `$(...)`, here-docs/here-strings fed
+to a shell, each nested shell in its own POSIX/PowerShell mode), expands
+aliases defined in the command (`alias`, `Set-Alias`, `git config alias.*`),
+reads `--git-dir`/`GIT_DIR` repos and MSYS `/c/...` paths, and checks inline
+interpreter code (`python -c`, `node -e`) and curl/wget/iwr/irm writes to the
+GitHub API. It cannot see into script files, profile aliases, or code built at
+runtime. Code it can't read (`eval $c`, `& $sb`, `git $a`, non-literal
+`iex (...)`) fails closed when the command mentions push/merge/delete or
+decodes base64/hex. Pair it with GitHub branch protection.
 
 Protected branches: env GUARD_PROTECTED_BRANCHES (comma list), default
 "main,master".
@@ -100,6 +105,10 @@ def git_alias(cwd, name):
     return _git_out(cwd, ["config", "--get", "alias." + name])
 
 
+def git_dir_branch(cwd, git_dir):
+    return _git_out(cwd, ["--git-dir", git_dir, "rev-parse", "--abbrev-ref", "HEAD"])
+
+
 def _git_out(cwd, args):
     try:
         out = subprocess.run(["git"] + args, cwd=cwd or None, capture_output=True, text=True, timeout=5)
@@ -112,12 +121,24 @@ def _git_out(cwd, args):
 
 class Ctx:
     def __init__(self, protected, cwd=None, branch_lookup=git_current_branch, alias_lookup=git_alias,
-                 powershell=False):
+                 powershell=False, gitdir_lookup=git_dir_branch, msys=(os.name == "nt")):
         self.protected = [p.lower() for p in protected]
         self.cwd = cwd
         self.branch_lookup = branch_lookup
         self.alias_lookup = alias_lookup
+        self.gitdir_lookup = gitdir_lookup  # (cwd, git_dir) -> branch of that repo
         self.powershell = powershell
+        self.msys = msys  # map Git Bash `/c/x` and `/cygdrive/c/x` to `C:\x`
+        # GIT_DIR / GIT_WORK_TREE: exported (persist) and per-command overlays
+        self.git_env = {}
+        self.seg_env = {}
+        # aliases defined earlier in the command: `alias gp=...`, Set-Alias,
+        # `git config alias.x ...` (name -> expansion)
+        self.shell_aliases = {}
+        self.git_aliases = {}
+        # base64/xxd/openssl decode somewhere in the command: decoded text fed
+        # to a shell/iex can't be read -> fail closed
+        self.decoder_seen = False
         # current branch after an in-command `git checkout/switch <name>`; a
         # protected name (or UNKNOWN_BRANCH) makes a later bare push fail closed.
         self.branch_override = None
@@ -138,6 +159,22 @@ class Ctx:
         if RISKY_WORDS.search(self.top_cmd):
             self.block("%s runs code that can't be read, in a command mentioning "
                        "push/merge/delete; failing closed." % what)
+        if self.decoder_seen:
+            self.block("%s runs code that can't be read, in a command that decodes "
+                       "base64/hex; failing closed." % what)
+
+    def path(self, base_dir, p):
+        """`p` resolved against `base_dir`, with MSYS drive paths mapped."""
+        if self.msys and not self.powershell:
+            m = re.match(r"^(?:/cygdrive)?/([A-Za-z])(?=/|$)(.*)$", p)
+            if m:
+                p = m.group(1).upper() + ":\\" + m.group(2).lstrip("/").replace("/", "\\")
+        return os.path.join(base_dir or os.getcwd(), p)
+
+    def env(self):
+        e = dict(self.git_env)
+        e.update(self.seg_env)
+        return e
 
 
 # ---------------------------------------------------------------- splitting
@@ -182,6 +219,9 @@ def _extract(cmd, i, closer):
             for delim, strip in pending:
                 _, j = _heredoc_body(cmd, j + 1, delim, strip)
             pending = []
+            continue
+        if q is None and cmd.startswith("<<<", j):
+            j += 3  # here-string, not a here-doc at j+1
             continue
         if q is None and c == "<":
             hd = _heredoc_at(cmd, j)
@@ -280,6 +320,10 @@ def split_commands(cmd, ps=False):
         if c in "<>" and cmd.startswith("(", i + 1):
             i = subst(i + 2, ")")
             continue
+        if cmd.startswith("<<<", i):
+            buf.append("<<<")  # here-string, not a here-doc at i+1
+            i += 3
+            continue
         if c == "<":
             hd = _heredoc_at(cmd, i)
             if hd:
@@ -339,7 +383,37 @@ def _ps_call_op(cmd, i, buf):
 
 
 def tokenize(seg, ps=False):
-    """shlex(posix) tokens with redirections dropped. None on parse failure.
+    """shlex(posix) tokens with redirections dropped. None on parse failure."""
+    raw = _shlex_raw(seg, ps)
+    if raw is None:
+        return None
+    toks, skip = [], False
+    for t in raw:
+        if skip:
+            skip = False
+            continue
+        m = REDIRECT_RE.match(t)
+        if m:
+            skip = m.group(2) == ""
+            continue
+        toks.extend(brace_expand(t))
+    return toks
+
+
+def herestrings(seg, ps=False):
+    """Words fed to stdin by `<<< word` (a shell reading stdin runs them)."""
+    raw = _shlex_raw(seg, ps) or []
+    out = []
+    for k, t in enumerate(raw):
+        m = re.match(r"^[0-9]*<<<(.*)$", t)
+        if m:
+            word = m.group(1) or (raw[k + 1] if k + 1 < len(raw) else "")
+            out.append(word)
+    return out
+
+
+def _shlex_raw(seg, ps=False):
+    """shlex(posix) tokens, redirections kept. None on parse failure.
     With `ps=True`, backslashes outside '...' are doubled so POSIX shlex keeps
     Windows paths (`C:\\x\\repo`) instead of eating the separators."""
     if not ps:  # bash drops the `\` of `\`` and `\$` inside "...", shlex keeps it
@@ -367,20 +441,9 @@ def tokenize(seg, ps=False):
             out.append("\\\\" if c == "\\" and q != "'" else c)
         seg = "".join(out)
     try:
-        raw = shlex.split(seg, posix=True)
+        return shlex.split(seg, posix=True)
     except ValueError:
         return None
-    toks, skip = [], False
-    for t in raw:
-        if skip:
-            skip = False
-            continue
-        m = REDIRECT_RE.match(t)
-        if m:
-            skip = m.group(2) == ""
-            continue
-        toks.extend(brace_expand(t))
-    return toks
 
 
 BRACE_LIMIT = 64
@@ -470,7 +533,7 @@ def analyze(cmd, ctx, depth=0):
     segs, subs, docs = split_commands(cmd, ps=ps)
     for s in subs:
         analyze(s, ctx, depth + 1)
-    stdin_modes = []
+    stdin_modes, code_stdin = [], False
     for idx, seg in enumerate(segs):
         toks = tokenize(seg, ps=ps)
         if toks is None:
@@ -478,10 +541,30 @@ def analyze(cmd, ctx, depth=0):
             toks = seg.split()
         mode = run_segment(toks, ctx, subs, depth)
         ctx.powershell = ps  # a nested shell must not leak its mode
+        if mode == "code":  # `python - <<EOF`, `node <<< '...'`: stdin is code
+            for body in docs.get(idx, []) + herestrings(seg, ps):
+                check_code(body, ctx)
+            code_stdin = True
+            continue
         if mode:
             stdin_modes.append(mode)
-            for body in docs.get(idx, []):  # `bash <<EOF ... EOF`
+            for body in docs.get(idx, []) + herestrings(seg, ps):  # `bash <<EOF`, `bash <<< '...'`
                 analyze_in(body, ctx, depth + 1, mode == "ps")
+    if ps:  # after the segments, so aliases set in them apply
+        for m in IEX_PAREN_RE.finditer(cmd):  # `iex ('git push ' + 'origin main')`
+            inner, _ = _extract(cmd, m.end(), ")")
+            lit = ps_literal_concat(inner)
+            if lit is None:
+                ctx.dynamic_exec("Invoke-Expression (expression)")
+            else:
+                analyze(lit, ctx, depth + 1)
+    if (stdin_modes or code_stdin) and ctx.decoder_seen:
+        ctx.block("decoded base64/hex text piped into a shell; failing closed.")
+    if code_stdin:  # `echo "..." | python`
+        for seg in segs:
+            toks = tokenize(seg, ps=ps) or seg.split()
+            if toks and base(toks[0]) in ("echo", "printf", "write-output", "write-host", "cat"):
+                check_code(" ".join(toks[1:]), ctx)
     for mode in stdin_modes:
         # `echo "git push origin main" | sh` (or `'...' | iex`): the piped text
         # is the script a stdin-reading shell runs.
@@ -491,6 +574,43 @@ def analyze(cmd, ctx, depth=0):
                 analyze_in(" ".join(toks[1:]), ctx, depth + 1, mode == "ps")
             elif len(toks) == 1 and not toks[0].startswith("-"):
                 analyze_in(toks[0], ctx, depth + 1, mode == "ps")
+
+
+IEX_PAREN_RE = re.compile(r"(?i)(?<![\w-])(iex|invoke-expression)(\s+-c(ommand)?)?\s*\(")
+PS_LITERAL_RE = re.compile(r"""\s*('[^']*'|"[^"$`]*")\s*""")
+
+
+def ps_literal_concat(expr):
+    """`'git push ' + "origin main"` -> its value; None if not all literals."""
+    parts = expr.split("+")
+    vals = []
+    for p in parts:
+        m = PS_LITERAL_RE.fullmatch(p)
+        if not m:
+            return None
+        vals.append(m.group(1)[1:-1])
+    return "".join(vals)
+
+
+INTERPRETER_RE = re.compile(r"^(python[0-9.]*w?|py|pypy[0-9.]*|node|nodejs|bun|deno|perl|ruby|php)$")
+CODE_GIT_RE = re.compile(r"\bgit\b\W{0,8}(push|send-pack|http-push)\b|\bgh\b\W{0,8}pr\b\W{0,8}merge\b"
+                         r"|\bgh\b\W{0,8}api\b[^\n]{0,200}merge", re.I)
+CODE_RISK_RE = re.compile(r"push|merge|send-pack", re.I)
+CODE_SPAWN_RE = re.compile(r"system|subprocess|popen|exec|spawn|child_process|`|shell|process", re.I)
+
+
+def check_code(text, ctx):
+    """Inline interpreter code (`python -c`, `node -e`, `perl -e`, stdin
+    script): it can't be parsed, so block when it names a push/merge, or
+    mentions push/merge next to a process-spawning call, or writes to the
+    GitHub API."""
+    if CODE_GIT_RE.search(text) or (CODE_RISK_RE.search(text) and CODE_SPAWN_RE.search(text)):
+        ctx.block("inline interpreter code mentions git push / merge; failing closed.")
+    if DECODER_RE.search(text) and CODE_SPAWN_RE.search(text):
+        ctx.block("inline interpreter code runs decoded base64/hex; failing closed.")
+    if (re.search(r"api\.github\.com", text, re.I) and re.search(r"\b(put|post|patch|delete)\b", text, re.I)
+            and re.search(r"merge|refs|contents|pulls", text, re.I)):
+        ctx.block("inline interpreter code writes to the GitHub API; failing closed.")
 
 
 def analyze_in(cmd, ctx, depth, ps):
@@ -526,16 +646,19 @@ PS_BLOCK_RUNNERS = {"invoke-command", "icm", "start-job", "sajb", "start-threadj
                     "where-object", "?", "measure-command", "invoke-command", "register-engineevent"}
 
 
-def scan_config_env(toks, ctx):
+def scan_config_env(toks, ctx, git_env=None):
     """Leading `VAR=value` assignments can inject git config that redirects a
     push: GIT_CONFIG_PARAMETERS, or GIT_CONFIG_COUNT + GIT_CONFIG_KEY_n/VALUE_n.
-    Taint the context if any such key is push-redirecting."""
+    Taint the context if any such key is push-redirecting. GIT_DIR and
+    GIT_WORK_TREE (another repo) are recorded in `git_env`."""
     keys, vals = {}, {}
     for t in toks:
         if not ASSIGN_RE.match(t):
             break
         name, _, value = t.partition("=")
         up = name.upper()
+        if up in ("GIT_DIR", "GIT_WORK_TREE") and git_env is not None:
+            git_env[up] = value
         if up == "GIT_CONFIG_PARAMETERS":
             for item in shlex.split(value) if value else []:
                 k, eq, v = item.partition("=")
@@ -563,6 +686,27 @@ def pwsh_path_arg(rest):
             continue
         return t
     return None
+
+
+def set_alias(rest, ctx):
+    """PowerShell `Set-Alias/New-Alias [-Name] gp [-Value] git`."""
+    named, pos, i = {}, [], 0
+    while i < len(rest):
+        t = rest[i].lower()
+        if t.startswith("-") and len(t) > 1:
+            opt = next((o for o in ("name", "value") if o.startswith(t[1:])), None)
+            if opt and i + 1 < len(rest):
+                named[opt] = rest[i + 1]
+                i += 2
+                continue
+            i += 2 if t in ("-scope", "-option", "-description") else 1
+            continue
+        pos.append(rest[i])
+        i += 1
+    name = named.get("name") or (pos.pop(0) if pos else None)
+    value = named.get("value") or (pos.pop(0) if pos else None)
+    if name and value:
+        ctx.shell_aliases[name.lower()] = DYNAMIC if (is_dynamic(value) or is_dynamic(name)) else value
 
 
 def start_process_cmd(rest):
@@ -597,8 +741,18 @@ def start_process_cmd(rest):
 
 def run_segment(toks, ctx, subs, depth):
     """Analyse one simple command. Returns True if it is a shell that reads
-    its script from stdin: "posix" or "ps" (the script's language)."""
-    scan_config_env(toks, ctx)
+    its script from stdin: "posix" or "ps" (the script's language).
+    `GIT_DIR=x git ...` applies to this command only (ctx.seg_env)."""
+    saved = ctx.seg_env
+    ctx.seg_env = dict(saved)
+    try:
+        return _run_segment(toks, ctx, subs, depth)
+    finally:
+        ctx.seg_env = saved
+
+
+def _run_segment(toks, ctx, subs, depth):
+    scan_config_env(toks, ctx, ctx.seg_env)
     toks = strip_prefixes(list(toks), ctx, depth)
     if not toks:
         return False
@@ -613,6 +767,9 @@ def run_segment(toks, ctx, subs, depth):
         for t in toks:  # `$env:GIT_CONFIG_PARAMETERS = '...'`
             if re.match(r"(?i)^\$env:GIT_CONFIG(?!_NOSYSTEM)", t):
                 ctx.push_config_tainted = True
+        m = re.match(r"(?i)^\$env:(GIT_DIR|GIT_WORK_TREE)\s*=\s*(.*)$", " ".join(toks))
+        if m:  # `$env:GIT_DIR = '../other/.git'`
+            ctx.git_env[m.group(1).upper()] = m.group(2).strip() or DYNAMIC
         if re.search(r"(?i)\.invoke(returnasis|withcontext)?$|\.invokescript$", toks[0]):
             ctx.dynamic_exec("a scriptblock .Invoke()")  # `$sb.Invoke()`
         brace = next((k for k in range(1, len(toks)) if toks[k].startswith("{")), None)
@@ -623,13 +780,32 @@ def run_segment(toks, ctx, subs, depth):
         elif head in PS_BLOCK_RUNNERS and any(is_dynamic(t) for t in rest if not t.startswith("-")):
             ctx.dynamic_exec(head)  # `Start-Job $sb`, `% $sb`
 
+    key = toks[0].lower() if ctx.powershell else toks[0]
+    if key in ctx.shell_aliases:  # `alias gp='git push'; gp origin main`
+        value = ctx.shell_aliases.pop(key)  # popped: `alias ls='ls -la'` can't loop
+        try:
+            if value == DYNAMIC:
+                return run_segment([DYNAMIC] + rest, ctx, subs, depth + 1)
+            analyze(value + " " + " ".join(shlex.quote(r) for r in rest), ctx, depth + 1)
+        finally:
+            ctx.shell_aliases[key] = value
+        return False
+    if head == "alias" and not ctx.powershell:
+        for t in rest:
+            name, eq, value = t.partition("=")
+            if eq and name:
+                ctx.shell_aliases[name] = DYNAMIC if is_dynamic(value) else value
+        return False
+    if head in ("set-alias", "sal", "new-alias", "nal") and ctx.powershell:
+        set_alias(rest, ctx)
+        return False
     if head in CD_WORDS and rest:
         target = pwsh_path_arg(rest) if head != "cd" else rest[0]
         if target and not is_dynamic(target):
-            ctx.cwd = os.path.join(ctx.cwd or os.getcwd(), target)
+            ctx.cwd = ctx.path(ctx.cwd, target)
         return False
     if head in ("export", "declare", "typeset", "readonly", "local"):
-        scan_config_env([t for t in rest if not t.startswith("-")], ctx)
+        scan_config_env([t for t in rest if not t.startswith("-")], ctx, ctx.git_env)
         return False
     if head in ("eval", "iex", "invoke-expression"):
         args = [t for t in rest if t.lower() not in ("-command", "-c")]
@@ -680,6 +856,13 @@ def run_segment(toks, ctx, subs, depth):
         return False
     if head == "cmd":
         cmd_c(rest, ctx, depth)
+        return False
+    if INTERPRETER_RE.match(head):  # python -c / node -e / perl -e / ruby -e
+        check_code(" ".join(rest), ctx)
+        reads_stdin = "-" in rest or all(t.startswith("-") for t in rest)
+        return "code" if reads_stdin else False
+    if head in HTTP_CLIENTS:
+        check_http(rest, ctx)
         return False
     if head == "git":
         check_git(rest, ctx, subs, depth)
@@ -783,7 +966,7 @@ def strip_prefixes(toks, ctx, depth):
             toks.pop(0)
         elif b == "env":
             toks.pop(0)
-            scan_config_env([t for t in toks if not t.startswith("-")], ctx)
+            scan_config_env([t for t in toks if not t.startswith("-")], ctx, ctx.seg_env)
             while toks and (toks[0].startswith("-") or ASSIGN_RE.match(toks[0])):
                 o = toks.pop(0)
                 if o in ("-S", "--split-string") and toks:
@@ -792,6 +975,8 @@ def strip_prefixes(toks, ctx, depth):
                     toks = tokenize(o.split("=", 1)[1]) + toks
                 elif o in ("-u", "-C", "--unset", "--chdir") and toks:
                     toks.pop(0)
+        elif b == "busybox":
+            toks.pop(0)  # `busybox sh -c ...` runs the applet
         elif b == "sudo":
             toks.pop(0)
             while toks and toks[0].startswith("-"):
@@ -902,8 +1087,15 @@ GIT_KNOWN = {"push", "branch", "add", "commit", "status", "log", "diff", "show",
 def check_git(args, ctx, subs, depth, alias_depth=0):
     cwd = ctx.cwd
     i, inline_aliases = 0, {}
+    env = ctx.env()
+    repo = {"dir": env.get("GIT_DIR"), "tree": env.get("GIT_WORK_TREE")}
     while i < len(args) and args[i].startswith("-"):
         t = args[i]
+        for opt, k in (("--git-dir", "dir"), ("--work-tree", "tree")):
+            if t.startswith(opt + "="):
+                repo[k] = t[len(opt) + 1:]
+            elif t == opt and i + 1 < len(args):
+                repo[k] = args[i + 1]
         if t.startswith("--config-env="):  # --config-env=key=ENVVAR (value unseen)
             k = t[len("--config-env="):].split("=", 1)[0]
             if redirecting_config(k, None):
@@ -913,7 +1105,7 @@ def check_git(args, ctx, subs, depth, alias_depth=0):
         if t in GIT_ARG_OPTS and i + 1 < len(args):
             v = args[i + 1]
             if t == "-C" and not is_dynamic(v):
-                cwd = os.path.join(cwd or os.getcwd(), v)
+                cwd = ctx.path(cwd, v)
             if t == "-c" and "=" in v:
                 k, val = v.split("=", 1)
                 if k.lower().startswith("alias."):
@@ -931,8 +1123,13 @@ def check_git(args, ctx, subs, depth, alias_depth=0):
         return
     sub, rest = args[i], args[i + 1:]
 
+    if is_dynamic(sub):  # `a=push; git $a origin main`
+        ctx.block("git subcommand '%s' can't be read; failing closed." % sub)
     if sub not in GIT_KNOWN and alias_depth < 3:
-        alias = inline_aliases.get(sub) or (None if is_dynamic(sub) else ctx.alias_lookup(cwd, sub))
+        alias = (inline_aliases.get(sub) or ctx.git_aliases.get(sub.lower())
+                 or ctx.alias_lookup(cwd, sub))
+        if alias == DYNAMIC:
+            ctx.block("git alias '%s' was set to an unreadable value; failing closed." % sub)
         if alias:
             if alias.startswith("!"):
                 analyze(alias[1:] + " " + " ".join(shlex.quote(r) for r in rest), ctx, depth + 1)
@@ -940,9 +1137,9 @@ def check_git(args, ctx, subs, depth, alias_depth=0):
                 check_git((tokenize(alias) or alias.split()) + rest, ctx, subs, depth, alias_depth + 1)
             return
     if sub == "push":
-        check_push(rest, ctx, subs, cwd)
+        check_push(rest, ctx, subs, cwd, repo)
     elif sub in ("send-pack", "http-push"):
-        check_send_pack(rest, ctx, subs, cwd, sub)
+        check_send_pack(rest, ctx, subs, cwd, sub, repo)
     elif sub == "branch":
         check_branch_delete(rest, ctx)
         track_branch_rename(rest, ctx)
@@ -1074,6 +1271,11 @@ def check_config(args, ctx):
         return
     if is_dynamic(key):
         ctx.block("git config write of an unreadable key '%s'; failing closed." % key)
+    if key.lower().startswith("alias."):  # `git config alias.up push && git up ...`
+        if not is_dynamic(value) and RISKY_WORDS.search(value):
+            ctx.block("git config %s '%s': an alias that pushes/merges is not allowed." % (key, value))
+        ctx.git_aliases[key[6:].lower()] = DYNAMIC if is_dynamic(value) else value
+        return
     if config_write_redirects(key, None if is_dynamic(value) else value, ctx):
         ctx.block("git config %s %s persists a setting that can redirect a later push "
                   "(push.default/remote.*.push/mirror/branch.*.merge/include); not allowed." % (key, value))
@@ -1098,7 +1300,7 @@ def is_current_branch_subst(tok, subs):
     return bool(m) and any(p.match(subs[int(m.group(1))]) for p in CURRENT_BRANCH_IDIOMS)
 
 
-def check_push(args, ctx, subs, cwd):
+def check_push(args, ctx, subs, cwd, repo=None):
     if ctx.push_config_tainted:
         ctx.block("git push with a config override (push.default/remote.*.push/"
                   "mirror) that can redirect the push; not allowed.")
@@ -1128,10 +1330,10 @@ def check_push(args, ctx, subs, cwd):
                 ctx.block("git push -d (delete) is not allowed.")
             if flags.endswith("o"):
                 i += 1
-    check_refspecs(positional[1:], ctx, subs, cwd)
+    check_refspecs(positional[1:], ctx, subs, cwd, repo)
 
 
-def check_send_pack(args, ctx, subs, cwd, sub):
+def check_send_pack(args, ctx, subs, cwd, sub, repo=None):
     """`git send-pack`/`http-push [opts] <remote> <ref>...`: plumbing push."""
     positional = []
     for t in args:
@@ -1142,10 +1344,32 @@ def check_send_pack(args, ctx, subs, cwd, sub):
             ctx.block("git %s %s is not allowed." % (sub, t.split("=")[0]))
     if len(positional) < 2:
         ctx.block("git %s without explicit refs updates matching branches; name them." % sub)
-    check_refspecs(positional[1:], ctx, subs, cwd)
+    check_refspecs(positional[1:], ctx, subs, cwd, repo)
 
 
-def check_refspecs(refspecs, ctx, subs, cwd):
+def current_branch(ctx, cwd, repo):
+    """Branch a bare push would push: the in-command override, else HEAD of
+    --git-dir/GIT_DIR (or cwd's repo), also checking a --work-tree/GIT_WORK_TREE
+    repo. Unreadable -> UNKNOWN_BRANCH."""
+    if ctx.branch_override is not None:
+        return ctx.branch_override
+    repo = repo or {}
+    git_dir, tree = repo.get("dir"), repo.get("tree")
+    if git_dir is not None:
+        if is_dynamic(git_dir):
+            return UNKNOWN_BRANCH
+        return ctx.gitdir_lookup(cwd, ctx.path(cwd, git_dir)) or UNKNOWN_BRANCH
+    branch = ctx.branch_lookup(cwd) or UNKNOWN_BRANCH
+    if tree is not None and branch != UNKNOWN_BRANCH and not ctx.is_protected(branch):
+        if is_dynamic(tree):
+            return UNKNOWN_BRANCH
+        other = ctx.branch_lookup(ctx.path(cwd, tree))
+        if not other or ctx.is_protected(other):
+            return other or UNKNOWN_BRANCH
+    return branch
+
+
+def check_refspecs(refspecs, ctx, subs, cwd, repo=None):
     needs_current = not refspecs
     for spec in refspecs:
         if spec.startswith("+"):
@@ -1168,11 +1392,8 @@ def check_refspecs(refspecs, ctx, subs, cwd):
         if dst in ("HEAD", "@"):
             needs_current = True
     if needs_current:
-        if ctx.branch_override is not None:
-            branch = ctx.branch_override
-        else:
-            branch = ctx.branch_lookup(cwd)
-        if branch is UNKNOWN_BRANCH or branch == UNKNOWN_BRANCH:
+        branch = current_branch(ctx, cwd, repo)
+        if branch == UNKNOWN_BRANCH:
             ctx.block("push of the current branch, which can't be determined; failing closed.")
         if not branch:
             # current branch unreadable (no repo, detached, bogus cwd) -> fail closed
@@ -1230,6 +1451,53 @@ def check_gh(args, ctx):
         ctx.block("gh repo delete is not allowed.")
     if pos[:1] == ["api"]:
         check_gh_api(args[args.index("api") + 1:], ctx)
+
+
+HTTP_CLIENTS = {"curl", "wget", "invoke-webrequest", "iwr", "invoke-restmethod", "irm"}
+HTTP_METHOD_OPTS = {"-X", "--request", "--method", "-method"}
+HTTP_DATA_OPTS = {"-d", "--data", "--data-raw", "--data-binary", "--data-urlencode", "--data-ascii", "-F", "--form",
+                  "--form-string", "--json", "-T", "--upload-file", "--post-data", "--post-file", "--body-data",
+                  "--body-file", "-body", "-infile"}
+GITHUB_WRITE_EP = re.compile(r"(^|/)(merges|pulls|contents|git/refs|git/refs/heads/.*)(/|$)|/merge$")
+
+
+def check_http(args, ctx):
+    """curl/wget/Invoke-WebRequest/Invoke-RestMethod writing to a GitHub API
+    merge, pulls, contents or git/refs endpoint (the `gh api` rules, raw)."""
+    method, data, urls = None, False, []
+    for k, t in enumerate(args):
+        lt = t.lower()
+        nxt = args[k + 1] if k + 1 < len(args) else ""
+        if t in HTTP_METHOD_OPTS or lt in HTTP_METHOD_OPTS or (len(lt) > 3 and "-method".startswith(lt)):
+            method = nxt
+        elif t.startswith("-X") and len(t) > 2:
+            method = t[2:]
+        elif lt.startswith(("--request=", "--method=")):
+            method = t.split("=", 1)[1]
+        elif (t in HTTP_DATA_OPTS or lt in HTTP_DATA_OPTS or t.split("=", 1)[0] in HTTP_DATA_OPTS
+              or re.match(r"^-[dFT].", t) or (len(lt) > 2 and "-body".startswith(lt))):
+            data = True
+        if "api.github.com" in lt or "/api/v3/" in lt or (is_dynamic(t) and "/repos/" in t):
+            urls.append(t)
+    if not urls:
+        return
+    method = (method or ("POST" if data else "GET")).upper()
+    if method in ("GET", "HEAD", "OPTIONS"):
+        return
+    for url in urls:
+        ep = re.sub(r"^.*?api\.github\.com(/api/v3)?|^.*?/api/v3", "", url).split("?")[0]
+        prev = None
+        while prev != ep:
+            prev = ep
+            ep = re.sub(r"/+", "/", ep).replace("/./", "/")
+        ep = ep.strip("/")
+        if GITHUB_WRITE_EP.search(ep) or ".." in ep.split("/") or "%" in ep:
+            ctx.block("%s to GitHub API endpoint '%s' (merge/pulls/contents/refs) is not allowed; "
+                      "use git push / gh pr create." % (method, ep))
+        if ep == "graphql" and any(GRAPHQL_MUTATIONS.search(a) for a in args):
+            ctx.block("GitHub graphql merge/ref/repo mutation is not allowed.")
+        if re.fullmatch(r"repos/[^/]+/[^/]+", ep) and method == "DELETE":
+            ctx.block("DELETE on a GitHub repo is not allowed.")
 
 
 def unreadable_ref(ref):
@@ -1311,11 +1579,19 @@ def check_gh_api(args, ctx):
 
 # ---------------------------------------------------------------- entry
 
+# base64/hex decoders: their output can't be read, so feeding it to a shell,
+# eval or iex fails closed.
+DECODER_RE = re.compile(r"\bbase64\b[^|;&\n]*\s(-[a-z]*d[a-z]*|-D|--decode)\b|\bxxd\b[^|;&\n]*\s-[a-z]*r"
+                        r"|\bopenssl\b[^|;&\n]*\s-d\b|\bcertutil\b[^|;&\n]*-decode|frombase64string"
+                        r"|\buudecode\b|b64decode|\batob\s*\(", re.I)
+
+
 def decide(command, ctx):
     """Return a block reason, or None to allow. Fails closed on internal
     errors when the command mentions push/merge/delete."""
     try:
         ctx.top_cmd = command
+        ctx.decoder_seen = bool(DECODER_RE.search(command))
         analyze(command, ctx)
         return None
     except Block as b:
@@ -1789,6 +2065,147 @@ def run_self_test():
     for cmd, expect, ps, lookup in extra:
         ctx = Ctx(["main", "master"], "/repo", branch_lookup=lookup,
                   alias_lookup=lambda cwd, name: None, powershell=ps)
+        reason = decide(cmd, ctx)
+        ok = (reason is not None) == expect
+        passed += ok
+        failed += not ok
+        print("%s: %-62s block=%-5s %s" % (
+            "PASS" if ok else "FAIL", cmd.replace("\n", "\\n")[:62], reason is not None, reason or ""))
+
+    # --- round 3 (issue #156); msys=True on every OS so CI on Linux runs them too
+    def win_lookup(cwd):
+        c = (cwd or "").replace("\\", "/").rstrip("/")
+        if c.endswith("C:/Users/x/feat") or c == "/repo":
+            return "feat"
+        return "main" if c.endswith("C:/Users/x/mainrepo") else None
+
+    def gd_lookup(cwd, gd):
+        g = gd.replace("\\", "/")
+        return "main" if "mainrepo" in g else ("krish/x" if "featrepo" in g else None)
+
+    round3 = [  # (command, expect_block, powershell)
+        # 1. persistent git alias writes, then use
+        ("git config alias.sync 'push origin HEAD:main' && git sync", B, False),
+        ("git config --local alias.up push && git up origin main", B, False),
+        ("git config alias.s '!git push origin main' && git s", B, False),
+        ("git config --global alias.p '!f() { git push origin main; }; f'", B, False),
+        ("git config alias.mm 'merge --ff-only'", B, False),  # value mentions merge
+        ("git config alias.co checkout && git co main && git push", B, False),
+        ("git config alias.x $V && git x origin main", B, False),
+        ("git config alias.st status && git st", A, False),
+        ("git config --global alias.lg 'log --oneline --graph'", A, False),
+        # 2. shell aliases
+        ("alias gp='git push origin main'; gp", B, False),
+        ("alias gp='git push'; gp origin main", B, False),
+        ("alias g=git; g push origin main", B, False),
+        ("alias ll='ls -la'; ll", A, False),
+        ("alias gs='git status'; gs", A, False),
+        ("Set-Alias gp git; gp push origin main", B, True),
+        ("New-Alias -Name g -Value git; g push origin main", B, True),
+        ("sal -Value git -Name g; g push --force origin x", B, True),
+        ("Set-Alias -Name g -Value $exe; g push origin main", B, True),
+        ("Set-Alias g git; g status", A, True),
+        ("Set-Alias g git; g push origin krish/x", A, True),
+        # 3. unreadable git subcommand
+        ("a=push; git $a origin main", B, False),
+        ("$a='push'; git $a origin main", B, True),
+        ("git $(echo push) origin main", B, False),
+        ("git ${SUB} origin krish/x", B, False),
+        # 4. --git-dir / GIT_DIR / GIT_WORK_TREE naming another repo
+        ("git --git-dir=../mainrepo/.git push", B, False),
+        ("git --git-dir ../mainrepo/.git push origin HEAD", B, False),
+        ("GIT_DIR=../mainrepo/.git git push", B, False),
+        ("export GIT_DIR=../mainrepo/.git; git push", B, False),
+        ("export GIT_WORK_TREE=x GIT_DIR=../mainrepo/.git; git push", B, False),
+        ("env GIT_DIR=../mainrepo/.git git push -u origin HEAD", B, False),
+        ("$env:GIT_DIR = '../mainrepo/.git'; git push", B, True),
+        ("$env:GIT_DIR='../mainrepo/.git'; git push origin HEAD", B, True),
+        ("git --git-dir=$D push", B, False),
+        ("git --git-dir=../nowhere/.git push", B, False),  # unreadable -> fail closed
+        ("GIT_WORK_TREE=../nowhere git push", B, False),
+        ("git --git-dir=../featrepo/.git push", A, False),
+        ("GIT_DIR=../featrepo/.git git push origin HEAD", A, False),
+        ("git --git-dir=../mainrepo/.git push origin krish/x", A, False),
+        ("GIT_DIR=../featrepo/.git git status; git push", A, False),  # per-command scope
+        ("GIT_DIR=../mainrepo/.git git log; git push", A, False),
+        # 5. shell reading a here-string
+        ("bash <<< 'git push origin main'", B, False),
+        ("bash -s <<< 'git push origin main'", B, False),
+        ("sh <<<'git push --force origin x'", B, False),
+        ("bash <<< \"git push origin krish/x\"", A, False),
+        ("cat <<< 'git push origin main'", A, False),
+        # 6. non-literal Invoke-Expression
+        ("Invoke-Expression ('git push ' + 'origin main')", B, True),
+        ("iex ('git pu' + 'sh origin main')", B, True),
+        ("iex (Get-Content run.ps1 -Raw); git push origin krish/x", B, True),
+        ("iex (Get-Content run.ps1 -Raw)", A, True),
+        ("Set-Alias g git; iex ('g push ' + 'origin main')", B, True),
+        ("alias g=git; g config alias.p push; g p origin main", B, False),
+        # 7. busybox <shell>
+        ("busybox sh -c 'git push origin main'", B, False),
+        ("busybox ash -c 'git push --force origin x'", B, False),
+        ("busybox sh -c 'git status'", A, False),
+        # 8. inline interpreters
+        ("python -c \"import os; os.system('git push origin main')\"", B, False),
+        ("python3 -c \"import subprocess; subprocess.run(['git', 'push'])\"", B, False),
+        ("py -c \"import os; os.system('gh pr merge 5')\"", B, True),
+        ("node -e \"require('child_process').execSync('git push origin main')\"", B, False),
+        ("node --eval \"require('child_process').execSync('gh api -X PUT repos/o/r/pulls/1/merge')\"", B, False),
+        ("perl -e 'system(\"git push origin main\")'", B, False),
+        ("ruby -e '`git push origin main`'", B, False),
+        ("python - <<'PY'\nimport os\nos.system('git push origin main')\nPY", B, False),
+        ("python -c \"import base64,os; os.system(base64.b64decode('Z2l0'))\"", B, False),
+        ("python -c \"import base64; print(base64.b64decode('aGk='))\"", A, False),
+        ("python -c \"print(1)\"", A, False),
+        ("node -e \"console.log(1)\"", A, False),
+        ("python scripts/x.py", A, False),
+        ("python -m pytest -q -k merge", A, False),
+        # 9. decoded text fed to a shell / iex
+        ("echo Z2l0IHB1c2ggb3JpZ2luIG1haW4= | base64 -d | sh", B, False),
+        ("echo Z2l0 | base64 --decode | bash", B, False),
+        ("sh -c \"$(echo Z2l0 | base64 -d)\"", B, False),
+        ("echo 67 | xxd -r -p | bash", B, False),
+        ("openssl enc -d -base64 -in x.b64 | sh", B, False),
+        ("iex ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('Z2l0')))", B, True),
+        ("echo Z2l0 | base64 -d > out.bin", A, False),
+        ("base64 -d in.b64 > out.bin && bash build.sh", A, False),
+        # 10. HTTP writes to GitHub merge/ref/contents/pull endpoints
+        ("curl -X PUT -H 'Authorization: token x' https://api.github.com/repos/o/r/contents/a -d '{\"branch\":\"main\"}'", B, False),
+        ("curl -X PUT https://api.github.com/repos/o/r/pulls/5/merge", B, False),
+        ("curl -d '{\"base\":\"main\"}' https://api.github.com/repos/o/r/merges", B, False),
+        ("curl --request PATCH https://api.github.com/repos/o/r/git/refs/heads/main --data x", B, False),
+        ("curl -XDELETE https://api.github.com/repos/o/r/git/refs/heads/main", B, False),
+        ("curl --json '{}' https://api.github.com/repos/o/r/pulls", B, False),
+        ("wget --method=PUT https://api.github.com/repos/o/r/pulls/5/merge", B, False),
+        ("wget --post-data x https://api.github.com/repos/o/r/merges", B, False),
+        ("Invoke-RestMethod -Method Put -Uri https://api.github.com/repos/o/r/pulls/5/merge", B, True),
+        ("irm https://api.github.com/repos/o/r/contents/a -Method PUT -Body $b", B, True),
+        ("iwr -Uri https://api.github.com/repos/o/r/merges -Body '{}' -Method Post", B, True),
+        ("curl.exe -X PUT https://api.github.com/repos/o/r/contents/a", B, True),
+        ("curl -X POST https://api.github.com/graphql -d '{\"query\":\"mutation{mergePullRequest}\"}'", B, False),
+        ("curl https://api.github.com/repos/o/r/pulls", A, False),
+        ("curl -s https://api.github.com/repos/o/r/git/refs/heads/main", A, False),
+        ("irm https://api.github.com/repos/o/r/pulls/5", A, True),
+        ("curl -X POST https://example.com/api/merges -d x", A, False),
+        ("curl -X POST https://api.github.com/repos/o/r/issues/5/comments -d x", A, False),
+        # 11. Git Bash MSYS paths
+        ("cd /c/Users/x/feat && git push -u origin HEAD", A, False),
+        ("cd /cygdrive/c/Users/x/feat && git push", A, False),
+        ("git -C /c/Users/x/feat push origin HEAD", A, False),
+        ("cd /c/Users/x/mainrepo && git push", B, False),
+        ("cd \"C:/Users/x/feat\" && git push -u origin HEAD", A, False),
+        ("Set-Location C:\\Users\\x\\feat; git push -u origin HEAD", A, True),
+        ("cd C:\\Users\\x\\mainrepo; git push", B, True),
+        # allow-side musts
+        ("git status && git add a.txt && git commit -m 'merge push'", A, False),
+        ("git push origin krish/x", A, True),
+        ("npm test && npm run build", A, False),
+        ("gh pr create --base main --title x --body y && gh pr view", A, False),
+        ("pytest -q", A, False),
+    ]
+    for cmd, expect, ps in round3:
+        ctx = Ctx(["main", "master"], "/repo", branch_lookup=win_lookup, alias_lookup=lambda cwd, name: None,
+                  powershell=ps, gitdir_lookup=gd_lookup, msys=True)
         reason = decide(cmd, ctx)
         ok = (reason is not None) == expect
         passed += ok

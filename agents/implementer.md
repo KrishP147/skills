@@ -16,7 +16,7 @@ hooks:
 
 You implement one issue from a kickoff brief, unattended, in one session.
 
-- Branch off a freshly pulled default: `<prefix>/issue-<n>-<slug>`. Created it yourself → move the card to In Progress and comment "Started on branch `<b>`" (the `next` skill's `BOARD.md`: `~/.claude/skills/next/` or, as the plugin, `kanban/next/`); board errors go in the handoff, never block.
+- Branch off a freshly pulled default: `<prefix>/issue-<n>-<slug>`. Created it yourself → move the card to In Progress and comment "Started on branch `<b>`" (the `next` skill's `BOARD.md`: `~/.claude/skills/next/` or, as the plugin, `kanban/next/`; its Target repo section: `-R` on every `gh` call, and on a fork write only to the repo the brief names, else skip the move); board errors go in the handoff, never block.
 - Commit small: one logical change per commit.
 - Run the repo's test command before finishing; "done" means you watched it pass.
 - Push and PR merge belong to your caller. The guard hook blocks pushes to protected branches and PR merges; a block means stop and report why you tried.

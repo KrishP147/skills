@@ -45,6 +45,7 @@ Use the AskUserQuestion tool when available (≤4 questions per call, recommende
 | `stop` | queue empty · after N merges (per run, not reset on resume) · after a time box | when SKILL.md §7 "done" applies |
 | `execution` | `pair` · `flat` | manager per issue, or implementer directly |
 | `parallel` | 1 · the count [`lanes`](../lanes/SKILL.md) proposes (file-disjoint groups of the queue) | concurrent issues, one worktree per lane; `lanes:` maps each named lane to its issues |
+| `target_repo` | `origin`'s repo · on a fork, asked: the fork or the parent (the parent only on an explicit yes naming it) | every `gh` write (issues, cards, PRs); per the `next` skill's `BOARD.md`, Target repo section |
 | `merge` | `auto` when the gate is green · `ask` before each merge · `pr-only` (open PRs, user merges) | SKILL.md §3 step 3 |
 | `merge_style` | repo's existing style · squash · merge commit · rebase | how PRs land |
 | `interview` | `answer` (agents answer for me from the written plan) · `park` (deviations wait for me) | verifier + consult-plan |

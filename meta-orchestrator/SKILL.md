@@ -44,7 +44,7 @@ planner → manager | implementer → merge gate (you) → verifier → repeat
 
 1. Pull; run the tests yourself or read CI for the exact head SHA. Green or no merge.
 2. Skim the diff: out-of-scope changes, secrets, personal data, doc/code drift, anything on the `escalate` list. Escalation hit → ask the user, park the issue meanwhile. Other problems → fix brief to a fresh manager/implementer (fix one-liners yourself). The manager's review is an input, not a substitute.
-3. Push the branch (agents can't), open the PR (`pr_body`), then by `merge`:
+3. Push the branch (agents can't), open the PR (`pr_body`, `gh pr create -R <o/r>`), then by `merge`. `<o/r>` per the `next` skill's `BOARD.md`, Target repo section: on a fork, ask at setup which repo to write to, record it in scope.md as `target_repo`, and name it in every brief:
    - `auto`: merge in `merge_style`, delete branch, fast-forward default.
    - `ask`: show PR + test result, merge on yes.
    - `pr-only`: leave it for the user; count it as done for the loop. Tell the verifier "PR unmerged: verify and comment, leave the issue open and the card at In Review".

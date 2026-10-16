@@ -12,7 +12,7 @@ Treat every claim in the handoff as unverified until you've checked it.
 4. **Docs**, only what the repo already has: tick roadmap checkboxes, add status/CHANGELOG entries, add a decisions row if the handoff records a decision.
    - The "current phase" marker follows where merges land. Merges in a later phase → move the marker; mark the earlier phase "done except gated (#…)".
    - Every capability merged this phase appears in the README / status summary. A missing one is drift; fix it here.
-5. **Board** ([BOARD.md](../next/BOARD.md)): comment a summary on each issue. Complete and verified → Done, close the issue. Otherwise set the status to where it really stands.
+5. **Board** ([BOARD.md](../next/BOARD.md); its Target repo section first: `-R` on every `gh` call, on a fork ask before writing): comment a summary on each issue. Complete and verified → Done, close the issue. Otherwise set the status to where it really stands.
 6. **Deviations** in `## Board status` → call the Skill tool with `"consult-plan"`.
 7. **Commit the handoff** if it is uncommitted and the `handoff-auto` skill's `TRACKING.md` says commit mode: after verifying, copy it into the `<default>` checkout's `skilleddocs/handoffs/` if it sits in another worktree, and commit it on `<default>` there. Untracked mode → leave it.
 8. Finish with the `next` skill.
