@@ -264,6 +264,7 @@ def build(root, out, base=""):
     workflows = site_workflows.validate(site_workflows.load(root), entries)
     meta = site_detail.load_meta(root)
     map_groups, map_edges = site_map.build(root, entries, meta, workflows)
+    site_detail.model_effort(meta, entries)
 
     if os.path.isdir(out):
         shutil.rmtree(out)

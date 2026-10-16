@@ -71,6 +71,7 @@ Each tier builds on the one above: `pair` is one orchestrator loop without the b
 | [`repo-showcase`](repo-showcase/README.md) | Gets a repo's working tree ready to be seen: rewrites the README around outcome and demo, prunes stale docs, fixes claims the code has outdated, scans for secrets and private names, proposes GitHub metadata. Never touches history or visibility — hands off to `repo-scrub` for that. | `gh` (metadata step only) |
 | [`teammate-brief`](teammate-brief/README.md) | Writes a handoff document for a person joining or picking up a project: setup steps verified by running them, an env/keys table (names only, never values), numbered tasks with a "done when" each, an ownership map, and a don't-touch list. Saved to `skilleddocs/briefs/`; commits and pushes gated separately. | none |
 | [`ponytail`](ponytail/README.md) *(DietrichGebert)* | Lazy-senior-developer mode for the whole session: the smallest change that fully solves the task, plus a closing line on what was skipped and any risk. Levels `lite`, `full` (default), `ultra`; stays on until "stop ponytail". | none |
+| [`find-me-a-skill`](find-me-a-skill/README.md) | Suggests which skill or sample workflow fits a task (from the text, the conversation, or the top board tasks), with the model and `/effort` for each step, the points where you decide, and commands to paste. Read-only, runs on Haiku, reads a catalog generated from this repo (`python scripts/site_catalog.py`). | none; `gh` for board mode |
 
 ### [`kanban/`](kanban/) — GitHub-Issues-as-kanban-board workflow
 

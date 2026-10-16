@@ -493,7 +493,7 @@ class WorkflowsValidationTest(unittest.TestCase):
 
     def test_every_skill_covered(self):
         skills = [e["name"] for e in self.entries if e["group"] in ("core", "kanban")]
-        self.assertEqual(len(skills), 25)
+        self.assertEqual(len(skills), 26)
         used = {s.get("name") for wf in self.raw for s in wf["steps"]}
         self.assertEqual([n for n in skills if n not in used], [])
 
