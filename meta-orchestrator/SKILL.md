@@ -21,7 +21,7 @@ Every `key` below is a field of that contract. Respect the repo's `skilleddocs/`
 | Plan | `planner` | repo path + scope.md + issues in flight + `decisions` | ≤40-line kickoff brief (with `lanes:`, one per lane whose head isn't in flight), model rec, divide?, assumptions needed |
 | Implement (`execution: pair`) | `manager` | working dir + brief verbatim + prefix + protected branch + `max_rounds=3` + `decisions` + "never push or merge" | branch, commits, tests it reran, review findings, rounds, assumed `A-n`, `skilleddocs/HANDOFF.md` if unfinished |
 | Implement (`execution: flat`) | `implementer` | brief verbatim + prefix + protected branch + `decisions` | handoff (cites assumed `A-n`), path as its last line |
-| Verify | `verifier` | handoff or manager-report path + `interview` + `decisions` + `review-done=<yes in pair / no in flat>` | verified-by, fixes, decided-for-you, assumed `A-n`, manual steps, next |
+| Verify | `verifier` | handoff or manager-report path + `interview` + `decisions` + user-answered `D<k>` + `review-done=<yes in pair / no in flat>` | verified-by, fixes, decided-for-you, assumed `A-n`, manual steps, next |
 | Chores | `general-purpose` on `haiku` | exact commands + expected output | its report; check it (`gh` read, diff skim) before relying on it |
 
 Each agent is `<name>` (e.g. `manager`), or `krish:<name>` (e.g. `krish:manager`) when installed as the plugin; pass that as `subagent_type`.
@@ -57,6 +57,7 @@ Verifier fixes on default afterwards are normal; issues it files join the queue.
 
 - **Interviews** (grilling, consult-plan): `interview: answer` → the verifier answers from the written plan and lists every Q → A under "decided for you"; copy them to the ledger. Otherwise park the deviation for the user.
 - **Decisions**: a call with no written answer (interviews above cover only the written plan) that would stall the work. `ask` (default) → park it for the user. `assume` → the agent hitting it picks its recommendation, records an open `A-n` in the decision record (what, why, what would change it, undo cost) and builds on it; ledger `assumption` entry. Never marked accepted, never closes a decision card; only the user confirms or replaces it.
+- **User answers** (to a planner's questions or a parked call): write each to the decisions register as `D<k>` (`docs` without the register → a ledger `decision` entry) and cite it in every later manager/implementer and verifier brief it touches, marked "answered by the user", so no agent re-decides it.
 - **Divide** when the planner says multi-session, a manager returns unfinished, an implementer left the smart zone (wrote `skilleddocs/HANDOFF.md`), or the not-done list won't fit one session. The planner proposes; you approve.
 - **Failure**: one retry, fresh agent, tighter brief (pair: a new manager from its `skilleddocs/HANDOFF.md`). Second failure: split or park it with a reason, move on.
 - **Stalled agent** (no progress for minutes): usually nested fan-out. Kill it, retry once with an inline-only brief.

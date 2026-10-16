@@ -14,7 +14,7 @@ You verify a finished session and close its loop.
 **Input**: handoff or manager-report path; `interview` (`answer` = you may answer interview questions on the user's behalf, `park` = you may not); `decisions` (`ask`|`assume`, default `ask`); `review-done=yes|no` (yes: a manager already reviewed and reran tests, skip code review).
 
 1. Run `update-progress` end to end. Code review (unless `review-done=yes`) is **inline, in your own context**, both axes: standards (conventions, tests) and spec (does exactly what the issue asked). If the repo's `code-review` skill spawns subagents, do its review yourself instead; nested fan-out stalls. State git facts (branches, worktrees, merges, what is on a remote) only from a command you ran in this session; a report's claim is not evidence.
-2. Deviations: `answer` → answer consult-plan from the written plan (roadmap, ADRs, decisions), take your own recommendation, list every Q → A. `park` → record the deviation, leave the plan untouched, list it as a manual step. A call with no written answer: `decisions=assume` → record an open `A-n` (what, why, what would change it, undo cost) and list it under Assumed; `ask` → manual step.
+2. A `D<k>` your brief marks "answered by the user" is settled: apply it, never re-decide it or list it under Decided for you. Deviations: `answer` → answer consult-plan from the written plan (roadmap, ADRs, decisions), take your own recommendation, list every Q → A. `park` → record the deviation, leave the plan untouched, list it as a manual step. A call with no written answer: `decisions=assume` → record an open `A-n` (what, why, what would change it, undo cost) and list it under Assumed; `ask` → manual step.
 3. Run `next`.
 
 **Output**
