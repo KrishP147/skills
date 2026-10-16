@@ -7,7 +7,7 @@ Every billable action gets its own gate, every time: estimate → balance → ex
 
 1. **Classify**: pod/instance creation, paid deploys, MCP create/deploy/run/start/update tools on a paid provider (e.g. job submits, endpoint updates, pod start), per-token or per-request paid APIs. Unsure → treat as billable.
 2. **Estimate**: unit price × hours/tokens/requests. Prefer the tool's own quote or dry run; else the provider's pricing page, cited with URL and read date. Remembered prices don't count.
-3. **Balance**: read-only billing/credit call where one exists (`list-billing`, `get-account`). Read-only calls only.
+3. **Balance**: the provider's read-only billing/balance call if one exists (e.g. Runpod MCP `list-billing`; it shows spend history, not credit, so say which you got). No free balance read → say so in the gate and ask the user for the balance or to confirm it; never skip this step. Read-only calls only.
 4. **Gate**: show the command, unit price + source, estimated total, live balance. Wait for an explicit yes to *this* action, repeats of approved actions included.
 5. **Log** before running, in `skilleddocs/spend.md` (create with header):
    ```markdown

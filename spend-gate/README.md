@@ -35,7 +35,8 @@ You can also invoke it directly:
 2. **Estimate** - unit price x hours/tokens = total, citing a price source
    (URL or tool output, dated).
 3. **Check live balance/credit** - read-only calls only, never a call that
-   provisions or spends.
+   provisions or spends. No free balance read → say so and ask you for the
+   balance; the step is never skipped.
 4. **Gate** - show the number, wait for an explicit yes to *this* action. A
    budget cap or an earlier "go ahead" doesn't count.
 5. **Log** - append the approved amount, purpose, price source, and
@@ -80,12 +81,14 @@ You can also invoke it directly:
 /spend-gate
 ```
 
-Claude is about to run `runpodctl create pod --gpuType RTX4090`. It looks
-up the on-demand rate ($0.68/h, RunPod pricing page, read today), estimates
-a 2-hour job at ~$1.36, checks account credit via a read-only billing call,
-shows both numbers, and waits. You reply "yes, go ahead." Claude logs the
-row to `skilleddocs/spend.md`, creates the pod, and reminds you to stop it
-(or that it will auto-stop) once the job finishes.
+Claude is about to run `runpodctl create pod --gpuType RTX4090`. It reads
+the live rate (illustrative: on one day a 4090 listed $0.89/h secure cloud,
+$0.34/h community; prices drift, so never reuse these), estimates a 2-hour
+secure job at ~$1.78, checks the balance via a read-only billing call (or
+says none is readable and asks you), shows both numbers, and waits. You
+reply "yes, go ahead." Claude logs the row to `skilleddocs/spend.md`,
+creates the pod, and reminds you to stop it (or that it will auto-stop)
+once the job finishes.
 
 ## Related
 

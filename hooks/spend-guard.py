@@ -21,20 +21,26 @@ Entry format for both: optional "bash:" or "mcp:" prefix, default "bash:".
 Blank lines and lines starting with # are ignored.
 
 Approval (either one allows the single matched action):
-  1. File-based, one-shot: drop any file into skilleddocs/spend-approvals/
+  1. File-based, one-shot: drop a file into skilleddocs/spend-approvals/
      (relative to cwd; override the directory with
-     SPEND_GATE_APPROVALS_DIR). The filename is just a label for your own
-     audit trail - contents are ignored. The hook consumes (deletes) the
-     first one it finds (sorted by name) and allows that single call.
+     SPEND_GATE_APPROVALS_DIR). The filename is just a label - contents are
+     ignored. Names starting with "." (.gitkeep, .DS_Store) never count.
+     The hook consumes (deletes) the first one it finds (sorted by name)
+     and allows that single call; the log is skilleddocs/spend.md. A call
+     with two or more billable commands is refused, file left in place.
   2. SPEND_GATE_APPROVED=<label>, two ways to set it:
        - PowerShell only: start the command with
          `$env:SPEND_GATE_APPROVED='<label>'; <cmd>` (leading only, `;`
          required, non-empty value). Bash-style prefixes are not honoured.
        - Bash only: prefix the single command, e.g.
-         `SPEND_GATE_APPROVED=yes runpodctl create pod ...` - this is a
-         shell per-command env assignment, so it is read out of the command
-         string itself (this hook does not execute the command) and only
-         ever covers that one invocation.
+         `SPEND_GATE_APPROVED=yes runpodctl create pod ...` (or after a
+         bare `env`) - this is a shell per-command env assignment, so it is
+         read out of the command string itself (this hook does not execute
+         the command) and only ever covers that one invocation.
+       Both inline forms count only when the rest is ONE simple command
+       (no ;, &&, ||, |, &, newline, subshell, $(...) or backticks) whose
+       program is the call's only billable match: `true && <create>`,
+       `<create>; <create>`, `bash -c '<create>'` are not approved.
        - Process env: only if set when Claude Code was launched (`export`
          inside a Bash tool call never reaches this hook). Approves every
          matching call for the session - avoid; use the approval file for
@@ -78,8 +84,21 @@ DEFAULT_BASH_PATTERNS = [
 # `fly deploy`. Add it yourself via SPEND_GUARD_PATTERNS or the patterns file
 # if your fly.io usage is always billable.
 
+# Runpod MCP create-* tools that only write free config/credential records,
+# exempt from the default create-* glob below: create-template (pod/endpoint
+# config), create-secret (stored secret), create-registry (container
+# registry auth), create-delegation (access delegation). Still blocked:
+# create-pod, create-endpoint, create-cluster (compute bills) and
+# create-network-volume, create-global-volume (storage bills). The
+# exemption applies only to the default glob; a user mcp: glob naming one
+# of these still blocks it. Other providers' create-* are unaffected.
+RUNPOD_FREE_CREATE_TOOLS = (
+    "create-template", "create-secret", "create-registry", "create-delegation",
+)
+RUNPOD_CREATE_GLOB = "mcp__*runpod*__create-*"
+
 DEFAULT_MCP_GLOBS = [
-    "mcp__*runpod*__create-*",
+    RUNPOD_CREATE_GLOB,
     "mcp__*runpod*__deploy-*",
     "mcp__*runpod*__run-endpoint",
     "mcp__*runpod*__runsync-endpoint",
@@ -168,9 +187,10 @@ def load_extra_patterns(cwd, env=None):
     return bash_patterns, mcp_globs
 
 
-def match_billable(tool_name, command, bash_patterns, mcp_globs):
+def match_billable(tool_name, command, bash_patterns, mcp_globs, n_default_mcp=0):
     """Return a (reason, matched) tuple, or (None, None) if nothing matches.
-    Never raises - any matching error fails open."""
+    The first n_default_mcp globs are the defaults (RUNPOD_FREE_CREATE_TOOLS
+    exemption applies to those only). Never raises - errors fail open."""
     try:
         if tool_name in ("Bash", "PowerShell"):
             if not command:
@@ -183,7 +203,10 @@ def match_billable(tool_name, command, bash_patterns, mcp_globs):
                     )
             return None, None
         if tool_name:
-            for glob in mcp_globs:
+            for i, glob in enumerate(mcp_globs):
+                if (i < n_default_mcp and glob == RUNPOD_CREATE_GLOB
+                        and _runpod_free_create(tool_name)):
+                    continue  # default glob only; see RUNPOD_FREE_CREATE_TOOLS
                 if fnmatch.fnmatch(tool_name.lower(), glob.lower()):
                     return (
                         "tool '%s' matches billable MCP pattern '%s'" % (tool_name, glob),
@@ -194,45 +217,185 @@ def match_billable(tool_name, command, bash_patterns, mcp_globs):
         return None, None
 
 
-def inline_env_approved(command):
-    """True if the Bash command string itself starts with a shell
-    per-command SPEND_GATE_APPROVED=<value> assignment (possibly among
-    other leading VAR=value assignments), e.g.
-    `SPEND_GATE_APPROVED=yes runpodctl create pod ...`. This hook never
-    executes the command, so it reads the assignment out of the string."""
+def _runpod_free_create(tool_name):
+    """True if tool_name is a runpod MCP tool whose name after the last
+    "__" is one of RUNPOD_FREE_CREATE_TOOLS."""
+    return (fnmatch.fnmatch(tool_name.lower(), RUNPOD_CREATE_GLOB)
+            and tool_name.lower().rsplit("__", 1)[-1] in RUNPOD_FREE_CREATE_TOOLS)
+
+
+def billable_spans(command, bash_patterns):
+    """Billable matches in command as merged (start, end) spans: overlapping
+    matches of different patterns (a user pattern repeating a default) count
+    once; two separate billable commands are two spans. Errors skip that
+    pattern (the caller treats too few spans as "not approvable")."""
+    spans = []
+    for pat in bash_patterns:
+        try:
+            for m in re.finditer(pat, command, re.IGNORECASE):
+                spans.append((m.start(), max(m.end(), m.start() + 1)))
+        except Exception:
+            continue
+    spans.sort()
+    merged = []
+    for a, b in spans:
+        if merged and a < merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], b))
+        else:
+            merged.append((a, b))
+    return merged
+
+
+def _simple_command_tokens(command, start, shell):
+    """Split command[start:] into whitespace-separated (start, end) token
+    spans, quote-aware. Return None unless it is ONE simple command: any
+    unquoted separator, pipe, background `&`, newline, subshell/group or
+    substitution (`;` `|` `&` `(` `)` newline, backtick; PowerShell also `{`
+    `}`), `$(` inside double quotes, or an unbalanced quote fails closed.
+    Redirections stay allowed, including `2>&1`, `&>` and `>&`."""
+    toks = []
+    tok_start = None
+    quote = None
+    i = start
+    n = len(command)
+    meta = ";|()\n\r`" + ("{}" if shell == "ps" else "")
+    while i < n:
+        c = command[i]
+        if quote == "'":
+            if c == "'":
+                quote = None
+            i += 1
+            continue
+        if quote == '"':
+            if c == '"':
+                quote = None
+            elif c == "`":
+                return None
+            elif c == "$" and command[i + 1:i + 2] == "(":
+                return None
+            elif c == "\\" and shell == "bash":
+                i += 1
+            i += 1
+            continue
+        if c in " \t":
+            if tok_start is not None:
+                toks.append((tok_start, i))
+                tok_start = None
+            i += 1
+            continue
+        if c in meta:
+            return None
+        if c == "#" and tok_start is None:
+            # comment to end of line; a later line would be a new command
+            if "\n" in command[i:] or "\r" in command[i:]:
+                return None
+            break
+        if shell == "bash" and c == "$" and command[i + 1:i + 2] in ("'", '"'):
+            return None  # $'...' / $"..." quote rules differ; fail closed
+        if c == "&":
+            prev = command[i - 1] if i > start else ""
+            nxt = command[i + 1:i + 2]
+            ps_call = shell == "ps" and not toks and tok_start is None
+            if not (prev in "<>" and prev) and nxt != ">" and not ps_call:
+                return None
+        if tok_start is None:
+            tok_start = i
+        if c in "'\"":
+            quote = c
+        elif c == "\\" and shell == "bash":
+            if command[i + 1:i + 2] in ("\n", "\r"):
+                return None
+            i += 1
+        i += 1
+    if quote is not None:
+        return None
+    if tok_start is not None:
+        toks.append((tok_start, n))
+    return toks
+
+
+def _one_span_in_head(spans, head):
+    """True if there is exactly one billable span and it starts inside the
+    head token (the program actually run), so the approval cannot land on a
+    no-op or on text passed to `bash -c`, `xargs`, `echo` and the like."""
+    return len(spans) == 1 and head[0] <= spans[0][0] < head[1]
+
+
+_ASSIGN_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", re.DOTALL)
+
+
+def inline_env_approved(command, spans=None):
+    """True if the Bash command is ONE simple command carrying a per-command
+    SPEND_GATE_APPROVED=<value> assignment in its leading assignment run
+    (optionally after a bare `env`), and the only billable match is that
+    command's program, e.g. `SPEND_GATE_APPROVED=yes runpodctl create pod`
+    or `env SPEND_GATE_APPROVED=yes runpodctl create pod` (same scope: one
+    process). Anything compound (`&&`, `;`, `|`, `$(...)`, subshell,
+    `bash -c '...'`, two billable commands, `export X=y; ...`) is not
+    approved. The value must be a non-empty literal (no `$`). This hook
+    never executes the command, so it reads the assignment from the
+    string."""
     if not command:
         return False
     try:
-        tokens = command.strip().split()
+        if spans is None:
+            spans = billable_spans(command, DEFAULT_BASH_PATTERNS)
+        toks = _simple_command_tokens(command, 0, "bash")
+        if not toks:
+            return False
+        approved = False
+        seen_env = False
+        for a, b in toks:
+            raw = command[a:b]
+            m = _ASSIGN_RE.match(raw)
+            if m:
+                key, val = m.group(1), m.group(2)
+                if key == "SPEND_GATE_APPROVED":
+                    approved = (bool(val.strip("'\"")) and "$" not in val)
+                continue
+            if not seen_env and (raw == "env" or raw.endswith("/env")):
+                seen_env = True
+                continue
+            return approved and _one_span_in_head(spans, (a, b))
+        return False
     except Exception:
         return False
-    for tok in tokens:
-        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tok):
-            key, _, val = tok.partition("=")
-            if key == "SPEND_GATE_APPROVED" and val:
-                return True
-            continue
-        break  # first non-assignment token ends the env-prefix run
-    return False
 
 
 _PS_INLINE_RE = re.compile(
-    r"""^\s*\$env:SPEND_GATE_APPROVED\s*=\s*(?:'[^']+'|"[^"$]+"|[^\s;'"$]+)\s*;""",
+    r"""^\s*\$env:SPEND_GATE_APPROVED\s*=\s*(?:'[^']+'|"[^"$`]+"|[^\s;'"$`]+)\s*;""",
     re.IGNORECASE,
 )
 
 
-def powershell_inline_approved(command):
-    """True if the PowerShell command string starts with
+def powershell_inline_approved(command, spans=None):
+    """True if the PowerShell command starts with
     `$env:SPEND_GATE_APPROVED='<label>';` (single, double or no quotes,
-    non-empty literal value, `;` required). A `$` in an unquoted or
-    double-quoted value is rejected: `$null`/`"$x"` may expand to empty.
-    Only a leading assignment counts, never one mid-string. Bash-style `VAR=val cmd` is not valid PowerShell, so it
-    is deliberately not honoured here."""
+    non-empty literal value, `;` required) and what follows is ONE simple
+    command (optionally `& <path>`) whose program is the only billable
+    match: a second `;`, a pipe, `&&`/`||`, `(...)`/`$(...)`/`{...}`, a
+    newline or a second billable command is not approved. A `$` in an
+    unquoted or double-quoted value is rejected: `$null`/`"$x"` may expand
+    to empty. Only a leading assignment counts, never one mid-string.
+    Bash-style `VAR=val cmd` is not valid PowerShell, so it is deliberately
+    not honoured here."""
     if not command:
         return False
     try:
-        return bool(_PS_INLINE_RE.match(command))
+        m = _PS_INLINE_RE.match(command)
+        if not m:
+            return False
+        if spans is None:
+            spans = billable_spans(command, DEFAULT_BASH_PATTERNS)
+        toks = _simple_command_tokens(command, m.end(), "ps")
+        if not toks:
+            return False
+        head = toks[0]
+        if command[head[0]:head[1]] == "&":
+            if len(toks) < 2:
+                return False
+            head = toks[1]
+        return _one_span_in_head(spans, head)
     except Exception:
         return False
 
@@ -295,14 +458,17 @@ def env_approved(env):
 
 
 def consume_file_approval(approvals_dir):
-    """If approvals_dir has any file, delete the first one (sorted) and
-    return True. Never raises."""
+    """If approvals_dir has a regular file whose name does not start with
+    ".", delete the first one (sorted) and return True. Dotfiles
+    (.gitkeep, .DS_Store) are ignored and never deleted: a committed
+    .gitkeep must not auto-approve after every checkout. Never raises."""
     try:
         if not os.path.isdir(approvals_dir):
             return False
         names = sorted(
             n for n in os.listdir(approvals_dir)
-            if os.path.isfile(os.path.join(approvals_dir, n))
+            if not n.startswith(".")
+            and os.path.isfile(os.path.join(approvals_dir, n))
         )
         if not names:
             return False
@@ -316,9 +482,10 @@ def approval_hint():
     return (
         "Approve with ONE of: (1) drop a file into "
         "skilleddocs/spend-approvals/ (one-shot, consumed on use); "
-        "(2) prefix the Bash command with SPEND_GATE_APPROVED=<label> "
-        "(covers just that command), or start a PowerShell command with "
-        "$env:SPEND_GATE_APPROVED='<label>'; <cmd>. MCP tool calls: use the file. "
+        "(2) prefix the Bash command with SPEND_GATE_APPROVED=<label>, or "
+        "start a PowerShell command with $env:SPEND_GATE_APPROVED='<label>'; "
+        "<cmd> (inline: one simple command only, no ;/&&/|/subshell, one "
+        "billable command). MCP tool calls: use the file. "
         "See the spend-gate skill: estimate, check balance, get an "
         "explicit yes for this action, log it, before approving."
     )
@@ -341,7 +508,8 @@ def check(tool_name, tool_input, cwd, env=None):
     bash_patterns = DEFAULT_BASH_PATTERNS + extra_bash
     mcp_globs = DEFAULT_MCP_GLOBS + extra_mcp
 
-    reason, _matched = match_billable(tool_name, command, bash_patterns, mcp_globs)
+    reason, _matched = match_billable(tool_name, command, bash_patterns, mcp_globs,
+                                      n_default_mcp=len(DEFAULT_MCP_GLOBS))
     if tool_name and fnmatch.fnmatch(tool_name.lower(), POD_ACTION_GLOB):
         # Verb-dependent: only start/resume blocks; anything else allows.
         reason = pod_action_billable(tool_name, tool_input)
@@ -354,14 +522,22 @@ def check(tool_name, tool_input, cwd, env=None):
     if reason is None:
         return None  # not billable (or unrecognized) - allow
 
+    spans = billable_spans(command, bash_patterns) if command else []
     if command:
         if tool_name == "PowerShell":
-            if powershell_inline_approved(command):
+            if powershell_inline_approved(command, spans):
                 return None
-        elif inline_env_approved(command):
+        elif inline_env_approved(command, spans):
             return None
     if env_approved(env):
         return None
+
+    if len(spans) > 1:
+        # One approval file is one action: never let it cover two billable
+        # commands chained in one call (and don't consume it).
+        return ("Blocked: %s, and %d billable commands in one call; one "
+                "approval covers one action, so run them as separate calls. %s"
+                % (reason, len(spans), approval_hint()))
 
     approvals_dir = env.get("SPEND_GATE_APPROVALS_DIR") or os.path.join(
         cwd or ".", APPROVALS_DIR_REL
@@ -506,6 +682,31 @@ def run_self_test():
     reason = check("mcp__runpod__list-pods", {}, None, env=iso)
     record("MCP tool not matching a glob is allowed", reason is None)
 
+    # 4a. free runpod create-* tools allowed; billable create-* still block
+    for pre in ("mcp__runpod__", "mcp__plugin_runpod_runpod__"):
+        for t in RUNPOD_FREE_CREATE_TOOLS:
+            record("MCP free %s%s allowed" % (pre, t),
+                   check(pre + t, {}, None, env=iso) is None)
+        for t in ("create-pod", "create-endpoint", "create-cluster",
+                  "create-network-volume", "create-global-volume"):
+            record("MCP billable %s%s blocks" % (pre, t),
+                   check(pre + t, {}, None, env=iso) is not None)
+    record("MCP CREATE-TEMPLATE (case) allowed",
+           check("mcp__RunPod__CREATE-TEMPLATE", {}, None, env=iso) is None)
+    record("MCP create-template-x (unknown suffix) blocks",
+           check("mcp__runpod__create-template-x", {}, None, env=iso) is not None)
+    record("MCP other provider create-template still matched by user glob",
+           check("mcp__digitalocean__create-template", {}, None,
+                 env=dict(iso, SPEND_GUARD_PATTERNS="mcp:mcp__*__create-*")) is not None)
+    record("MCP user glob can re-gate runpod create-template",
+           check("mcp__runpod__create-template", {}, None,
+                 env=dict(iso, SPEND_GUARD_PATTERNS="mcp:mcp__*runpod*__create-template"))
+           is not None)
+    record("MCP user glob identical to default text still blocks create-secret",
+           check("mcp__runpod__create-secret", {}, None,
+                 env=dict(iso, SPEND_GUARD_PATTERNS="mcp:mcp__*runpod*__create-*"))
+           is not None)
+
     # 5. file-based approval allows, and is consumed (one-shot)
     with tempfile.TemporaryDirectory() as tmp:
         approvals_dir = os.path.join(tmp, "approvals")
@@ -520,6 +721,28 @@ def run_self_test():
             "approval file is consumed (second call blocks again)",
             reason2 is not None,
         )
+
+    # 5a. dotfiles (.gitkeep, .DS_Store) are not approvals and are kept
+    with tempfile.TemporaryDirectory() as tmp:
+        for dot in (".gitkeep", ".DS_Store"):
+            open(os.path.join(tmp, dot), "w").close()
+        os.makedirs(os.path.join(tmp, "subdir"))
+        env = {"SPEND_GATE_APPROVALS_DIR": tmp}
+        record("approval dir with only dotfiles/subdir blocks",
+               check("Bash", {"command": "runpodctl create pod x"}, None, env=env)
+               is not None)
+        record("dotfiles not deleted by a blocked call",
+               os.path.exists(os.path.join(tmp, ".gitkeep"))
+               and os.path.exists(os.path.join(tmp, ".DS_Store")))
+        open(os.path.join(tmp, "approved-1"), "w").close()
+        record("real approval file beside .gitkeep allows",
+               check("Bash", {"command": "runpodctl create pod x"}, None, env=env)
+               is None)
+        record("real file consumed, .gitkeep kept",
+               not os.path.exists(os.path.join(tmp, "approved-1"))
+               and os.path.exists(os.path.join(tmp, ".gitkeep")))
+        record("MCP call with only .gitkeep blocks",
+               check("mcp__runpod__create-pod", {}, None, env=env) is not None)
 
     # 6. env approval allows - inline (Bash), process env (MCP)
     reason = check(
@@ -727,6 +950,132 @@ def run_self_test():
     record("pod update volumeInGb allowed with approval",
            check(up, {"body": {"volumeInGb": 5}}, None,
                  env=dict(iso, SPEND_GATE_APPROVED="yes")) is None)
+
+    # 16. issue #141: inline approval covers only the one simple command it
+    # prefixes, and only when that command's program is the one billable match
+    C = "runpodctl create pod x"
+    A = "SPEND_GATE_APPROVED=yes "
+    bash_allow = [
+        A + C,
+        A + "runpodctl pod create --gpu-id 'RTX 4090' --name 'a;b|c&&d'",
+        "FOO=1 " + A + "BAR=2 " + C,
+        "SPEND_GATE_APPROVED='ok label' " + C,
+        'SPEND_GATE_APPROVED="ok" ' + C,
+        "env " + A + C,
+        "/usr/bin/env " + A + C,
+        "env FOO=1 " + A + C,
+        A + "/usr/local/bin/runpodctl pod start x",
+        A + "'C:/x/runpodctl.exe' pod create x",
+        A + C + " > out.json 2>&1",
+        A + C + " &> log.txt",
+        A + C + " # one-line comment",
+        A + "runpodctl --profile x pod create --image y",
+        A + "modal deploy app.py",
+        A + "runpodctl serverless run ep --input \"{\\\"a\\\": 1}\"",
+    ]
+    for cmd in bash_allow:
+        record("#141 Bash inline allows: %s" % cmd,
+               check("Bash", {"command": cmd}, None, env=iso) is None)
+    bash_block = [
+        A + "true && " + C, A + "true; " + C, A + "true || " + C,
+        A + "true | " + C, A + "true & " + C, A + "true\n" + C, A + "true\r\n" + C,
+        A + C + " && " + C, A + C + "; " + C, A + C + " || " + C,
+        A + C + " | " + C, A + C + " & " + C, A + C + "\n" + C,
+        A + C + " &",
+        A + "echo $(" + C + ")", A + "echo `" + C + "`",
+        A + 'echo "$(' + C + ')"', A + 'echo "`' + C + '`"',
+        A + "(" + C + ")", "(" + A + C + ")", A + "{ " + C + "; }",
+        A + "bash -c '" + C + "'", A + "bash -c '" + C + "; " + C + "'",
+        A + "sh -c \"" + C + "\"", A + "xargs " + C, A + "nohup " + C,
+        A + "sudo " + C, A + "echo " + C, A + "true " + C,
+        A + "cat <(" + C + ")",
+        "export " + A.strip() + "; " + C, "export " + A.strip() + " && " + C,
+        "export " + A + C,
+        "env -i " + A + C, "env " + A + "env " + C,
+        "SPEND_GATE_APPROVED= " + C, "SPEND_GATE_APPROVED='' " + C,
+        "SPEND_GATE_APPROVED=$X " + C, 'SPEND_GATE_APPROVED="$X" ' + C,
+        "SPEND_GATE_APPROVED=$(echo y) " + C,
+        "true " + A + C, "cd x && " + A + C,
+        A + C + " --name $'a\\'' ; " + C + " ''",
+        A + "#'\n" + C + " #'",
+        A + C + " --name 'unbalanced",
+        A + C + " --env 'X=runpodctl create pod'",
+        A + "runpodctl create pod x \\\n; " + C,
+        A + C + " # c\n" + C,
+    ]
+    for cmd in bash_block:
+        record("#141 Bash inline blocks: %r" % cmd,
+               check("Bash", {"command": cmd}, None, env=iso) is not None)
+    record("#141 inline approval applies to Bash only (not MCP)",
+           check("mcp__runpod__create-pod", {"command": A + C}, None, env=iso)
+           is not None)
+    record("#141 custom pattern overlapping default still one span (allows)",
+           check("Bash", {"command": A + C}, None,
+                 env=dict(iso, SPEND_GUARD_PATTERNS=r"bash:create\s+pod")) is None)
+    dpat = dict(iso, SPEND_GUARD_PATTERNS=r"bash:\bdoctl\s+droplets\s+create\b")
+    record("#141 custom pattern: inline allows its own single command",
+           check("Bash", {"command": A + "doctl droplets create d"}, None, env=dpat)
+           is None)
+    record("#141 custom pattern as a second command blocks",
+           check("Bash", {"command": A + C + " --tag x; doctl droplets create d"},
+                 None, env=dpat) is not None)
+
+    P = "$env:SPEND_GATE_APPROVED='x'; "
+    ps_allow = [
+        P + C, P + " " + C, '$env:SPEND_GATE_APPROVED="x"; ' + C,
+        P + r'& "C:\Program Files\runpod\runpodctl.exe" pod create x',
+        P + r"&'C:\x\runpodctl.exe' pod create x",
+        P + C + " --name 'a;b|c' 2>&1",
+        P + C + " # trailing comment",
+        P + "modal deploy app.py",
+    ]
+    for cmd in ps_allow:
+        record("#141 PS inline allows: %s" % cmd,
+               check("PowerShell", {"command": cmd}, None, env=iso) is None)
+    ps_block = [
+        P + C + "; " + C, P + "Write-Host hi; " + C, P + C + "; Write-Host hi",
+        P + C + " | " + C, P + "Get-Date | " + C, P + C + " && " + C,
+        P + "$true || " + C, P + C + "\n" + C, P + C + "\r\n" + C,
+        P + "Write-Host $(" + C + ")", P + 'Write-Host "$(' + C + ')"',
+        P + "@(" + C + ")", P + "(" + C + ")", P + "& { " + C + " }",
+        P + "Invoke-Expression '" + C + "'", P + "iex '" + C + "'",
+        P + "bash -c '" + C + "'", P + "& & " + C, P + C + " `\n; " + C,
+        P + C + ' --name "a`"; ' + C + '"',
+        P + C + " & " + C,
+        "$env:SPEND_GATE_APPROVED='x'; $env:SPEND_GATE_APPROVED='y'; " + C,
+        "Write-Host a; " + P + C,
+        P + C + " # c\n" + C,
+    ]
+    for cmd in ps_block:
+        record("#141 PS inline blocks: %r" % cmd,
+               check("PowerShell", {"command": cmd}, None, env=iso) is not None)
+
+    # 16a. one approval file never covers two billable commands in one call
+    with tempfile.TemporaryDirectory() as tmp:
+        open(os.path.join(tmp, "approved-1"), "w").close()
+        env = {"SPEND_GATE_APPROVALS_DIR": tmp}
+        for tool, cmd in (("Bash", C + " && " + C), ("PowerShell", C + "; " + C),
+                          ("Bash", A + C + "; " + C)):
+            record("#141 file approval refuses two creates: %s %r" % (tool, cmd),
+                   check(tool, {"command": cmd}, None, env=env) is not None)
+        record("#141 refused multi-create leaves the approval file",
+               os.path.exists(os.path.join(tmp, "approved-1")))
+        record("#141 file approval still covers cd x && one create",
+               check("Bash", {"command": "cd x && " + C}, None, env=env) is None
+               and not os.path.exists(os.path.join(tmp, "approved-1")))
+
+    # 16b. perf: 2000-flag command lines check() well under 1 s
+    for tool, cmd in (
+            ("Bash", A + "runpodctl " + " ".join(["--a-b c"] * 2000) + " pod create"),
+            ("Bash", A + "runpodctl " + " ".join(["-x"] * 2000) + " pod create"),
+            ("Bash", "runpodctl " + " ".join(["--k='v w'"] * 2000) + " pod list"),
+            ("Bash", "runpodctl " + " ".join(['--a "x'] * 2000) + " pod create"),
+            ("PowerShell", P + "runpodctl " + " ".join(["--a-b c"] * 2000) + " pod create"),
+            ("Bash", A + C + " " + " ".join(["-a b ;"] * 1000))):
+        t0 = time.time()
+        check(tool, {"command": cmd}, None, env=iso)
+        dt = time.time() - t0
+        record("#141 perf %s %d chars < 0.5s (%.3fs)" % (tool, len(cmd), dt), dt < 0.5)
 
     print("\n%d passed, %d failed" % (passed, failed))
     if failed:
