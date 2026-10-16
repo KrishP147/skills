@@ -119,14 +119,14 @@ How it works: reads the hook JSON on stdin (`tool_name`,
 `tool_input.command` for `Bash` and `PowerShell`, `cwd`). A `Bash` or `PowerShell` command is checked against
 a list of regexes; any other tool name is checked against a list of
 `fnmatch` globs (for MCP tool names like `mcp__runpod__create-pod`).
-Default billable patterns: `runpodctl` `create`/`start` (legacy `create pod`/`start pod` and v2 `pod|serverless|network-volume|nv create|start`; `template`/`registry create` are free and stay ungated), `runpodctl network-volume|nv update ... --size` (resize; rename-only is allowed), `runpodctl serverless update`, `vultr-cli instance create`,
+Default billable patterns: `runpodctl` `create`/`start` (legacy `create pod`/`start pod` and v2 `pod|serverless|network-volume|nv create|start`; `template`/`registry create` are free and stay ungated), `runpodctl network-volume|nv update ... --size` (resize; rename-only is allowed), `runpodctl serverless|sls update`, `runpodctl serverless|sls run` (job submit), `runpodctl pod|pods update ... --volume-in-gb|--container-disk-in-gb` (storage resize; other updates allowed), `runpodctl model add` (uploads to model storage), the `sls` alias for `create`/`update`/`run`, global flags before the noun (`--profile x pod create`, `-o json serverless run`), `vultr-cli instance create`,
 `aws ec2 run-instances`, `gcloud compute instances create`, `az vm create`,
 `modal deploy` (also as `.exe`/`.cmd`, quoted, or full-path forms), and MCP tools matching `mcp__*runpod*__create-*` /
 `mcp__*runpod*__deploy-*` / `__run-endpoint` / `__runsync-endpoint` /
 `__retry-job` / `__update-endpoint` / `__set-endpoint-gpus`, plus
 `__pod-action` only when its action is `start` or `resume` (read from
 `tool_input.body.action`, else `tool_input.action`; `stop`, `restart`,
-`terminate` and an unrecognised shape are allowed). `__update-network-volume` only when `tool_input.body` is an object with a `size` key (resize bills; name-only allowed; blocks even if the size equals the current one, since the hook can't know it). `update-global-volume` is not gated: it only takes a name, nothing billable. Trade-off: more approval
+`terminate` and an unrecognised shape are allowed). `__update-network-volume` only when `tool_input.body` is an object with a `size` key (resize bills; name-only allowed; blocks even if the size equals the current one, since the hook can't know it). `__update-pod` only when `tool_input.body` is an object with a `volumeInGb` or `containerDiskInGb` key (name/image changes allowed). There is no `runpodctl hub deploy`: Hub deploys go through `serverless create --hub-id`, already gated. `update-global-volume` is not gated: it only takes a name, nothing billable. Trade-off: more approval
 prompts, since every job submit and endpoint update now needs approval. Deliberately **not** defaulted: `fly deploy` and
 similar commands with a real free tier — add them yourself if your usage is
 always billable. No match → exits 0 (allow) immediately. Any error while
