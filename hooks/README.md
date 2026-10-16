@@ -5,6 +5,10 @@ Not installed by `install-skills`; copy what you want into a repo's
 (The agents' own `guard-git.py` lives in [`../agents/hooks/`](../agents/hooks/)
 and *is* installed, into `~/.claude/agents/hooks/`.)
 
+Each `hooks/*.py` gets a page on the [skills site](https://www.krishpunjabi.com/skills/),
+built from its ``## `<file>.py` — tagline`` section below (the tagline is the
+summary; the build fails if a hook has no section). See [`../site/README.md`](../site/README.md).
+
 ## `smartzone.py` — "your context has left the smart zone" warning
 
 `UserPromptSubmit` hook. Prints a one-line warning into the conversation when
