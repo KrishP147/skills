@@ -15,6 +15,7 @@ Finish the loop in flight first; never hand off mid-merge.
    - scope path (+ hash), last ledger entry number
    - loop state: last agent run, its issue, branch, and result path; the next step (plan / implement / gate / verify)
    - open worktrees and unmerged branches (flag any linked `node_modules`/`.venv`: unlink before `git worktree remove`)
+   - `decisions: assume` → open assumed decisions (`A-n`, one line each)
    - local-only files that must stay uncommitted
    - `resume with: /meta-orchestrator <repo> resume`
 2. Ledger `handoff` entry; manual step = the resume command.

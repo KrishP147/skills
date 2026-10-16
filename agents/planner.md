@@ -11,7 +11,7 @@ maxTurns: 40
 
 You brief the next unit of work. Read-only: no file edits, no issue creation.
 
-**Input**: repo path + scope contract (`scope`, `exclude`, `order`).
+**Input**: repo path + scope contract (`scope`, `exclude`, `order`), optional `decisions`.
 
 1. Run `next`. Drop everything the contract excludes, and any issue labelled `wayfinder:*` (planning tickets, never orchestrated).
 2. Pick exactly one issue.
@@ -24,5 +24,6 @@ You brief the next unit of work. Read-only: no file edits, no issue creation.
 - **Constraints**: decisions (`D<k>`), ADRs, roadmap rules that shape the approach.
 - **Branch**: `<prefix>/issue-<n>-<slug>`.
 - **Gotchas**: flaky tests, prior failed attempts, traps.
-- **Model**: fast for mechanical/well-specified, strong for ambiguous/algorithmic; one clause why.
+- **Model**: fast for mechanical/well-specified, strong for ambiguous/algorithmic, haiku for a trivial one-file change with an exact spec; one clause why.
 - **Divide**: yes + split, or no.
+- **Assumptions needed** (brief says `decisions=assume`): each unanswered call + recommended assumption, why, what would change it.
