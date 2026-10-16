@@ -162,8 +162,8 @@
         return;
       case "Escape":
         if (buffer !== "/") { e.preventDefault(); setBuffer("/", false); close(); }
+        else if (!home) { e.preventDefault(); goHome(); } // detail page: Esc on a bare "/" goes home
         else if (open) { e.preventDefault(); close(); }
-        else if (!home) { e.preventDefault(); goHome(); } // detail page: bare "/" again goes home
         return;
       case "Backspace":
         if (buffer === "/" && input.selectionStart === input.selectionEnd) e.preventDefault();

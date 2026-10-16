@@ -29,7 +29,7 @@ _HR_RE = re.compile(r"^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$")
 _LIST_RE = re.compile(r"^( *)([-*+]|\d{1,9}[.)])( +|$)(.*)$")
 _TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
 _TX_TOOL_RE = re.compile(r"^⏺\s*([A-Za-z_][\w.:-]*)\((.*)\)\s*$")
-_ESCAPABLE ="\\`*_{}[]()#+-.!|>~<\"'"
+_ESCAPABLE = "\\`*_{}[]()#+-.!|>~<\"'"
 
 
 def esc(s):

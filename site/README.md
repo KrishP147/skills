@@ -46,8 +46,8 @@ optional `aliases` from `meta.json`) in `#skill-data`.
 - **Keys:** the first row is highlighted every time the menu opens (prompt
   click, `/`, Enter or Up/Down on a closed menu, bare `/` included) and every
   time the text changes. Up/Down move the highlight, Tab fills the highlighted
-  name (when that changes nothing, Tab moves focus), Enter or click opens it, Esc clears to `/` (again: closes the menu; detail
-  pages, once more: home), `/` anywhere on
+  name (when that changes nothing, Tab moves focus), Enter or click opens it, Esc clears to `/` (again: home closes the menu,
+  a detail page goes home), `/` anywhere on
   the page focuses the prompt. An exact name shows a dim `↵ to open`; typing
   never navigates by itself.
 - **ARIA:** input `role=combobox` with `aria-expanded` / `aria-activedescendant`,
@@ -125,8 +125,8 @@ preview deploys.
   `WARN: <name>: no Example section ...` on stderr (the build still
   succeeds); a test keeps all 28 entries at zero warnings.
 - **Back home.** A visible `← all commands` link above the echoed command;
-  on the prompt, Esc clears the text, then closes the menu, then (bare `/`,
-  menu closed) goes home. On the home page Esc never navigates.
+  on the prompt, Esc clears the text, then (bare `/`, menu open or not)
+  goes home. On the home page Esc never navigates.
 
 Never add a file named `SKILL.md` under `site/`: lint globs `*/SKILL.md` and
 `*/*/SKILL.md` and would treat it as a skill.
