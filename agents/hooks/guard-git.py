@@ -854,7 +854,8 @@ def _run_segment(toks, ctx, subs, depth):
         return False
     if INTERPRETER_RE.match(head):  # python -c / node -e / perl -e / ruby -e
         check_code(" ".join(rest), ctx)
-        return "code"
+        reads_stdin = "-" in rest or all(t.startswith("-") for t in rest)
+        return "code" if reads_stdin else False
     if head in HTTP_CLIENTS:
         check_http(rest, ctx)
         return False
