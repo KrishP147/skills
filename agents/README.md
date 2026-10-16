@@ -16,9 +16,9 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 ## planner
 
 - **Role:** picks the next single unit of work from the board and writes the kickoff brief. Read-only: `disallowedTools: Edit, Write, NotebookEdit`; never creates issues. `maxTurns: 40`.
-- **You pass:** repo path + scope contract (exclusions such as gated issues / people tasks / labels, ordering rule).
+- **You pass:** repo path + scope contract (exclusions such as gated issues / people tasks / labels, ordering rule), optional `decisions` (`ask`|`assume`).
 - **How it works:** runs `next` → drops excluded items and `wayfinder:*` issues → picks exactly one task → uses `divide` to *propose* a split if it looks multi-session → if nothing is left, says so and stops.
-- **You get back (≤40 lines):** issue + acceptance checklist, key files, decisions/ADRs to respect, branch name `<prefix>/issue-<n>-<slug>`, gotchas, recommended model (and why), divide yes/no + proposed split.
+- **You get back (≤40 lines):** issue + acceptance checklist, key files, decisions/ADRs to respect, branch name `<prefix>/issue-<n>-<slug>`, gotchas, recommended model (and why), divide yes/no + proposed split, **Assumptions needed** (when `decisions=assume`).
 - **Design principles:** read-only by construction (`disallowedTools`), so it can only propose, never change the board; exactly one task per brief; the ≤40-line cap keeps the brief cheap to pass verbatim to the next agent.
 - **Use cases:** briefing the next issue for a `meta-orchestrator` loop; asking on your own "use the planner agent to brief the next issue" before starting work by hand.
 - **Tips:** put gated issues, people tasks and labels to skip in the scope contract's `exclude`, or the planner may pick them. A proposed split is only a proposal; create the issues yourself (or with `divide`).
@@ -27,14 +27,14 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 ## manager
 
 - **Role:** owns one task end to end in a worktree. Never implements itself: briefs an implementer, then reviews its work as if it didn't trust it. `maxTurns: 150`.
-- **You pass:** working directory (absolute, usually a worktree on the task branch), task + acceptance checklist, rules (branch prefix, protected branch, commit style, `CONTRIBUTING.md`/`AGENTS.md` path), `max_rounds` (default 3).
+- **You pass:** working directory (absolute, usually a worktree on the task branch), task + acceptance checklist, rules (branch prefix, protected branch, commit style, `CONTRIBUTING.md`/`AGENTS.md` path), `max_rounds` (default 3), `decisions` (`ask`|`assume`, default `ask`).
 - **How it works:**
   1. Orients read-only; confirms every file the task cites exists; detects the test command.
   2. Writes a ≤40-line brief (includes "if stuck, write `skilleddocs/HANDOFF.md`, commit only if [`TRACKING.md`](../handoff-auto/TRACKING.md) says so, stop").
   3. Spawns an `implementer` (not `fork`, no `isolation`) in the foreground by default, blocking until it finishes; if it ends up backgrounded, never sleep-polls — ends the turn titled **INTERIM — implementer still running** and relies on the completion notification (callers must not act on it).
   4. Reviews every round itself, inline: commit scope, `git diff <base>...HEAD`, reruns tests + lint, and checks `git diff --name-only <base>...HEAD` carries no `skilleddocs/HANDOFF.md` (nothing under `skilleddocs/` when untracked). Fixes one-liners; larger gaps go to the next round. Never spawns reviewer subagents.
   5. Retries with a **fresh** implementer + `skilleddocs/HANDOFF.md`/findings, up to `max_rounds`; deletes `HANDOFF.md` once picked up (in a commit if tracked).
-- **You get back:** branch + base/head SHA, commits, tests (command + counts) and lint run by it, review findings and who fixed each, rounds used, `skilleddocs/HANDOFF.md` path (or the last SHA that held it, if tracked) if unfinished, manual steps (e.g. the push).
+- **You get back:** branch + base/head SHA, commits, tests (command + counts) and lint run by it, review findings and who fixed each, rounds used, **Assumed** open `A-n` ids, `skilleddocs/HANDOFF.md` path (or the last SHA that held it, if tracked) if unfinished, manual steps (e.g. the push).
 - **Guard:** same `guard-git.py` hook as the implementer. Never pushes, merges or opens PRs — the caller does. Never deletes links or worktrees either, and never a recursive delete through a linked `node_modules`/`.venv` — teardown is the caller's job.
 - **Design principles:** never implements, only briefs and reviews, treating the implementer's "pass" as a claim to rerun; review stays inline in its own context (no reviewer subagents, nested fan-out stalls); a stalled round restarts a fresh implementer from `HANDOFF.md` instead of stretching one context.
 - **Use cases:** one task inside a worktree for [`pair`](../pair/); each task of a `meta-orchestrator` run in `execution: pair` mode.
@@ -44,7 +44,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 ## implementer
 
 - **Role:** implements one well-specified issue from a kickoff brief on its own branch. `maxTurns: 200`.
-- **You pass:** the kickoff brief verbatim + branch prefix + protected branch (from `manager` or the orchestrator).
+- **You pass:** the kickoff brief verbatim + branch prefix + protected branch + `decisions` (from `manager` or the orchestrator).
 - **How it works:** branches `<prefix>/issue-<n>-<slug>` off a freshly pulled default; if it created the branch, marks the issue started (card → In Progress, or `status:todo` → `status:in-progress`, creating that label first if missing; skipped with no board) and comments "Started on branch …", fail-soft (an error goes in the handoff, never blocks); commits small; runs the repo's detected test command before claiming done. Multi-session task or low turns → writes the handoff early. Stuck or past ~100k tokens → writes `skilleddocs/HANDOFF.md` (done / not done / next step / failed attempts), commits it only if [`TRACKING.md`](../handoff-auto/TRACKING.md) says so (never on a fork), stops, so a manager can restart a fresh implementer from it.
 - **You get back:** calls `session-handoff` (which wraps `handoff-auto`); final message ends with the handoff document's absolute path on its own line.
 - **Guard:** `guard-git.py` hook (below).
@@ -56,12 +56,12 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 ## verifier
 
 - **Role:** verifies an implementation session and closes the loop. `maxTurns: 120`. No guard hook.
-- **You pass:** handoff path (or saved manager report path), whether it may answer interview-style questions on your behalf, `review-done=yes|no` (default no; `yes` = a manager already reviewed and reran tests).
+- **You pass:** handoff path (or saved manager report path), whether it may answer interview-style questions on your behalf, `review-done=yes|no` (default no; `yes` = a manager already reviewed and reran tests), `decisions` (`ask`|`assume`).
 - **How it works:**
   1. Runs `update-progress` end to end: claims vs `git log`, tests, CI, code review (skipped if `review-done=yes`), docs/board/issue updates. Code review is inline, two axes (standards + spec), no reviewer subagents.
   2. Deviations: if authorized, answers `consult-plan` itself from the written plan and lists every Q → A; if not, records the deviation and leaves the plan untouched.
   3. Calls `next`.
-- **You get back:** verified-by (tests + CI run id), findings fixed / issues filed, decided-for-you list, manual steps for you, then `next`'s output unedited.
+- **You get back:** verified-by (tests + CI run id), findings fixed / issues filed, decided-for-you list, assumed open `A-n` list, manual steps for you, then `next`'s output unedited.
 - **Design principles:** a claim is not evidence, so every handoff claim is checked against `git log`, tests and CI; code review is inline on two axes (standards + spec) with no reviewer subagents; a deviation changes the plan only when you authorized it to answer for you.
 - **Use cases:** closing the loop after an implementer or manager finishes in a `meta-orchestrator` run; checking a handoff by hand before you trust it.
 - **Tips:** pass `review-done=yes` when a manager already reviewed and reran tests, to skip a second review. Without permission to answer for you, deviations come back as manual steps rather than plan changes.

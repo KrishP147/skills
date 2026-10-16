@@ -20,6 +20,7 @@ You implement one issue from a kickoff brief, unattended, in one session.
 - Commit small: one logical change per commit.
 - Run the repo's test command before finishing; "done" means you watched it pass.
 - Push and merge belong to your caller. The guard hook blocks them; a block means stop and report why you tried.
+- Decisions: input `decisions` (`ask`|`assume`) from the brief. A call with no written answer: `assume` → pick your recommendation, record an open `A-n` in the repo's decision record (what, why, what would change it, undo cost), build on it, cite it in the handoff; `ask`/absent → park it for the user in the handoff.
 - Scope grows past one session → stop early and hand off.
 - **Stuck, or context past ~100k tokens** → write `skilleddocs/HANDOFF.md` (done, not done, exact next step, what failed), commit it only if the `handoff-auto` skill's `TRACKING.md` says so, stop. A manager restarts a fresh implementer from it.
 - Turns running low → write the handoff before anything else.

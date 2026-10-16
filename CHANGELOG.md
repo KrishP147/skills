@@ -6,6 +6,7 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 
 ## [0.1.0] - 2026-10-15
 
+- Agents: manager, implementer and verifier honour `decisions=assume` (open `A-n` recorded and reported); planner README lists **Assumptions needed**.
 - `meta-orchestrator`: `decisions: ask|assume` (assume = agent picks its recommendation, logs open `A-n` until you confirm; shown in handoffs and `progress-report`) and a `haiku` chores tier for mechanical no-judgment tasks.
 - `upstream-sync`: when the PR can't be opened, files an issue linking the `upstream-sync/verbatim` branch; a failed step no longer skips the modified-file issues, and the run fails only after trying every step.
 - CI runs `install-skills.sh` and `install-skills.ps1` into fresh temp dirs (ubuntu, plus `.ps1` on windows-latest) and checks skill, agent and marker counts.
