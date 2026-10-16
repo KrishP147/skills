@@ -18,7 +18,7 @@ Every `key` below is a field of that contract. Respect the repo's `skilleddocs/`
 
 | Step | Agent | You pass | You get back |
 |---|---|---|---|
-| Plan | `planner` | repo path + scope.md + `decisions` | ≤40-line kickoff brief, model rec, divide?, assumptions needed |
+| Plan | `planner` | repo path + scope.md + issues in flight + `decisions` | ≤40-line kickoff brief (with `lanes:`, one per lane whose head isn't in flight), model rec, divide?, assumptions needed |
 | Implement (`execution: pair`) | `manager` | working dir + brief verbatim + prefix + protected branch + `max_rounds=3` + `decisions` + "never push or merge" | branch, commits, tests it reran, review findings, rounds, assumed `A-n`, `skilleddocs/HANDOFF.md` if unfinished |
 | Implement (`execution: flat`) | `implementer` | brief verbatim + prefix + protected branch + `decisions` | handoff (cites assumed `A-n`), path as its last line |
 | Verify | `verifier` | handoff or manager-report path + `interview` + `decisions` + `review-done=<yes in pair / no in flat>` | verified-by, fixes, decided-for-you, assumed `A-n`, manual steps, next |
@@ -36,7 +36,7 @@ planner → manager | implementer → merge gate (you) → verifier → repeat
 
 - Each arrow is a **fresh** Agent call. In pair mode save the manager's report to `skilleddocs/orchestrator/reports/`; that report or the handoff is the only bridge to the verifier.
 - `parallel > 1` → one worktree per manager (`../_worktrees/<repo>-<slug>`, set up as `pair` §2 does). Never two managers on one checkout.
-- Lanes: each lane in scope.md `lanes:` works its issues in order. [`/lanes`](../lanes/SKILL.md) changes them; apply at your next loop. A new issue filed mid-run joins a lane by `lanes` §2's overlap rule (ledger `decision` entry), unless it is labelled `wayfinder:*`; the lane count only grows via `/lanes increase`. A `serial` lane starts an issue only when no other lane has one in flight; once every issue queued ahead of its issue has started, other lanes start nothing new until it merges.
+- Lanes: each lane in scope.md `lanes:` works its issues in order. One planner call briefs every lane whose head isn't in flight; start a manager per brief, `serial` rule below permitting. [`/lanes`](../lanes/SKILL.md) changes them; apply at your next loop. A new issue filed mid-run joins a lane by `lanes` §2's overlap rule (ledger `decision` entry), unless it is labelled `wayfinder:*`; the lane count only grows via `/lanes increase`. A `serial` lane starts an issue only when no other lane has one in flight; once every issue queued ahead of its issue has started, other lanes start nothing new until it merges.
 - **Nested fan-out stalls.** Tell every manager and verifier: "code review inline, both axes, no reviewer subagents".
 - A handback titled **INTERIM** isn't a result; wait for that agent's next one.
 
