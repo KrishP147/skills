@@ -601,6 +601,8 @@ def check_code(text, ctx):
     GitHub API."""
     if CODE_GIT_RE.search(text) or (CODE_RISK_RE.search(text) and CODE_SPAWN_RE.search(text)):
         ctx.block("inline interpreter code mentions git push / merge; failing closed.")
+    if DECODER_RE.search(text) and CODE_SPAWN_RE.search(text):
+        ctx.block("inline interpreter code runs decoded base64/hex; failing closed.")
     if (re.search(r"api\.github\.com", text, re.I) and re.search(r"\b(put|post|patch|delete)\b", text, re.I)
             and re.search(r"merge|refs|contents|pulls", text, re.I)):
         ctx.block("inline interpreter code writes to the GitHub API; failing closed.")
@@ -2146,6 +2148,8 @@ def run_self_test():
         ("perl -e 'system(\"git push origin main\")'", B, False),
         ("ruby -e '`git push origin main`'", B, False),
         ("python - <<'PY'\nimport os\nos.system('git push origin main')\nPY", B, False),
+        ("python -c \"import base64,os; os.system(base64.b64decode('Z2l0'))\"", B, False),
+        ("python -c \"import base64; print(base64.b64decode('aGk='))\"", A, False),
         ("python -c \"print(1)\"", A, False),
         ("node -e \"console.log(1)\"", A, False),
         ("python scripts/x.py", A, False),
