@@ -2094,7 +2094,7 @@ def check_push_tool(tool, rest, ctx):
             ctx.block("bare %s submits to the remote; pushes belong to the caller." % tool)
         return
     first, second = pos[0], (pos[1] if len(pos) > 1 else "")
-    if first in ("pr", "issue", "release", "gist") and (second in PUSH_TOOL_FAMILY_READS or not second):
+    if first in ("pr", "issue", "release", "gist") and (second in PUSH_TOOL_FAMILY_READS or (not second and tool == "hub")):  # bare `sl pr` may submit
         return
     if first in verbs or second in verbs:
         ctx.block("%s %s pushes/merges/opens PRs on a remote; that belongs to the caller." % (tool, first))
@@ -3267,6 +3267,7 @@ def run_self_test():
         ("sl push --to main", B, False),
         ("sl pr submit", B, False),
         ("sl ghstack", B, False),
+        ("sl pr", B, False),
         ("spr land", B, False),
         ("spr update", B, False),
         ("git spr update", B, False),
