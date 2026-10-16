@@ -46,7 +46,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 - **Role:** implements one well-specified issue from a kickoff brief on its own branch. `maxTurns: 200`.
 - **You pass:** the kickoff brief verbatim + branch prefix + protected branch + `decisions` (from `manager` or the orchestrator).
 - **How it works:** branches `<prefix>/issue-<n>-<slug>` off a freshly pulled default; if it created the branch, marks the issue started (card → In Progress, or `status:todo` → `status:in-progress`, creating that label first if missing; skipped with no board) and comments "Started on branch …", fail-soft (an error goes in the handoff, never blocks); commits small; runs the repo's detected test command before claiming done. Multi-session task or low turns → writes the handoff early. Stuck or past ~100k tokens → writes `skilleddocs/HANDOFF.md` (done / not done / next step / failed attempts), commits it only if [`TRACKING.md`](../handoff-auto/TRACKING.md) says so (never on a fork), stops, so a manager can restart a fresh implementer from it.
-- **You get back:** calls `session-handoff` (which wraps `handoff-auto`); final message ends with the handoff document's absolute path on its own line.
+- **You get back:** calls `session-handoff` (which wraps `handoff-auto`); final message ends with the handoff document's absolute path on its own line; the handoff cites any open `A-n` it assumed.
 - **Guard:** `guard-git.py` hook (below).
 - **Design principles:** one issue, one session, small commits; "done" means it watched the tests pass; push and merge belong to the caller and the hook enforces it; board errors never block, they go in the handoff.
 - **Use cases:** the worker under a `manager` (via `pair`) or directly under `meta-orchestrator` with `execution: flat`; any well-specified issue you want implemented unattended.
@@ -56,7 +56,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 ## verifier
 
 - **Role:** verifies an implementation session and closes the loop. `maxTurns: 120`. No guard hook.
-- **You pass:** handoff path (or saved manager report path), whether it may answer interview-style questions on your behalf, `review-done=yes|no` (default no; `yes` = a manager already reviewed and reran tests), `decisions` (`ask`|`assume`).
+- **You pass:** handoff path (or saved manager report path), whether it may answer interview-style questions on your behalf, `review-done=yes|no` (default no; `yes` = a manager already reviewed and reran tests), `decisions` (`ask`|`assume`, default `ask`).
 - **How it works:**
   1. Runs `update-progress` end to end: claims vs `git log`, tests, CI, code review (skipped if `review-done=yes`), docs/board/issue updates. Code review is inline, two axes (standards + spec), no reviewer subagents.
   2. Deviations: if authorized, answers `consult-plan` itself from the written plan and lists every Q → A; if not, records the deviation and leaves the plan untouched.

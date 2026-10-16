@@ -18,10 +18,10 @@ Every `key` below is a field of that contract. Respect the repo's `skilleddocs/`
 
 | Step | Agent | You pass | You get back |
 |---|---|---|---|
-| Plan | `planner` | repo path + scope.md + `decisions` | ≤40-line kickoff brief, model rec, divide? |
-| Implement (`execution: pair`) | `manager` | working dir + brief verbatim + prefix + protected branch + `max_rounds=3` + `decisions` + "never push or merge" | branch, commits, tests it reran, review findings, rounds, `skilleddocs/HANDOFF.md` if unfinished |
-| Implement (`execution: flat`) | `implementer` | brief verbatim + prefix + protected branch + `decisions` | handoff path as its last line |
-| Verify | `verifier` | handoff or manager-report path + `interview` + `decisions` + `review-done=<yes in pair / no in flat>` | verified-by, fixes, decided-for-you, manual steps, next |
+| Plan | `planner` | repo path + scope.md + `decisions` | ≤40-line kickoff brief, model rec, divide?, assumptions needed |
+| Implement (`execution: pair`) | `manager` | working dir + brief verbatim + prefix + protected branch + `max_rounds=3` + `decisions` + "never push or merge" | branch, commits, tests it reran, review findings, rounds, assumed `A-n`, `skilleddocs/HANDOFF.md` if unfinished |
+| Implement (`execution: flat`) | `implementer` | brief verbatim + prefix + protected branch + `decisions` | handoff (cites assumed `A-n`), path as its last line |
+| Verify | `verifier` | handoff or manager-report path + `interview` + `decisions` + `review-done=<yes in pair / no in flat>` | verified-by, fixes, decided-for-you, assumed `A-n`, manual steps, next |
 | Chores | `general-purpose` on `haiku` | exact commands + expected output | its report; check it (`gh` read, diff skim) before relying on it |
 
 Each agent is `<name>` (e.g. `manager`), or `krish:<name>` (e.g. `krish:manager`) when installed as the plugin; pass that as `subagent_type`.
