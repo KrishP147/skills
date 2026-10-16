@@ -42,8 +42,9 @@ uses the conversation's goal, then the board.
    everything installed. When an entry or workflow from this collection
    fits and isn't already the pick, it adds that too. Any option from the
    catalog is labelled "from your collection"; one that isn't in this
-   session's skill list is labelled "not installed" with the install
-   command, and plugin installs get the `krish:` prefix on commands. Nothing fits: it says so, names the nearest option and
+   session's skill list and isn't in `~/.claude/skills/<name>/` or the
+   plugin's install dir is labelled "not installed" with the install
+   command (user-only skills never show in that list, installed or not), and plugin installs get the `krish:` prefix on commands. Nothing fits: it says so, names the nearest option and
    suggests doing the task directly.
 4. **Model and effort per step.** From `CATALOG.md`'s defaults, adjusted
    for a large or risky task: effort goes up first, the model only once
