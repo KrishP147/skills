@@ -267,6 +267,7 @@ def build(root, out, base=""):
     meta = site_detail.load_meta(root)
     map_groups, map_edges = site_map.build(root, entries, meta, workflows)
     site_detail.model_effort(meta, entries)
+    site_detail.validate_levels(root, meta, entries)
 
     if os.path.isdir(out):
         shutil.rmtree(out)

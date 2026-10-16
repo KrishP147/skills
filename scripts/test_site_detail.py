@@ -165,7 +165,7 @@ class DetailPagesTest(unittest.TestCase):
         self.assertIn('<span class="k">model</span> opus', planner)
         self.assertIn("/next, /divide", planner)
         self.assertIn("all except Edit, Write, NotebookEdit", planner)
-        self.assertIn("used in anger", planner)
+        self.assertIn("used daily", planner)
         self.assertIn('<li class="chip chip-suggested"><span class="k">suggested model · effort</span> opus · medium</li>',
                       planner)
         for name, page in self.pages.items():
@@ -334,8 +334,24 @@ class MetaTest(unittest.TestCase):
         seen = [n for ns in meta["levels"].values() for n in ns]
         self.assertEqual(len(seen), len(set(seen)))
         self.assertEqual(site_detail.level_of(meta, "does-not-exist"), "new")
-        self.assertEqual(site_detail.level_of(meta, "planner"), "in-anger")
-        self.assertEqual(meta["levels_source"], "usage in the author's sessions, Sep 2026")
+        self.assertEqual(site_detail.level_of(meta, "planner"), "daily")
+        self.assertEqual(meta["levels_source"], "the author's use through Oct 2026, plus a full sandbox test pass of every skill, agent and hook (Oct 2026)")
+
+    def test_levels_validated(self):
+        meta = site_detail.load_meta(ROOT)
+        entries = build_site.collect(ROOT)
+        site_detail.validate_levels(ROOT, meta, entries)
+        lv = meta["levels"]
+        bads = [
+            ({k: [x for x in v if x != "planner"] for k, v in lv.items()}, "no level for planner"),
+            ({**lv, "lightly": lv["lightly"] + ["no-such-name"]}, "unknown name"),
+            ({**lv, "lightly": lv["lightly"] + ["planner"]}, "both"),
+            ({**lv, "bogus": []}, "not in level_labels"),
+        ]
+        for levels, needle in bads:
+            with self.assertRaises(SystemExit) as cm:
+                site_detail.validate_levels(ROOT, {**meta, "levels": levels}, entries)
+            self.assertIn(needle, str(cm.exception))
 
 
 class SectionMappingTest(unittest.TestCase):

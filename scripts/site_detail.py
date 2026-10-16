@@ -342,6 +342,35 @@ def author_of(meta, name):
     return meta.get("authors", {}).get(name, meta.get("default_author", "Krish"))
 
 
+def validate_levels(root, meta, entries):
+    """meta.json "levels" drift guard: every entry in exactly one level, level
+    keys in level_labels, every listed name an entry or an agent hook script
+    (agents/hooks/<name>.py)."""
+    labels = meta.get("level_labels")
+    levels = meta.get("levels")
+    if not isinstance(labels, dict) or not isinstance(levels, dict):
+        raise SystemExit("meta.json: need level_labels and levels objects")
+    for k in levels:
+        if k not in labels:
+            raise SystemExit("meta.json levels: %r is not in level_labels" % k)
+    hooks_dir = os.path.join(root, "agents", "hooks")
+    hook_names = set()
+    if os.path.isdir(hooks_dir):
+        hook_names = {os.path.splitext(f)[0] for f in os.listdir(hooks_dir) if f.endswith(".py")}
+    known = {e["name"] for e in entries}
+    seen = {}
+    for k, names in levels.items():
+        for n in names:
+            if n not in known and n not in hook_names:
+                raise SystemExit("meta.json levels: unknown name %r in %r" % (n, k))
+            if n in seen:
+                raise SystemExit("meta.json levels: %r in both %r and %r" % (n, seen[n], k))
+            seen[n] = k
+    missing = sorted(known - set(seen))
+    if missing:
+        raise SystemExit("meta.json levels: no level for %s" % ", ".join(missing))
+
+
 MODELS = ("haiku", "sonnet", "opus")
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 CHIP_LABELS = {"suggested": "suggested model · effort"}
