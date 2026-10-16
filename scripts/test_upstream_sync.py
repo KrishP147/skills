@@ -175,7 +175,7 @@ class OutDir(Base):
             s = json.load(f)
         pr = slurp(s["pr_body_file"])
         self.assertIn(us.CI_NOTE, pr)
-        self.assertIn("Allow GitHub Actions to create and approve pull requests", pr)
+        self.assertNotIn("Allow GitHub Actions", pr)
         [item] = s["modified"]
         self.assertNotIn("diff", item)
         body = slurp(item["body_file"])
@@ -202,9 +202,10 @@ class SubprocessRunErrors(unittest.TestCase):
             self.assertIn(want, out)
         self.assertNotIn("Allow GitHub Actions", out)
 
-    def test_pr_create_hint(self):
+    def test_pr_create_notes_fallback_not_setting(self):
         out = self.run_failing(["gh", "pr", "create", "--title", "t"])
-        self.assertIn("Allow GitHub Actions to create and approve pull requests", out)
+        self.assertIn("falling back to an issue", out)
+        self.assertNotIn("Allow GitHub Actions", out)
 
 
 class Publish(unittest.TestCase):
@@ -215,11 +216,13 @@ class Publish(unittest.TestCase):
         "pr_body_file": "pr.md",
     }
 
-    def fake_cmd(self, open_prs, open_issues):
+    def fake_cmd(self, open_prs, open_issues, fail=()):
         calls = []
 
         def run(args):
             calls.append(args)
+            if tuple(args[:3]) in fail:
+                raise subprocess.CalledProcessError(1, args, output="", stderr="nope")
             if args[:3] == ["gh", "pr", "list"]:
                 return json.dumps(open_prs)
             if args[:3] == ["gh", "issue", "list"]:
@@ -245,10 +248,103 @@ class Publish(unittest.TestCase):
         self.assertEqual([c[0] for c in calls], ["gh", "gh"])  # only the two list calls
         self.assertTrue(all(a.startswith("skip") for a in actions))
 
+    def tmp_summary(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        with open(os.path.join(d, "pr.md"), "w", encoding="utf-8") as f:
+            f.write("PR BODY\n")
+        return dict(self.summary, pr_body_file=os.path.join(d, "pr.md")), d
+
+    def issue_creates(self, calls):
+        return [c for c in calls if c[:3] == ["gh", "issue", "create"]]
+
+    def test_pr_create_fails_opens_fallback_issue(self):
+        summary, d = self.tmp_summary()
+        run, calls = self.fake_cmd([], [], fail={("gh", "pr", "create")})
+        with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r"}):
+            actions = us.publish(summary, "upstream.json", run)
+        creates = self.issue_creates(calls)
+        self.assertEqual([c[c.index("--title") + 1] for c in creates],
+                         [us.PR_TITLE, "upstream-sync: demo-local/SKILL.md"])
+        body = slurp(creates[0][creates[0].index("--body-file") + 1])
+        self.assertEqual(os.path.dirname(creates[0][-1]), d)
+        for want in ("PR BODY", us.VERBATIM_BRANCH,
+                     "https://github.com/o/r/compare/upstream-sync/verbatim"):
+            self.assertIn(want, body)
+        self.assertFalse(any(a.startswith("failed:") for a in actions))
+
+    def test_fallback_without_repo_env_names_branch(self):
+        summary, _ = self.tmp_summary()
+        run, calls = self.fake_cmd([], [], fail={("gh", "pr", "create")})
+        env = {k: v for k, v in os.environ.items() if k != "GITHUB_REPOSITORY"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            us.publish(summary, "upstream.json", run)
+        body = slurp(self.issue_creates(calls)[0][-1])
+        self.assertIn(us.VERBATIM_BRANCH, body)
+        self.assertNotIn("/compare/", body)
+
+    def test_fallback_issue_already_open_is_skipped(self):
+        summary, _ = self.tmp_summary()
+        run, calls = self.fake_cmd([], [{"number": 7, "title": us.PR_TITLE}],
+                                   fail={("gh", "pr", "create")})
+        actions = us.publish(summary, "upstream.json", run)
+        titles = [c[c.index("--title") + 1] for c in self.issue_creates(calls)]
+        self.assertEqual(titles, ["upstream-sync: demo-local/SKILL.md"])
+        self.assertTrue(actions[0].startswith("skip fallback issue: #7"))
+
+    def test_verbatim_failure_still_opens_modified_issues(self):
+        run, calls = self.fake_cmd([], [], fail={("git", "push", "--force")})
+        actions = us.publish(self.summary, "upstream.json", run)
+        self.assertNotIn(["gh", "pr", "create"], [c[:3] for c in calls])
+        self.assertEqual(len(self.issue_creates(calls)), 1)
+        self.assertTrue(actions[0].startswith("failed: verbatim"))
+        self.assertEqual(actions[1], "opened issue: upstream-sync: demo-local/SKILL.md")
+
+    def test_modified_failure_does_not_stop_later_items(self):
+        two = dict(self.summary, verbatim=[], modified=self.summary["modified"] + [
+            {"local_path": "x/SKILL.md", "title": "upstream-sync: x/SKILL.md", "body_file": "c.md"}])
+        n = {"i": 0}
+        run, calls = self.fake_cmd([], [])
+
+        def flaky(args):
+            if args[:3] == ["gh", "issue", "create"]:
+                n["i"] += 1
+                if n["i"] == 1:
+                    calls.append(args)
+                    raise subprocess.CalledProcessError(1, args)
+            return run(args)
+        actions = us.publish(two, "upstream.json", flaky)
+        self.assertTrue(actions[0].startswith("failed: issue for demo-local/SKILL.md"))
+        self.assertEqual(actions[1], "opened issue: upstream-sync: x/SKILL.md")
+
     def test_nothing_to_do(self):
         run, calls = self.fake_cmd([], [])
         self.assertEqual(us.publish({"verbatim": [], "modified": []}, "upstream.json", run), [])
         self.assertEqual(calls, [])
+
+
+class MainExit(unittest.TestCase):
+    def call_main(self, actions):
+        summary = {"verbatim": [], "modified": [], "unchanged": [], "dry_run": False}
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        out = io.StringIO()
+        with mock.patch.object(us, "run", return_value=summary), \
+                mock.patch.object(us, "publish", return_value=actions) as pub, \
+                contextlib.redirect_stdout(out):
+            rc = us.main(["--publish", "--out", d, "--manifest", os.path.join(d, "upstream.json")])
+        pub.assert_called_once()
+        return rc, out.getvalue()
+
+    def test_nonzero_after_printing_all_actions_when_one_failed(self):
+        rc, out = self.call_main(["failed: verbatim PR (git push --force)", "opened issue: t"])
+        self.assertEqual(rc, 1)
+        self.assertIn("failed: verbatim PR", out)
+        self.assertIn("opened issue: t", out)
+
+    def test_zero_when_all_ok(self):
+        rc, _ = self.call_main(["opened PR from upstream-sync/verbatim", "skip issue: #1"])
+        self.assertEqual(rc, 0)
 
 
 class Misc(Base):

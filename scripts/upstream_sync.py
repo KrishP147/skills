@@ -40,9 +40,6 @@ MAX_BODY = 60000  # GitHub caps issue/PR bodies at 65536 chars
 
 CI_NOTE = ("CI does not run on bot PRs: close and reopen, or push an empty "
            "commit, to trigger ci.")
-SETTING_NOTE = ("This PR needs the repo setting \"Allow GitHub Actions to "
-                "create and approve pull requests\" (Settings > Actions > "
-                "General) to be enabled.")
 
 
 def repo_root():
@@ -178,7 +175,7 @@ def pr_body(items):
     for it in items:
         lines.append("- `%s` <- `%s:%s` (https://github.com/%s/compare/%s...%s)" % (
             it["local_path"], it["repo"], it["upstream_path"], it["repo"], it["from"], it["to"]))
-    lines += ["", CI_NOTE, "", SETTING_NOTE, ""]
+    lines += ["", CI_NOTE, ""]
     return "\n".join(lines)
 
 
@@ -289,40 +286,83 @@ def subprocess_run(args):
         print("stderr: %s" % (e.stderr or "").strip(), file=sys.stderr)
         print("stdout: %s" % (e.stdout or "").strip(), file=sys.stderr)
         if list(args[:3]) == ["gh", "pr", "create"]:
-            print('hint: enable repo setting "Allow GitHub Actions to create and approve '
-                  'pull requests" (Settings > Actions > General)', file=sys.stderr)
+            print("note: falling back to an issue linking branch %s" % VERBATIM_BRANCH,
+                  file=sys.stderr)
         raise
 
 
+def find_open_issue(run_cmd, title):
+    """Number of an open issue with exactly this title, or None."""
+    found = json.loads(run_cmd(["gh", "issue", "list", "--state", "open", "--search",
+                                '"%s" in:title' % title, "--json", "number,title"]) or "[]")
+    hit = [i for i in found if i["title"] == title]
+    return hit[0]["number"] if hit else None
+
+
+def fallback_body(pr_body_file):
+    """Write PR body + branch/compare link next to pr_body_file; return its path."""
+    with open(pr_body_file, encoding="utf-8") as f:
+        body = f.read()
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+    link = ("%s/%s/compare/%s?expand=1" % (server, repo, VERBATIM_BRANCH) if repo
+            else "compare `%s` against the default branch" % VERBATIM_BRANCH)
+    body += ("\n\n---\n\nCould not open the PR (GitHub Actions may not create PRs here). "
+             "Changes are pushed to branch `%s`; open the PR by hand: %s\n" % (VERBATIM_BRANCH, link))
+    path = os.path.join(os.path.dirname(os.path.abspath(pr_body_file)), "verbatim-issue.md")
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(body)
+    return path
+
+
+def publish_verbatim(summary, manifest_rel, run_cmd):
+    import subprocess
+    open_prs = json.loads(run_cmd(["gh", "pr", "list", "--head", VERBATIM_BRANCH,
+                                   "--state", "open", "--json", "number"]) or "[]")
+    if open_prs:
+        return "skip PR: #%s already open" % open_prs[0]["number"]
+    files = [it["local_path"] for it in summary["verbatim"]] + [manifest_rel]
+    run_cmd(["git", "checkout", "-B", VERBATIM_BRANCH])
+    run_cmd(["git", "add", "--"] + files)
+    run_cmd(["git", "commit", "-m", "chore: sync verbatim upstream copies"])
+    run_cmd(["git", "push", "--force", "origin", VERBATIM_BRANCH])
+    try:
+        run_cmd(["gh", "pr", "create", "--head", VERBATIM_BRANCH, "--title", PR_TITLE,
+                 "--body-file", summary["pr_body_file"]])
+        return "opened PR from %s" % VERBATIM_BRANCH
+    except subprocess.CalledProcessError:
+        pass
+    n = find_open_issue(run_cmd, PR_TITLE)
+    if n is not None:
+        return "skip fallback issue: #%s already open for %s" % (n, VERBATIM_BRANCH)
+    run_cmd(["gh", "issue", "create", "--title", PR_TITLE,
+             "--body-file", fallback_body(summary["pr_body_file"])])
+    return "PR create failed; opened issue: %s" % PR_TITLE
+
+
 def publish(summary, manifest_rel, run_cmd=subprocess_run):
-    """Open one PR for verbatim changes and one issue per modified file via
-    git + gh, skipping any that already has an open PR/issue. Returns a list
-    of action strings. Needs --out (body files) and a non-dry run."""
+    """Open one PR for verbatim changes (an issue linking the branch if PR
+    creation fails) and one issue per modified file via git + gh, skipping
+    any already open. Each step runs even if an earlier one failed. Returns
+    action strings; failed steps start with "failed:". Needs --out (body
+    files) and a non-dry run."""
+    import subprocess
     actions = []
     if summary["verbatim"]:
-        open_prs = json.loads(run_cmd(["gh", "pr", "list", "--head", VERBATIM_BRANCH,
-                                       "--state", "open", "--json", "number"]) or "[]")
-        if open_prs:
-            actions.append("skip PR: #%s already open" % open_prs[0]["number"])
-        else:
-            files = [it["local_path"] for it in summary["verbatim"]] + [manifest_rel]
-            run_cmd(["git", "checkout", "-B", VERBATIM_BRANCH])
-            run_cmd(["git", "add", "--"] + files)
-            run_cmd(["git", "commit", "-m", "chore: sync verbatim upstream copies"])
-            run_cmd(["git", "push", "--force", "origin", VERBATIM_BRANCH])
-            run_cmd(["gh", "pr", "create", "--head", VERBATIM_BRANCH, "--title", PR_TITLE,
-                     "--body-file", summary["pr_body_file"]])
-            actions.append("opened PR from %s" % VERBATIM_BRANCH)
+        try:
+            actions.append(publish_verbatim(summary, manifest_rel, run_cmd))
+        except subprocess.CalledProcessError as e:
+            actions.append("failed: verbatim PR (%s)" % " ".join(map(str, e.cmd[:3])))
     for it in summary["modified"]:
-        found = json.loads(run_cmd(["gh", "issue", "list", "--state", "open", "--search",
-                                    '"%s" in:title' % it["title"], "--json", "number,title"])
-                           or "[]")
-        hit = [i for i in found if i["title"] == it["title"]]
-        if hit:
-            actions.append("skip issue: #%s already open for %s" % (hit[0]["number"], it["local_path"]))
-            continue
-        run_cmd(["gh", "issue", "create", "--title", it["title"], "--body-file", it["body_file"]])
-        actions.append("opened issue: %s" % it["title"])
+        try:
+            n = find_open_issue(run_cmd, it["title"])
+            if n is not None:
+                actions.append("skip issue: #%s already open for %s" % (n, it["local_path"]))
+                continue
+            run_cmd(["gh", "issue", "create", "--title", it["title"], "--body-file", it["body_file"]])
+            actions.append("opened issue: %s" % it["title"])
+        except subprocess.CalledProcessError as e:
+            actions.append("failed: issue for %s (%s)" % (it["local_path"], " ".join(map(str, e.cmd[:3]))))
     return actions
 
 
@@ -365,8 +405,11 @@ def main(argv=None):
     print(report(summary))
     if args.publish:
         rel = os.path.relpath(os.path.abspath(args.manifest), root).replace(os.sep, "/")
-        for line in publish(summary, rel):
+        actions = publish(summary, rel)
+        for line in actions:
             print(line)
+        if any(a.startswith("failed:") for a in actions):
+            return 1
     return 0
 
 
