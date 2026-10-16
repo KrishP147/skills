@@ -27,7 +27,7 @@ flowchart TD
     update -.->|deviations| consult[consult-plan]
 ```
 
-Card status flow: todo (set explicitly by `gh project item-edit` when an issue is added — `item-add` alone leaves Status empty) → in-progress (`implementer`/`pair`, on branch create) → in-review (`session-handoff`) → done (`update-progress`, once verified and merged; unmerged stays in-review). Label-mode `status:*` labels are created on first use (`gh label create --color <hex> --force`, colors in [`next/BOARD.md`](next/BOARD.md)), not assumed to exist.
+Card status flow: todo (set explicitly by `gh project item-edit` when an issue is added — `item-add` alone leaves Status empty) → in-progress (`pair`/`meta-orchestrator`, on branch create; guarded agents get read-only `gh`) → in-review (`session-handoff`) → done (`update-progress`, once verified and merged; unmerged stays in-review). Label-mode `status:*` labels are created on first use (`gh label create --color <hex> --force`, colors in [`next/BOARD.md`](next/BOARD.md)), not assumed to exist.
 
 ## The skills
 
