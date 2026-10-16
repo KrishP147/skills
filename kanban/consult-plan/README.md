@@ -58,4 +58,4 @@ Reads 12 open issues and `ROADMAP.md`, asks a round of questions (does it replac
 
 ## Prereqs
 
-`gh`, authenticated, and `origin` on GitHub. Projects v2 boards also need the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)); label mode doesn't. [`grilling`](../../grilling/) installed.
+`gh`, authenticated, and `origin` on GitHub. On a fork it asks which repo to write to (fork issues off: it reads the parent). Projects v2 boards also need the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)); label mode doesn't. [`grilling`](../../grilling/) installed.

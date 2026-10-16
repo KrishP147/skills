@@ -23,7 +23,7 @@ New to the repo? Check the prereqs, install, then try one skill.
 
 **Which skill first**
 
-1. [`grill-docs`](grill-docs/README.md): zero setup, and it leaves a decision record (`skilleddocs/decisions.md`) the other skills read. Good for seeing what a skill writes.
+1. [`grill-docs`](grill-docs/README.md): zero setup, and it leaves a decision record (`skilleddocs/decisions.md` unless the repo has its own) the other skills read. Good for seeing what a skill writes.
 2. [`pair`](pair/README.md): one task end to end in an isolated worktree, you push at the end. The smallest taste of the agents.
 3. [`meta-orchestrator`](meta-orchestrator/README.md): a whole backlog unattended. Try it last; it is the most autonomous and builds on the two above.
 
@@ -55,7 +55,7 @@ Each tier builds on the one above: `pair` is one orchestrator loop without the b
 | [`repo-scrub`](repo-scrub/README.md) | Scans a GitHub repo's full git history for secrets and oversized files, lets you pick exactly what to scrub, rewrites history safely, and only then flips the repo private → public. User-invoked only (`/repo-scrub`). | `gh`, [`gitleaks`](https://github.com/gitleaks/gitleaks), [`git-filter-repo`](https://github.com/newren/git-filter-repo) |
 | [`grilling`](grilling/README.md) *(Matt Pocock)* | Interviews you relentlessly, one round of questions at a time with a recommendation attached to each, until a plan or decision is fully stress-tested. | none |
 | [`grill-me`](grill-me/README.md) *(Matt Pocock)* | Short alias for `grilling`. User-invoked only (`/grill-me`); Claude auto-invokes `grilling` instead. | none |
-| [`grill-docs`](grill-docs/README.md) | `grilling` with a paper trail: writes the Q→A transcript to `skilleddocs/grills/` as each round settles and appends every decision to `skilleddocs/decisions.md`, so planners, verifiers and teammates can read what was decided and why. | none |
+| [`grill-docs`](grill-docs/README.md) | `grilling` with a paper trail: writes the Q→A transcript to `skilleddocs/grills/` as each round settles and appends every decision to the repo's decisions doc (default `skilleddocs/decisions.md`), so planners, verifiers and teammates can read what was decided and why. | none |
 | [`wayfinder`](wayfinder/README.md) *(adapted from Matt Pocock's `wayfinder`)* | Plans an effort too big for one session: a `wayfinder:map` GitHub issue whose sub-issues are decision tickets (research, prototype, grilling, task), resolved one per session until the way is clear, then handed to `divide` for board issues. Kept off the board (`next`, `planner` and `meta-orchestrator` skip `wayfinder:*`). User-invoked only (`/wayfinder`). | `gh`; `grill-docs` |
 | [`handoff`](handoff/README.md) *(Matt Pocock, save path modified, commit rule added)* | Compacts the current conversation into a handoff document so a fresh session can pick up where it left off; saved under `skilleddocs/handoffs/`. User-invoked only (`/handoff`). | none |
 | [`handoff-auto`](handoff-auto/README.md) *(derived from Pocock's `handoff`; frontmatter, save path and commit rule differ)* | Same document, but callable by the model, so other skills and subagents can end a session unattended. Saved under `skilleddocs/handoffs/`, committed or not per [`TRACKING.md`](handoff-auto/TRACKING.md). Prints the file path as its last line. | none |
