@@ -13,6 +13,7 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build_site  # noqa: E402
 import lint  # noqa: E402
+import site_workflows  # noqa: E402
 
 ROOT = lint.repo_root()
 
@@ -466,6 +467,157 @@ class EntryDescriptionTest(unittest.TestCase):
         fm = lint.parse_frontmatter("---\nname: x\ndescription: >\n  Does a thing.\n  More.\n---\n")[0]
         e = build_site._entry(fm, "x", "skill", "", "", "")
         self.assertEqual(e["description"], "Does a thing. More.")
+
+
+class WorkflowsValidationTest(unittest.TestCase):
+    """site/data/workflows.json: format, names, coverage (site_workflows.validate)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.entries = build_site.collect(ROOT)
+        cls.raw = site_workflows.load(ROOT)
+
+    def fails(self, raw, needle, entries=None):
+        with self.assertRaises(SystemExit) as cm:
+            site_workflows.validate(raw, entries or self.entries)
+        self.assertIn(needle, str(cm.exception))
+
+    def copy(self):
+        return json.loads(json.dumps(self.raw))
+
+    def test_real_data_valid(self):
+        self.assertIs(site_workflows.validate(self.raw, self.entries), self.raw)
+
+    def test_every_skill_covered(self):
+        skills = [e["name"] for e in self.entries if e["group"] in ("core", "kanban")]
+        self.assertEqual(len(skills), 24)
+        used = {s.get("name") for wf in self.raw for s in wf["steps"]}
+        self.assertEqual([n for n in skills if n not in used], [])
+
+    def test_issue_example_chain(self):
+        # The issue's example, step for step (each traces to its SKILL.md).
+        wf = next(w for w in self.raw if w["name"] == "close-the-loop")
+        self.assertEqual([(s["kind"], s.get("name")) for s in wf["steps"]],
+                         [("skill", "session-handoff"), ("human", None), ("skill", "update-progress"),
+                          ("skill", "next"), ("human", None)])
+        self.assertIn('"go"', wf["steps"][-1]["why"])
+
+    def test_human_steps_everywhere_and_no_model_fields(self):
+        for wf in self.raw:
+            self.assertTrue(any(s["kind"] == "human" for s in wf["steps"]), wf["name"])
+            for s in wf["steps"]:
+                self.assertLessEqual(set(s), {"kind", "name", "why"})
+
+    def test_unknown_names_fail(self):
+        for kind, name in (("skill", "no-such-skill"), ("agent", "no-such-agent"), ("hook", "no-such-hook")):
+            raw = self.copy()
+            raw[0]["steps"].append({"kind": kind, "name": name, "why": "x"})
+            self.fails(raw, name)
+
+    def test_wrong_kind_fails(self):
+        raw = self.copy()
+        raw[0]["steps"].append({"kind": "skill", "name": "planner", "why": "x"})
+        self.fails(raw, "is a agent, not a skill")
+
+    def test_uncovered_skill_fails(self):
+        raw = [wf for wf in self.copy() if wf["name"] != "go-public"]
+        self.fails(raw, "skills in no workflow: repo-scrub, repo-showcase")
+
+    def test_bad_steps_fail(self):
+        cases = [
+            ({"kind": "human", "name": "pair", "why": "x"}, "human step has no name"),
+            ({"kind": "skill", "name": "pair", "why": "x", "model": "opus"}, "unknown keys ['model']"),
+            ({"kind": "robot", "why": "x"}, "kind must be one of"),
+            ({"kind": "skill", "name": "pair", "why": ""}, "why must be one"),
+            ({"kind": "skill", "name": "pair", "why": "two\nlines"}, "why must be one"),
+        ]
+        for step, needle in cases:
+            raw = self.copy()
+            raw[0]["steps"].append(step)
+            self.fails(raw, needle)
+
+    def test_bad_workflows_fail(self):
+        raw = self.copy()
+        raw[1]["name"] = raw[0]["name"]
+        self.fails(raw, "duplicate name")
+        raw = self.copy()
+        raw[0]["name"] = "menu"
+        self.fails(raw, "clashes with an id")
+        raw = self.copy()
+        raw[0]["name"] = "Bad Name"
+        self.fails(raw, "lowercase")
+        raw = self.copy()
+        raw[0]["effort"] = "high"
+        self.fails(raw, "unknown keys ['effort']")
+        raw = self.copy()
+        raw[0]["steps"] = [s for s in raw[0]["steps"] if s["kind"] != "human"]
+        self.fails(raw, "needs a human step")
+        raw = self.copy()
+        raw.append({"name": "solo", "title": "Solo", "steps": [
+            {"kind": "skill", "name": "pair", "why": "x"}, {"kind": "hook", "name": "smartzone", "why": "x"},
+            {"kind": "human", "why": "x"}]})
+        self.fails(raw, "needs 2+ skill/agent steps")
+        self.fails([], "non-empty list")
+
+    def test_entry_named_like_index_slug_fails_build(self):
+        real = build_site.collect(ROOT)
+        clash = dict(next(e for e in real if e["group"] == "hooks"), name=site_workflows.SLUG)
+        with mock.patch.object(build_site, "collect", return_value=real + [clash]):
+            out = tempfile.mkdtemp(prefix="site-slug-")
+            try:
+                with self.assertRaises(SystemExit) as cm:
+                    build_site.build(ROOT, out)
+                self.assertIn("reserved for the workflows index", str(cm.exception))
+            finally:
+                shutil.rmtree(out, ignore_errors=True)
+
+
+class WorkflowsPageTest(unittest.TestCase):
+    """dist/workflows/index.html, built under a base prefix."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.out = tempfile.mkdtemp(prefix="site-wf-")
+        cls.entries = build_site.build(ROOT, cls.out, "/skills")
+        cls.raw = site_workflows.load(ROOT)
+        with open(os.path.join(cls.out, "workflows", "index.html"), encoding="utf-8") as f:
+            cls.page = f.read()
+        with open(os.path.join(cls.out, "index.html"), encoding="utf-8") as f:
+            cls.index = f.read()
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.out, ignore_errors=True)
+
+    def test_home_links_index(self):
+        self.assertIn('href="/skills/workflows"', self.index)
+
+    def test_every_workflow_and_step_rendered(self):
+        self.assertNotIn("{{", self.page)
+        self.assertIn("<title>Sample workflows", self.page)
+        for wf in self.raw:
+            self.assertIn('<a href="#%s">' % wf["name"], self.page)
+            m = re.search(r'<h2 id="%s">(.*?)</h2>\n<ol class="wf-steps">\n(.*?)\n</ol>' % wf["name"], self.page, re.S)
+            self.assertIsNotNone(m, wf["name"])
+            self.assertEqual(m.group(1), build_site.esc(wf["title"]))
+            items = re.findall(r"<li class=\"wf-step[^\"]*\">(.*?)</li>", m.group(2))
+            self.assertEqual(len(items), len(wf["steps"]), wf["name"])
+            for li, st in zip(items, wf["steps"]):
+                self.assertIn(build_site.esc(st["why"]), li)
+                if st["kind"] == "human":
+                    self.assertIn(">you</span>", li)
+                else:
+                    self.assertIn('href="/skills/%s">/%s</a>' % (st["name"], st["name"]), li)
+                    self.assertTrue(os.path.isfile(os.path.join(self.out, st["name"], "index.html")))
+
+    def test_page_shell(self):
+        # Same chrome as a detail page: slash prompt, nav data, back link, one h1.
+        self.assertIn('id="skill-data"', self.page)
+        self.assertIn('data-autofocus="false"', self.page)
+        self.assertIn('<a class="back" href="/skills/">', self.page)
+        self.assertEqual(self.page.count("<h1"), 1)
+        self.assertIn('<meta name="color-scheme" content="light dark">', self.page)
+        self.assertIn('<link rel="canonical" href="https://www.krishpunjabi.com/skills/workflows">', self.page)
 
 
 class CliTest(unittest.TestCase):
