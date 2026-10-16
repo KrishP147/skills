@@ -144,6 +144,7 @@ test("description fallback: /run one task -> pair first (FIX and REAL)", () => {
 });
 
 test("description fallback: real summary phrases surface their entry", () => {
+  let checked = 0;
   const picked = REAL.filter((x) => !x.aliases && tokensOf(x.summary).length >= 4).slice(0, 5);
   assert.ok(picked.length >= 3);
   for (const x of picked) {
@@ -153,7 +154,18 @@ test("description fallback: real summary phrases surface their entry", () => {
     if (s.mode === "results") continue; // phrase also hit a name: tiers win
     assert.equal(s.mode, "desc", phrase);
     assert.ok(names(s.options).includes(x.name), phrase + " -> " + x.name);
+    checked++;
   }
+  assert.ok(checked >= 3, "checked " + checked);
+});
+
+test("description ranking: phrase > all words > most words, ties A-Z", () => {
+  const data = [e("zed", "Alpha beta gamma delta."), e("aaa", "Gamma alpha beta delta."),
+    e("bbb", "Gamma beta delta."), e("ccc", "Alpha beta only.")];
+  // phrase only in zed; aaa/bbb hold both words apart; A-Z would put aaa first
+  assert.deepEqual(names(F.describe("gamma delta", data)), ["zed", "aaa", "bbb"]);
+  // zed phrase; aaa all 4 words; bbb 3; ccc 2 (half is enough for 4 words)
+  assert.deepEqual(names(F.describe("alpha beta gamma delta", data)), ["zed", "aaa", "bbb", "ccc"]);
 });
 function tokensOf(t) { return t.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean); }
 
@@ -161,7 +173,7 @@ test("name matches never become description results", () => {
   for (const b of ["/pair", "/watch", "/handoff", "/status", "/pr watch"]) {
     assert.notEqual(F.search(b, FIX).mode, "desc", b);
   }
-  // "next" is in pair's... summary and a name: the name tier wins alone.
+  // "next" is a name and a summary word (planner): the name tier wins alone.
   const s = F.search("/next", FIX);
   assert.equal(s.mode, "results");
   assert.deepEqual(names(s.options), ["next"]);
