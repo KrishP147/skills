@@ -40,11 +40,14 @@ uses the conversation's goal, then the board.
    [`CATALOG.md`](CATALOG.md).
 3. **Options, at most 3.** The primary pick is the best fit from
    everything installed. When an entry or workflow from this collection
-   fits and isn't already the pick, it adds that too, labelled "from your
-   collection". Nothing fits: it says so, names the nearest option and
+   fits and isn't already the pick, it adds that too. Any option from the
+   catalog is labelled "from your collection"; one that isn't in this
+   session's skill list is labelled "not installed" with the install
+   command, and plugin installs get the `krish:` prefix on commands. Nothing fits: it says so, names the nearest option and
    suggests doing the task directly.
 4. **Model and effort per step.** From `CATALOG.md`'s defaults, one tier
-   or level up for a large or risky task, one down for a small one. A skill
+   for a large or risky task: effort goes up first, the model only once
+   effort is at `max`; the reverse for a small one. A skill
    that isn't in the catalog shows its origin (plugin or built-in) and an
    `estimate` label.
 5. **Reply.** Per option: why it fits, the steps with model and effort,
