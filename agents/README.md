@@ -4,7 +4,7 @@
 
 A subagent runs in its own context window with its own model, tool allowlist and preloaded skills. Claude spawns one with `Agent(subagent_type="<name>", prompt=…)`. [`pair`](../pair/) and [`meta-orchestrator`](../meta-orchestrator/) spawn these, but each also works on its own ("use the planner agent to brief the next issue").
 
-Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` into `~/.claude/agents/hooks/`.
+Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` into `~/.claude/agents/hooks/`. Installed as the `krish` plugin instead, they are `krish:planner`, `krish:manager`, `krish:implementer` and `krish:verifier`; skills they preload resolve by bare name either way.
 
 | Agent | Model | Preloads | Spawned by |
 |---|---|---|---|
@@ -70,6 +70,8 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 ## hooks/guard-git.py
 
 `PreToolUse` hook on `Bash|PowerShell`, wired in the `implementer` and `manager` frontmatter. Exits 2 (blocks, reason on stderr) or 0 (allows).
+
+**As a plugin.** Claude Code ignores `hooks` frontmatter in plugin agents, so the plugin wires the same command once, plugin-wide, in [`.claude-plugin/plugin.json`](../.claude-plugin/plugin.json), with `--plugin`. That hook fires for every session, so with `--plugin` it reads `agent_type` from the hook input and enforces only for `implementer`/`manager` (bare or `<plugin>:`-prefixed); the main session and other agents pass through (exit 0).
 
 **It is a guardrail, not a sandbox.** It stops an agent's honest mistakes and the obvious workarounds; it can't see inside script files, pre-existing shell aliases/functions, or `curl` to the GitHub API. Pair it with GitHub branch protection (require PRs, no force-push) on the default branch.
 
