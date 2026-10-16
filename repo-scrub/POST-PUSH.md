@@ -107,14 +107,14 @@ git checkout <noted branch> && git stash pop     # the WIP entry; a conflicting 
 git status --short
 git stash list                                   # every non-WIP entry, re-created
 git cat-file -e <old SHA from refs-before.txt>   # must fail, unless a branch was kept as is
-git log --all -S'<string>' --oneline             # each scrubbed personal string: no output
+git log --all -S'<string>' --oneline             # each scrubbed personal string: no output, unless a branch was kept as is
 ```
 
 Report all of it.
 
 ## 10. Warn about what was kept
 
-Per branch or tag kept as is in step 3 (no answer included), print:
+Per branch or tag kept as is in step 3 (including any left unanswered), print:
 
 ```
 WARNING: <branch|tag> <name> was kept as is. It still holds the pre-rewrite history, including the scrubbed secret. Never push it.
