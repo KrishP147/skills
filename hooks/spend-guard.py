@@ -79,8 +79,21 @@ DEFAULT_BASH_PATTERNS = [
 # `fly deploy`. Add it yourself via SPEND_GUARD_PATTERNS or the patterns file
 # if your fly.io usage is always billable.
 
+# Runpod MCP create-* tools that only write free config/credential records,
+# exempt from the default create-* glob below: create-template (pod/endpoint
+# config), create-secret (stored secret), create-registry (container
+# registry auth), create-delegation (access delegation). Still blocked:
+# create-pod, create-endpoint, create-cluster (compute bills) and
+# create-network-volume, create-global-volume (storage bills). The
+# exemption applies only to the default glob; a user mcp: glob naming one
+# of these still blocks it. Other providers' create-* are unaffected.
+RUNPOD_FREE_CREATE_TOOLS = (
+    "create-template", "create-secret", "create-registry", "create-delegation",
+)
+RUNPOD_CREATE_GLOB = "mcp__*runpod*__create-*"
+
 DEFAULT_MCP_GLOBS = [
-    "mcp__*runpod*__create-*",
+    RUNPOD_CREATE_GLOB,
     "mcp__*runpod*__deploy-*",
     "mcp__*runpod*__run-endpoint",
     "mcp__*runpod*__runsync-endpoint",
@@ -169,9 +182,10 @@ def load_extra_patterns(cwd, env=None):
     return bash_patterns, mcp_globs
 
 
-def match_billable(tool_name, command, bash_patterns, mcp_globs):
+def match_billable(tool_name, command, bash_patterns, mcp_globs, n_default_mcp=0):
     """Return a (reason, matched) tuple, or (None, None) if nothing matches.
-    Never raises - any matching error fails open."""
+    The first n_default_mcp globs are the defaults (RUNPOD_FREE_CREATE_TOOLS
+    exemption applies to those only). Never raises - errors fail open."""
     try:
         if tool_name in ("Bash", "PowerShell"):
             if not command:
@@ -184,7 +198,10 @@ def match_billable(tool_name, command, bash_patterns, mcp_globs):
                     )
             return None, None
         if tool_name:
-            for glob in mcp_globs:
+            for i, glob in enumerate(mcp_globs):
+                if (i < n_default_mcp and glob == RUNPOD_CREATE_GLOB
+                        and _runpod_free_create(tool_name)):
+                    continue  # default glob only; see RUNPOD_FREE_CREATE_TOOLS
                 if fnmatch.fnmatch(tool_name.lower(), glob.lower()):
                     return (
                         "tool '%s' matches billable MCP pattern '%s'" % (tool_name, glob),
@@ -193,6 +210,13 @@ def match_billable(tool_name, command, bash_patterns, mcp_globs):
         return None, None
     except Exception:
         return None, None
+
+
+def _runpod_free_create(tool_name):
+    """True if tool_name is a runpod MCP tool whose name after the last
+    "__" is one of RUNPOD_FREE_CREATE_TOOLS."""
+    return (fnmatch.fnmatch(tool_name.lower(), RUNPOD_CREATE_GLOB)
+            and tool_name.lower().rsplit("__", 1)[-1] in RUNPOD_FREE_CREATE_TOOLS)
 
 
 def inline_env_approved(command):
@@ -345,7 +369,8 @@ def check(tool_name, tool_input, cwd, env=None):
     bash_patterns = DEFAULT_BASH_PATTERNS + extra_bash
     mcp_globs = DEFAULT_MCP_GLOBS + extra_mcp
 
-    reason, _matched = match_billable(tool_name, command, bash_patterns, mcp_globs)
+    reason, _matched = match_billable(tool_name, command, bash_patterns, mcp_globs,
+                                      n_default_mcp=len(DEFAULT_MCP_GLOBS))
     if tool_name and fnmatch.fnmatch(tool_name.lower(), POD_ACTION_GLOB):
         # Verb-dependent: only start/resume blocks; anything else allows.
         reason = pod_action_billable(tool_name, tool_input)
@@ -509,6 +534,31 @@ def run_self_test():
     record("MCP glob blocks create-pod", reason is not None)
     reason = check("mcp__runpod__list-pods", {}, None, env=iso)
     record("MCP tool not matching a glob is allowed", reason is None)
+
+    # 4a. free runpod create-* tools allowed; billable create-* still block
+    for pre in ("mcp__runpod__", "mcp__plugin_runpod_runpod__"):
+        for t in RUNPOD_FREE_CREATE_TOOLS:
+            record("MCP free %s%s allowed" % (pre, t),
+                   check(pre + t, {}, None, env=iso) is None)
+        for t in ("create-pod", "create-endpoint", "create-cluster",
+                  "create-network-volume", "create-global-volume"):
+            record("MCP billable %s%s blocks" % (pre, t),
+                   check(pre + t, {}, None, env=iso) is not None)
+    record("MCP CREATE-TEMPLATE (case) allowed",
+           check("mcp__RunPod__CREATE-TEMPLATE", {}, None, env=iso) is None)
+    record("MCP create-template-x (unknown suffix) blocks",
+           check("mcp__runpod__create-template-x", {}, None, env=iso) is not None)
+    record("MCP other provider create-template still matched by user glob",
+           check("mcp__digitalocean__create-template", {}, None,
+                 env=dict(iso, SPEND_GUARD_PATTERNS="mcp:mcp__*__create-*")) is not None)
+    record("MCP user glob can re-gate runpod create-template",
+           check("mcp__runpod__create-template", {}, None,
+                 env=dict(iso, SPEND_GUARD_PATTERNS="mcp:mcp__*runpod*__create-template"))
+           is not None)
+    record("MCP user glob identical to default text still blocks create-secret",
+           check("mcp__runpod__create-secret", {}, None,
+                 env=dict(iso, SPEND_GUARD_PATTERNS="mcp:mcp__*runpod*__create-*"))
+           is not None)
 
     # 5. file-based approval allows, and is consumed (one-shot)
     with tempfile.TemporaryDirectory() as tmp:
