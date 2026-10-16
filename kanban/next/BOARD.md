@@ -64,7 +64,8 @@ gh issue edit <n> -R <owner>/<repo> --remove-label status:<old> --add-label stat
 |---|---|---|
 | Branch created | `pair` / `implementer` | In Progress + comment "Started on branch `<b>`" |
 | Session ends complete | `session-handoff` | In Review |
-| Verified | `update-progress` | Done, issue closed |
+| Verified, merged | `update-progress` | Done, issue closed |
+| Verified, not merged | `update-progress` | In Review + comment |
 | New issue (divide, consult-plan) | that skill | Todo |
 
 A board error never blocks the task: note it and carry on.

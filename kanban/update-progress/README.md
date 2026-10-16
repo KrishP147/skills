@@ -16,13 +16,13 @@ In a fresh session after [`session-handoff`](../session-handoff/). The `verifier
 
 ## How it works
 
-1. **Locate the handoff** (given path, or newest by mtime among `skilleddocs/handoffs/*.md` in every `git worktree list` entry, current first; tied mtimes are listed and you are asked; then temp dir).
-2. **Verify claims:** `git log` over the handoff's base SHA..head (else `git merge-base <default> <branch>`); runs the repo's test suite if one is detectable. Doesn't trust "tests pass".
+1. **Locate the handoff** (given path, or newest by mtime in the handoff folder (`AGENTS.md`/`CLAUDE.md`'s, else `skilleddocs/handoffs/`) of every `git worktree list` entry, current first, skipping one whose issues are all closed; tied mtimes are listed and you are asked; then temp dir).
+2. **Verify claims:** `git log` over the handoff's base SHA..head (else `git merge-base <default> <branch>`); runs the repo's test suite on the handoff's code: the default checkout if head is merged, else the worktree with the branch checked out, else a temporary `git worktree add` of head. Doesn't trust "tests pass".
 3. **Code review** via the `code-review` skill if product code changed.
-4. **Update docs that exist:** roadmap checkboxes, status doc rows + dated entry, decisions doc (only if a decision was recorded), else README status section / `CHANGELOG.md` / `docs/`. Moves a "current phase" marker to where merges are landing; fixes README feature lists that miss merged capabilities. Never invents doc structure.
-5. **Update the board:** comments on the issue; closes it and moves the card to Done if complete and verified, otherwise sets the card/label to where it stands. Label mode: creates `status:done` first if missing; complete → `status:in-review` (or a never-moved `status:in-progress`) becomes `status:done`; partial/blocked keeps its label.
+4. **Update docs that exist** (only once the work is merged into the default branch): roadmap checkboxes, status doc rows + dated entry, decisions doc (only if a decision was recorded), else README status section / `CHANGELOG.md` / `docs/`. Moves a "current phase" marker to where merges are landing; fixes README feature lists that miss merged capabilities. Never invents doc structure.
+5. **Update the board:** comments on the issue; closes it and moves the card to Done if complete, verified and merged; complete and verified but unmerged → In Review with a "verified, awaiting merge" comment; otherwise sets the card/label to where it stands. Label mode: creates `status:done` first if missing; complete → `status:in-review` (or a never-moved `status:in-progress`) becomes `status:done`; partial/blocked keeps its label.
 6. **Escalate deviations:** if the handoff's `## Board status` lists deviations/innovations, calls [`consult-plan`](../consult-plan/).
-7. **Commits the handoff** on the default branch (copied into the default checkout first if it sits in the task's worktree), if it was left uncommitted and the repo is in commit mode per [`TRACKING.md`](../../handoff-auto/TRACKING.md).
+7. **Commits the handoff** on the default branch (moved into the default checkout first if it sits in the task's worktree, so the stale copy can't block that branch's next merge), if it was left uncommitted and the repo is in commit mode per [`TRACKING.md`](../../handoff-auto/TRACKING.md).
 8. Ends by calling (or telling you to call) [`next`](../next/).
 
 ## Design principles
@@ -41,8 +41,8 @@ In a fresh session after [`session-handoff`](../session-handoff/). The `verifier
 
 ## Tips
 
-- Run it in a fresh session; with no argument it picks the newest file by mtime in `skilleddocs/handoffs/` of any worktree, so pass the path if several sessions ended recently.
-- Only complete and verified work goes to Done and closes the issue; anything else is set to where it really stands.
+- Run it in a fresh session; with no argument it picks the newest file by mtime in the handoff folder of any worktree, so pass the path if several sessions ended recently.
+- Only complete, verified and merged work goes to Done and closes the issue; verified but unmerged waits in In Review; anything else is set to where it really stands.
 - Code review only runs when product code changed; the `verifier` agent skips it with `review-done=yes`.
 - It ends with `next`, so the following task is already on screen.
 
@@ -53,7 +53,7 @@ In a fresh session after [`session-handoff`](../session-handoff/). The `verifier
 ```
 
 1. Picks the newest handoff, `skilleddocs/handoffs/2026-10-15-csv-export.md`, for #31.
-2. `git log` from the handoff's base SHA shows 3 commits; runs `npm test` (green), matching the handoff.
+2. `git log` from the handoff's base SHA shows 3 commits, already merged into `main`; runs `npm test` there (green), matching the handoff.
 3. Product code changed, so it runs `code-review` on those commits.
 4. Ticks #31 in `ROADMAP.md` and adds a `CHANGELOG.md` entry, both already present in the repo; the README's feature list lacked CSV export, so it adds it.
 5. Comments a summary on #31, moves the card to Done and closes the issue.
