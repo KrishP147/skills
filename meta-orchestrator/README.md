@@ -43,6 +43,18 @@ Works through a repo's backlog unattended. Claude becomes the **orchestrator**: 
 6. **Rotation** ([`ROTATION.md`](ROTATION.md)). After `handoff_budget` merges or a smart-zone warning: writes `orchestrator-handoff.md`, logs it, optionally runs a progress report, stops. `resume` picks up from there.
 7. **Done** when every in-scope issue is closed or parked with a reason (or `stop` is reached), default is green, every merge has a verify entry.
 
+## Flow
+
+```mermaid
+flowchart TD
+    planner[planner: kickoff brief] -->|execution: pair| manager[manager]
+    planner -->|execution: flat| implementer[implementer]
+    manager --> gate[Merge gate: the orchestrator]
+    implementer --> gate
+    gate --> verifier[verifier]
+    verifier -->|repeat| planner
+```
+
 ## Design principles
 
 - **The orchestrator never implements.** Its context stays free for decisions; a strong model there is worth more than anywhere else.
