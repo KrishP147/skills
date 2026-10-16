@@ -27,7 +27,7 @@ Writes: `skilleddocs/grills/<date>-<slug>.md` and the decisions doc: the one `AG
 
 ## Design principles
 
-- **Write as you go.** Each round is recorded before the next one, so an abandoned session still leaves a usable record (`Status: abandoned at Q<n>`).
+- **Write as you go.** Each answer is recorded before the next question, so an abandoned session still leaves a usable record (`Status: abandoned after Q<n>`); rerunning with the same slug resumes it.
 - **The register is the interface.** Planners, verifiers and `consult-plan` read the register (the decisions doc above), so every answer becomes a row, delegated ones included.
 - **Append-only.** A decision is reversed with a new row; old rows stay as written.
 

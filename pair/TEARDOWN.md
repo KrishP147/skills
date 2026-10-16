@@ -4,7 +4,7 @@ Run after the PR merges, from any directory. Untracked and git-excluded files in
 
 Fill in:
 - `<wt>`, `<main>`: absolute paths of the worktree and the main checkout.
-- `<reg>`: the decisions register, relative to the repo root with `/` (the one `AGENTS.md`/`CLAUDE.md` names; else `docs/decisions.md`; else `skilleddocs/decisions.md`).
+- `<reg>`: the decisions register, relative to the repo root with `/` (the one `AGENTS.md`/`CLAUDE.md` names, nearest wins as in `grill-docs`; else `docs/decisions.md`; else `skilleddocs/decisions.md`).
 - `<more>`: each other doc folder `AGENTS.md`/`CLAUDE.md` names (handoffs, decisions), quoted, relative to the root; empty when none.
 
 ## 1. Records into main
