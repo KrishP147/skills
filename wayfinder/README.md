@@ -69,4 +69,4 @@ Grills you to a destination ("a decision record naming the framework, with a mig
 
 ## Prereqs
 
-`gh` authenticated with issue write access on the repo, and `origin` on GitHub; [`grill-docs`](../grill-docs/) installed alongside it.
+`gh` authenticated with issue write access on the repo, and `origin` on GitHub; [`grill-docs`](../grill-docs/) installed alongside it. On a fork it asks which repo to write to (fork issues off: it reads the parent).

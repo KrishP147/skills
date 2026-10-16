@@ -68,4 +68,4 @@ You say yes. It creates #40, #41 and #42 (each "Part of #28. …"), adds three t
 
 ## Prereqs
 
-`gh`, authenticated, `origin` on GitHub (otherwise it stops and says so). Projects v2 boards need the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)).
+`gh`, authenticated, `origin` on GitHub (otherwise it stops and says so). On a fork it asks which repo to write to (fork issues off: it reads the parent). Projects v2 boards need the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)).
