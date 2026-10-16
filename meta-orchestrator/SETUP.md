@@ -40,7 +40,7 @@ Use the AskUserQuestion tool when available (≤4 questions per call, recommende
 | Key | Options (default first) | Effect |
 |---|---|---|
 | `scope` | all open issues · label filter `<label>` · explicit list `#a #b` | what the planner may pick |
-| `exclude` | gated / people / external-input issues · custom labels | planner drops these |
+| `exclude` | gated / people / external-input issues · custom labels | planner drops these; `wayfinder:*` issues are always excluded (planning tickets, worked only via `/wayfinder`) |
 | `order` | priority label → board order → oldest · roadmap order · explicit | planner's ordering |
 | `stop` | queue empty · after N merges · after a time box | when SKILL.md §7 "done" applies |
 | `execution` | `pair` · `flat` | manager per issue, or implementer directly |
