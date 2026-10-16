@@ -171,7 +171,7 @@ if ($stale.Count -gt 0) {
     Write-Warning "stale agent(s) not in repo, remove manually: $($stale -join ', ')"
 }
 
-$staleSkills = @(Get-ChildItem -Path $target -Directory | Where-Object {
+$staleSkills = @(Get-ChildItem -LiteralPath $target -Directory -Force | Where-Object {
     (Test-Path -LiteralPath (Join-Path $_.FullName $Marker) -PathType Leaf) -and ($repoSkills -notcontains $_.Name)
 } | ForEach-Object { $_.Name })
 if ($staleSkills.Count -gt 0) {
