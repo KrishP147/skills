@@ -102,6 +102,8 @@ skill. Writes: `skilleddocs/gaps/<local-date>.md` only.
 /gap-scan
 ```
 
+Illustrative: repo state as of 2026-09-26; findings may since be fixed.
+
 Run read-only against a skills-and-agents repo (a collection of small
 Markdown-defined Claude Code skills, a lint script, and a small static
 site). Sync: clean, pulled nothing new. Survey found:
