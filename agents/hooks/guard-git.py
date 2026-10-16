@@ -536,7 +536,7 @@ def analyze(cmd, ctx, depth=0):
     segs, subs, docs = split_commands(cmd, ps=ps)
     for s in subs:
         analyze(s, ctx, depth + 1)
-    stdin_modes = []
+    stdin_modes, code_stdin = [], False
     for idx, seg in enumerate(segs):
         toks = tokenize(seg, ps=ps)
         if toks is None:
@@ -547,13 +547,19 @@ def analyze(cmd, ctx, depth=0):
         if mode == "code":  # `python - <<EOF`, `node <<< '...'`: stdin is code
             for body in docs.get(idx, []) + herestrings(seg, ps):
                 check_code(body, ctx)
+            code_stdin = True
             continue
         if mode:
             stdin_modes.append(mode)
             for body in docs.get(idx, []) + herestrings(seg, ps):  # `bash <<EOF`, `bash <<< '...'`
                 analyze_in(body, ctx, depth + 1, mode == "ps")
-    if stdin_modes and ctx.decoder_seen:
+    if (stdin_modes or code_stdin) and ctx.decoder_seen:
         ctx.block("decoded base64/hex text piped into a shell; failing closed.")
+    if code_stdin:  # `echo "..." | python`
+        for seg in segs:
+            toks = tokenize(seg, ps=ps) or seg.split()
+            if toks and base(toks[0]) in ("echo", "printf", "write-output", "write-host", "cat"):
+                check_code(" ".join(toks[1:]), ctx)
     for mode in stdin_modes:
         # `echo "git push origin main" | sh` (or `'...' | iex`): the piped text
         # is the script a stdin-reading shell runs.
@@ -1515,11 +1521,19 @@ def check_gh_api(args, ctx):
 
 # ---------------------------------------------------------------- entry
 
+# base64/hex decoders: their output can't be read, so feeding it to a shell,
+# eval or iex fails closed.
+DECODER_RE = re.compile(r"\bbase64\b[^|;&\n]*\s(-[a-z]*d[a-z]*|-D|--decode)\b|\bxxd\b[^|;&\n]*\s-[a-z]*r"
+                        r"|\bopenssl\b[^|;&\n]*\s-d\b|\bcertutil\b[^|;&\n]*-decode|frombase64string"
+                        r"|\buudecode\b|b64decode|\batob\s*\(", re.I)
+
+
 def decide(command, ctx):
     """Return a block reason, or None to allow. Fails closed on internal
     errors when the command mentions push/merge/delete."""
     try:
         ctx.top_cmd = command
+        ctx.decoder_seen = bool(DECODER_RE.search(command))
         analyze(command, ctx)
         return None
     except Block as b:
