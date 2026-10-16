@@ -66,7 +66,7 @@ Each ticket carries exactly one `wayfinder:<type>` label: `research`, `prototype
 
 **Blocking** uses GitHub's native issue dependencies, so the frontier shows in GitHub's own UI. A ticket is **unblocked** when every ticket blocking it is closed; the **frontier** is the open, unblocked, unclaimed sub-issues.
 
-The answer is never in the body; it's recorded on resolution. **Assets** made while resolving (prototypes, long findings): short → inline in the resolution comment; else a secret gist (`gh gist create`) linked from it; a committed file only when the repo tracks that path. Never link an untracked file (e.g. under an excluded `skilleddocs/`) from GitHub: nobody else can open it.
+The answer is never in the body; it's recorded on resolution. **Assets** made while resolving (prototypes, long findings): inline in the resolution comment, split over several comments when long; a committed file when the repo tracks that path. Never create a gist without a yes naming its content and destination: a secret gist is readable by anyone with the link. Never link an untracked file (e.g. under an excluded `skilleddocs/`) from GitHub: nobody else can open it.
 
 ### GitHub operations
 
