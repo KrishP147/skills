@@ -54,6 +54,7 @@ Each tier builds on the one above: `pair` is one orchestrator loop without the b
 | [`repo-scrub`](repo-scrub/README.md) | Scans a GitHub repo's full git history for secrets and oversized files, lets you pick exactly what to scrub, rewrites history safely, and only then flips the repo private → public. User-invoked only (`/repo-scrub`). | `gh`, [`gitleaks`](https://github.com/gitleaks/gitleaks), [`git-filter-repo`](https://github.com/newren/git-filter-repo) |
 | [`grilling`](grilling/README.md) *(Matt Pocock)* | Interviews you relentlessly, one round of questions at a time with a recommendation attached to each, until a plan or decision is fully stress-tested. | none |
 | [`grill-me`](grill-me/README.md) *(Matt Pocock)* | Short alias for `grilling`. User-invoked only (`/grill-me`); Claude auto-invokes `grilling` instead. | none |
+| [`ponytail`](ponytail/README.md) *(DietrichGebert, third-party, verbatim)* | Lazy-senior-developer mode for the whole session: the smallest change that fully solves the task, plus a closing line on what was skipped and any risk. Levels `lite`, `full` (default), `ultra`; stays on until "stop ponytail". | none |
 | [`grill-docs`](grill-docs/README.md) | `grilling` with a paper trail: writes the Q→A transcript to `skilleddocs/grills/` as each round settles and appends every decision to `skilleddocs/decisions.md`, so planners, verifiers and teammates can read what was decided and why. | none |
 | [`handoff`](handoff/README.md) *(Matt Pocock, save path modified, commit rule added)* | Compacts the current conversation into a handoff document so a fresh session can pick up where it left off; saved under `skilleddocs/handoffs/`. User-invoked only (`/handoff`). | none |
 | [`handoff-auto`](handoff-auto/README.md) *(derived from Pocock's `handoff`; frontmatter, save path and commit rule differ)* | Same document, but callable by the model, so other skills and subagents can end a session unattended. Saved under `skilleddocs/handoffs/`, committed or not per [`TRACKING.md`](handoff-auto/TRACKING.md). Prints the file path as its last line. | none |
@@ -100,7 +101,7 @@ Not auto-installed. [`smartzone.py`](hooks/smartzone.py) is a `UserPromptSubmit`
 
 Claude-Code-style terminal home (free-typing slash search: ranked matches, aliases, did-you-mean on typos) plus a plain list of every skill, agent and hook, a `/<name>` page per entry whose README `## Example` renders as a Claude Code session, light or dark with the OS theme, generated from this repo by [`scripts/build_site.py`](scripts/build_site.py) (stdlib only). Served at krishpunjabi.com/skills. Build, test and deploy steps in [`site/README.md`](site/README.md).
 
-Attribution and divergences: [Relation to Matt Pocock's skills](#relation-to-matt-pococks-skills). Licence: [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
+Attribution and divergences: [Third-party skills](#third-party-skills). Licence: [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
 
 ## Where skills write: `skilleddocs/`
 
@@ -214,7 +215,9 @@ Neither set → the forbidden-word check is silently skipped.
 
 Contributions welcome — new skills, fixes, better docs. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the submission format (start from [`templates/skill/`](templates/skill/)) and rules. Feel free to grow it.
 
-## Relation to Matt Pocock's skills
+## Third-party skills
+
+### Relation to Matt Pocock's skills
 
 Several things here come from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT; notice in [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)). Checked against his repo with the GitHub API on 2026-10-15.
 
@@ -228,6 +231,10 @@ Several things here come from [mattpocock/skills](https://github.com/mattpocock/
 - **Kept in sync weekly:** [`upstream.json`](upstream.json) lists each derived file with its upstream path, mode and the upstream commit last synced. The [`upstream-sync`](.github/workflows/upstream-sync.yml) workflow runs [`scripts/upstream_sync.py`](scripts/upstream_sync.py) every Monday (or on demand): a verbatim copy that changed upstream gets a PR from `upstream-sync/verbatim`; a modified one gets an issue `upstream-sync: <path>` with the upstream diff since the recorded commit, and after porting it you run `python scripts/upstream_sync.py --mark-synced <path>` (to skip the change, run only that). Only open PRs and issues count as already filed: closing the issue without `--mark-synced`, or closing the PR unmerged, gets a fresh one on the next run (the branch is force-pushed). Opening the PR needs the repo setting "Allow GitHub Actions to create and approve pull requests" (Settings > Actions > General). `dotfiles/CLAUDE.md` is not tracked, since its source is not in that repo. Run `python scripts/upstream_sync.py --dry-run` to check by hand.
 
 `npx skills add mattpocock/skills` pulls his full set directly.
+
+### Relation to DietrichGebert's ponytail
+
+[`ponytail`](ponytail/README.md) is copied verbatim from [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) (MIT; notice in [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)), file `skills/ponytail/SKILL.md` at v5.2.0. Only that core skill is included, not its sibling skills, hooks or statusline. Its `README.md` here is original. It is tracked in [`upstream.json`](upstream.json) and synced weekly like the Pocock copies above.
 
 ## My `CLAUDE.md`
 
@@ -251,4 +258,4 @@ Pass `--prefix <p>` (sh) / `-Prefix <p>` (ps1) to fill in the branch-prefix plac
 
 ## License
 
-MIT (see [`LICENSE`](LICENSE)) for everything original in this repo. Matt Pocock's skills carry his own MIT notice; see [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
+MIT (see [`LICENSE`](LICENSE)) for everything original in this repo. Matt Pocock's skills and DietrichGebert's `ponytail` carry their own MIT notices; see [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
