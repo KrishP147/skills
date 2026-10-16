@@ -3,7 +3,8 @@
 # replaced fresh; a same-named dir NOT installed by this repo (no marker
 # file) is left alone unless -Force. Also copies agents/*.md and
 # agents/hooks/ over ~/.claude/agents/; agents there that aren't in this
-# repo are warned about, never deleted.
+# repo are warned about, never deleted. Same for skill dirs in the target
+# that carry the marker but are no longer in this repo (stale skills).
 #
 # Flags:
 #   -NoLint     proceed even if no working python 3 is found (skips lint)
@@ -115,12 +116,14 @@ New-Item -ItemType Directory -Force -Path $agentsTarget | Out-Null
 $templatesPath = Join-Path $repoRoot "templates"
 $installed = @()
 $skippedForeign = @()
+$repoSkills = @()
 Get-ChildItem -Path $repoRoot -Recurse -Filter "SKILL.md" -Depth 2 | Where-Object {
     -not $_.FullName.StartsWith($templatesPath + [System.IO.Path]::DirectorySeparatorChar)
 } | ForEach-Object {
     $skillDir = $_.Directory
     $name = $skillDir.Name
     $dest = Join-Path $target $name
+    $script:repoSkills += $name
     if ((Test-Path $dest) -and -not (Test-Path (Join-Path $dest $Marker)) -and -not $Force) {
         Write-Warning "$dest exists and wasn't installed by this repo, skipping (use -Force to replace)"
         $skippedForeign += $name
@@ -166,6 +169,13 @@ $stale = @(Get-ChildItem -Path $agentsTarget -Filter "*.md" -File | Where-Object
 } | ForEach-Object { $_.Name })
 if ($stale.Count -gt 0) {
     Write-Warning "stale agent(s) not in repo, remove manually: $($stale -join ', ')"
+}
+
+$staleSkills = @(Get-ChildItem -Path $target -Directory | Where-Object {
+    (Test-Path -LiteralPath (Join-Path $_.FullName $Marker) -PathType Leaf) -and ($repoSkills -notcontains $_.Name)
+} | ForEach-Object { $_.Name })
+if ($staleSkills.Count -gt 0) {
+    Write-Warning "stale skill(s) not in repo, remove manually: $($staleSkills -join ', ')"
 }
 
 if ($skippedForeign.Count -gt 0) {

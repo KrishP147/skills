@@ -6,6 +6,7 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 
 ## [0.1.0] - 2026-10-15
 
+- Install scripts warn (never delete) on installed skill dirs with the marker that are no longer in the repo ("stale skill(s)"); exit code unchanged.
 - `session-bridge` snapshot: LAST USER ASK skips reminders, tool results and agent relays (slash commands shown as `/name args`); Agent/Skill/WebFetch actions labelled; secrets redacted before truncation.
 - `spend-guard` also gates noun-first runpodctl forms: `runpodctl pod create`, `serverless create`, `network-volume create`.
 - `spend-guard` default patterns also match `.exe`/`.cmd`, quoted and full-path CLI forms (e.g. `& "C:\...\runpodctl.exe" create`).
