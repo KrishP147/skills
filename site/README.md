@@ -44,8 +44,7 @@ optional `aliases` from `meta.json`) in `#skill-data`.
   summary word or, at 4+ chars, its start; words under 3 chars and stopwords
   (`the`, `and`, ...) are ignored. 1-2 content words must all match, longer
   queries at least half. Ranking: phrase (words contiguous, in order) > all
-  words > most words; ties A-Z. `/run one task` finds `/pair`; `/review`
-  finds `/pr-watch`. Rows are normal options (Tab/Enter/click) under a dim
+  words > most words; ties A-Z. `/run one task` finds `/pair`. Rows are normal options (Tab/Enter/click) under a dim
   `No command name matches "/run one task". Matched descriptions:` line. A
   close name typo (`/gril-me`) still wins over a description hit.
 - **No match:** `No command matches "/x". Did you mean /y?` with up to 3
