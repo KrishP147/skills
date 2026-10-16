@@ -13,7 +13,7 @@ Commands: `setup` (default; also when `experiments.md` has no setup header), `re
 1. Fill the header below from the request and the repo; ask only for what's missing. Create the loop branch off the current HEAD.
 2. **Harness first.** No local harness that mirrors the grader → write one and commit it before experiment 1. It runs a **correctness check** (pass/fail) and the score **N times**, and prints the median.
 3. **Noise margin**: run the baseline N times; propose margin = max − min of those runs.
-4. **Calibrate**: plan one official submission of the baseline and record the local–official gap. A gap wider than the margin → fix the harness first. No official grader → skip and write `calibration: none (no official grader)`.
+4. **Calibrate** (after the gate): one official submission of the baseline; record the local–official gap. A gap wider than the margin → fix the harness before experiment 1. No official grader → skip and write `calibration: none (no official grader)`.
 5. Freeze time = deadline − max(10% of (deadline − now), 30 min).
 6. Gate: show the filled header and each outward action (the calibration submission, the quota, any paid step). One explicit yes covers this setup; anything vaguer is a no. Then write the header, run the calibration, and go unattended.
 
