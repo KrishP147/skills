@@ -36,6 +36,13 @@
       "mode": "modified"
     },
     {
+      "repo": "mattpocock/skills",
+      "upstream_path": "skills/engineering/wayfinder/SKILL.md",
+      "local_path": "wayfinder/SKILL.md",
+      "upstream_sha": "49dd158d1076134a641b33efb035946536778336",
+      "mode": "modified"
+    },
+    {
       "repo": "DietrichGebert/ponytail",
       "upstream_path": "skills/ponytail/SKILL.md",
       "local_path": "ponytail/SKILL.md",

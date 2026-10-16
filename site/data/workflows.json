@@ -36,6 +36,19 @@
     ]
   },
   {
+    "name": "big-effort",
+    "title": "Plan an effort too big for one session",
+    "steps": [
+      {"kind": "human", "why": "Type /wayfinder with the loose idea: it is user-only, so Claude can't start it."},
+      {"kind": "skill", "name": "wayfinder", "why": "Grills you to a destination, then charts a wayfinder:map issue whose sub-issues are decision tickets, with blocking wired through GitHub's issue dependencies."},
+      {"kind": "skill", "name": "grill-docs", "why": "Resolves a grilling ticket: runs the grilling interview, writing the transcript to skilleddocs/grills/ and each decision to skilleddocs/decisions.md as each round settles."},
+      {"kind": "human", "why": "Answer each round yourself, one ticket per session, until no tickets or fog remain."},
+      {"kind": "skill", "name": "divide", "why": "Proposes 2+ session-sized issues from the map, each with a done-when; on yes, creates them and puts them on the board at Todo."},
+      {"kind": "human", "why": "Approve the split; the map gets a Handed off list and closes."},
+      {"kind": "skill", "name": "meta-orchestrator", "why": "Loops planner, manager or implementer, its own merge gate and verifier per issue, logging each step to the ledger."}
+    ]
+  },
+  {
     "name": "pitch-an-idea",
     "title": "Pitch an idea against the plan",
     "steps": [

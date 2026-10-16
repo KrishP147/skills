@@ -14,3 +14,4 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 - Skill evals under `evals/` (trigger, near-miss and behaviour cases in the `claude plugin eval` format); `python scripts/evals.py` validates them and prints the paid run command without running it.
 - Sample workflows: a `/workflows` page on the site and a Sample workflows section on each skill page, from `site/data/workflows.json`.
 - Skills map: a `/map` page on the site (also `/map` in the slash prompt) grouping every skill, agent and hook, with arrows built from Related links, agent preloads and the sample workflows.
+- New `wayfinder` skill (adapted from Matt Pocock's): plans an effort too big for one session as a `wayfinder:map` issue of decision tickets, then hands off to `divide`; `next` and `planner` skip `wayfinder:*` issues.
