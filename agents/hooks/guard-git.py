@@ -100,6 +100,10 @@ def git_alias(cwd, name):
     return _git_out(cwd, ["config", "--get", "alias." + name])
 
 
+def git_dir_branch(cwd, git_dir):
+    return _git_out(cwd, ["--git-dir", git_dir, "rev-parse", "--abbrev-ref", "HEAD"])
+
+
 def _git_out(cwd, args):
     try:
         out = subprocess.run(["git"] + args, cwd=cwd or None, capture_output=True, text=True, timeout=5)
@@ -112,12 +116,24 @@ def _git_out(cwd, args):
 
 class Ctx:
     def __init__(self, protected, cwd=None, branch_lookup=git_current_branch, alias_lookup=git_alias,
-                 powershell=False):
+                 powershell=False, gitdir_lookup=git_dir_branch, msys=(os.name == "nt")):
         self.protected = [p.lower() for p in protected]
         self.cwd = cwd
         self.branch_lookup = branch_lookup
         self.alias_lookup = alias_lookup
+        self.gitdir_lookup = gitdir_lookup  # (cwd, git_dir) -> branch of that repo
         self.powershell = powershell
+        self.msys = msys  # map Git Bash `/c/x` and `/cygdrive/c/x` to `C:\x`
+        # GIT_DIR / GIT_WORK_TREE: exported (persist) and per-command overlays
+        self.git_env = {}
+        self.seg_env = {}
+        # aliases defined earlier in the command: `alias gp=...`, Set-Alias,
+        # `git config alias.x ...` (name -> expansion)
+        self.shell_aliases = {}
+        self.git_aliases = {}
+        # base64/xxd/openssl decode somewhere in the command: decoded text fed
+        # to a shell/iex can't be read -> fail closed
+        self.decoder_seen = False
         # current branch after an in-command `git checkout/switch <name>`; a
         # protected name (or UNKNOWN_BRANCH) makes a later bare push fail closed.
         self.branch_override = None
@@ -138,6 +154,22 @@ class Ctx:
         if RISKY_WORDS.search(self.top_cmd):
             self.block("%s runs code that can't be read, in a command mentioning "
                        "push/merge/delete; failing closed." % what)
+        if self.decoder_seen:
+            self.block("%s runs code that can't be read, in a command that decodes "
+                       "base64/hex; failing closed." % what)
+
+    def path(self, base_dir, p):
+        """`p` resolved against `base_dir`, with MSYS drive paths mapped."""
+        if self.msys and not self.powershell:
+            m = re.match(r"^(?:/cygdrive)?/([A-Za-z])(?=/|$)(.*)$", p)
+            if m:
+                p = m.group(1).upper() + ":\\" + m.group(2).lstrip("/").replace("/", "\\")
+        return os.path.join(base_dir or os.getcwd(), p)
+
+    def env(self):
+        e = dict(self.git_env)
+        e.update(self.seg_env)
+        return e
 
 
 # ---------------------------------------------------------------- splitting
@@ -626,7 +658,7 @@ def run_segment(toks, ctx, subs, depth):
     if head in CD_WORDS and rest:
         target = pwsh_path_arg(rest) if head != "cd" else rest[0]
         if target and not is_dynamic(target):
-            ctx.cwd = os.path.join(ctx.cwd or os.getcwd(), target)
+            ctx.cwd = ctx.path(ctx.cwd, target)
         return False
     if head in ("export", "declare", "typeset", "readonly", "local"):
         scan_config_env([t for t in rest if not t.startswith("-")], ctx)
@@ -913,7 +945,7 @@ def check_git(args, ctx, subs, depth, alias_depth=0):
         if t in GIT_ARG_OPTS and i + 1 < len(args):
             v = args[i + 1]
             if t == "-C" and not is_dynamic(v):
-                cwd = os.path.join(cwd or os.getcwd(), v)
+                cwd = ctx.path(cwd, v)
             if t == "-c" and "=" in v:
                 k, val = v.split("=", 1)
                 if k.lower().startswith("alias."):
@@ -1789,6 +1821,143 @@ def run_self_test():
     for cmd, expect, ps, lookup in extra:
         ctx = Ctx(["main", "master"], "/repo", branch_lookup=lookup,
                   alias_lookup=lambda cwd, name: None, powershell=ps)
+        reason = decide(cmd, ctx)
+        ok = (reason is not None) == expect
+        passed += ok
+        failed += not ok
+        print("%s: %-62s block=%-5s %s" % (
+            "PASS" if ok else "FAIL", cmd.replace("\n", "\\n")[:62], reason is not None, reason or ""))
+
+    # --- round 3 (issue #156); msys=True on every OS so CI on Linux runs them too
+    def win_lookup(cwd):
+        c = (cwd or "").replace("\\", "/").rstrip("/")
+        if c.endswith("C:/Users/x/feat") or c == "/repo":
+            return "feat"
+        return "main" if c.endswith("C:/Users/x/mainrepo") else None
+
+    def gd_lookup(cwd, gd):
+        g = gd.replace("\\", "/")
+        return "main" if "mainrepo" in g else ("krish/x" if "featrepo" in g else None)
+
+    round3 = [  # (command, expect_block, powershell)
+        # 1. persistent git alias writes, then use
+        ("git config alias.sync 'push origin HEAD:main' && git sync", B, False),
+        ("git config --local alias.up push && git up origin main", B, False),
+        ("git config alias.s '!git push origin main' && git s", B, False),
+        ("git config --global alias.p '!f() { git push origin main; }; f'", B, False),
+        ("git config alias.mm 'merge --ff-only'", B, False),  # value mentions merge
+        ("git config alias.co checkout && git co main && git push", B, False),
+        ("git config alias.x $V && git x origin main", B, False),
+        ("git config alias.st status && git st", A, False),
+        ("git config --global alias.lg 'log --oneline --graph'", A, False),
+        # 2. shell aliases
+        ("alias gp='git push origin main'; gp", B, False),
+        ("alias gp='git push'; gp origin main", B, False),
+        ("alias g=git; g push origin main", B, False),
+        ("alias ll='ls -la'; ll", A, False),
+        ("alias gs='git status'; gs", A, False),
+        ("Set-Alias gp git; gp push origin main", B, True),
+        ("New-Alias -Name g -Value git; g push origin main", B, True),
+        ("sal -Value git -Name g; g push --force origin x", B, True),
+        ("Set-Alias -Name g -Value $exe; g push origin main", B, True),
+        ("Set-Alias g git; g status", A, True),
+        ("Set-Alias g git; g push origin krish/x", A, True),
+        # 3. unreadable git subcommand
+        ("a=push; git $a origin main", B, False),
+        ("$a='push'; git $a origin main", B, True),
+        ("git $(echo push) origin main", B, False),
+        ("git ${SUB} origin krish/x", B, False),
+        # 4. --git-dir / GIT_DIR / GIT_WORK_TREE naming another repo
+        ("git --git-dir=../mainrepo/.git push", B, False),
+        ("git --git-dir ../mainrepo/.git push origin HEAD", B, False),
+        ("GIT_DIR=../mainrepo/.git git push", B, False),
+        ("export GIT_DIR=../mainrepo/.git; git push", B, False),
+        ("export GIT_WORK_TREE=x GIT_DIR=../mainrepo/.git; git push", B, False),
+        ("env GIT_DIR=../mainrepo/.git git push -u origin HEAD", B, False),
+        ("$env:GIT_DIR = '../mainrepo/.git'; git push", B, True),
+        ("$env:GIT_DIR='../mainrepo/.git'; git push origin HEAD", B, True),
+        ("git --git-dir=$D push", B, False),
+        ("git --git-dir=../nowhere/.git push", B, False),  # unreadable -> fail closed
+        ("GIT_WORK_TREE=../nowhere git push", B, False),
+        ("git --git-dir=../featrepo/.git push", A, False),
+        ("GIT_DIR=../featrepo/.git git push origin HEAD", A, False),
+        ("git --git-dir=../mainrepo/.git push origin krish/x", A, False),
+        ("GIT_DIR=../featrepo/.git git status; git push", A, False),  # per-command scope
+        ("GIT_DIR=../mainrepo/.git git log; git push", A, False),
+        # 5. shell reading a here-string
+        ("bash <<< 'git push origin main'", B, False),
+        ("bash -s <<< 'git push origin main'", B, False),
+        ("sh <<<'git push --force origin x'", B, False),
+        ("bash <<< \"git push origin krish/x\"", A, False),
+        ("cat <<< 'git push origin main'", A, False),
+        # 6. non-literal Invoke-Expression
+        ("Invoke-Expression ('git push ' + 'origin main')", B, True),
+        ("iex ('git pu' + 'sh origin main')", B, True),
+        ("iex (Get-Content run.ps1 -Raw); git push origin krish/x", B, True),
+        ("iex (Get-Content run.ps1 -Raw)", A, True),
+        # 7. busybox <shell>
+        ("busybox sh -c 'git push origin main'", B, False),
+        ("busybox ash -c 'git push --force origin x'", B, False),
+        ("busybox sh -c 'git status'", A, False),
+        # 8. inline interpreters
+        ("python -c \"import os; os.system('git push origin main')\"", B, False),
+        ("python3 -c \"import subprocess; subprocess.run(['git', 'push'])\"", B, False),
+        ("py -c \"import os; os.system('gh pr merge 5')\"", B, True),
+        ("node -e \"require('child_process').execSync('git push origin main')\"", B, False),
+        ("node --eval \"require('child_process').execSync('gh api -X PUT repos/o/r/pulls/1/merge')\"", B, False),
+        ("perl -e 'system(\"git push origin main\")'", B, False),
+        ("ruby -e '`git push origin main`'", B, False),
+        ("python - <<'PY'\nimport os\nos.system('git push origin main')\nPY", B, False),
+        ("python -c \"print(1)\"", A, False),
+        ("node -e \"console.log(1)\"", A, False),
+        ("python scripts/x.py", A, False),
+        ("python -m pytest -q -k merge", A, False),
+        # 9. decoded text fed to a shell / iex
+        ("echo Z2l0IHB1c2ggb3JpZ2luIG1haW4= | base64 -d | sh", B, False),
+        ("echo Z2l0 | base64 --decode | bash", B, False),
+        ("sh -c \"$(echo Z2l0 | base64 -d)\"", B, False),
+        ("echo 67 | xxd -r -p | bash", B, False),
+        ("openssl enc -d -base64 -in x.b64 | sh", B, False),
+        ("iex ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('Z2l0')))", B, True),
+        ("echo Z2l0 | base64 -d > out.bin", A, False),
+        ("base64 -d in.b64 > out.bin && bash build.sh", A, False),
+        # 10. HTTP writes to GitHub merge/ref/contents/pull endpoints
+        ("curl -X PUT -H 'Authorization: token x' https://api.github.com/repos/o/r/contents/a -d '{\"branch\":\"main\"}'", B, False),
+        ("curl -X PUT https://api.github.com/repos/o/r/pulls/5/merge", B, False),
+        ("curl -d '{\"base\":\"main\"}' https://api.github.com/repos/o/r/merges", B, False),
+        ("curl --request PATCH https://api.github.com/repos/o/r/git/refs/heads/main --data x", B, False),
+        ("curl -XDELETE https://api.github.com/repos/o/r/git/refs/heads/main", B, False),
+        ("curl --json '{}' https://api.github.com/repos/o/r/pulls", B, False),
+        ("wget --method=PUT https://api.github.com/repos/o/r/pulls/5/merge", B, False),
+        ("wget --post-data x https://api.github.com/repos/o/r/merges", B, False),
+        ("Invoke-RestMethod -Method Put -Uri https://api.github.com/repos/o/r/pulls/5/merge", B, True),
+        ("irm https://api.github.com/repos/o/r/contents/a -Method PUT -Body $b", B, True),
+        ("iwr -Uri https://api.github.com/repos/o/r/merges -Body '{}' -Method Post", B, True),
+        ("curl.exe -X PUT https://api.github.com/repos/o/r/contents/a", B, True),
+        ("curl -X POST https://api.github.com/graphql -d '{\"query\":\"mutation{mergePullRequest}\"}'", B, False),
+        ("curl https://api.github.com/repos/o/r/pulls", A, False),
+        ("curl -s https://api.github.com/repos/o/r/git/refs/heads/main", A, False),
+        ("irm https://api.github.com/repos/o/r/pulls/5", A, True),
+        ("curl -X POST https://example.com/api/merges -d x", A, False),
+        ("curl -X POST https://api.github.com/repos/o/r/issues/5/comments -d x", A, False),
+        # 11. Git Bash MSYS paths
+        ("cd /c/Users/x/feat && git push -u origin HEAD", A, False),
+        ("cd /cygdrive/c/Users/x/feat && git push", A, False),
+        ("git -C /c/Users/x/feat push origin HEAD", A, False),
+        ("cd /c/Users/x/mainrepo && git push", B, False),
+        ("cd \"C:/Users/x/feat\" && git push -u origin HEAD", A, False),
+        ("Set-Location C:\\Users\\x\\feat; git push -u origin HEAD", A, True),
+        ("cd C:\\Users\\x\\mainrepo; git push", B, True),
+        # allow-side musts
+        ("git status && git add a.txt && git commit -m 'merge push'", A, False),
+        ("git push origin krish/x", A, True),
+        ("npm test && npm run build", A, False),
+        ("gh pr create --base main --title x --body y && gh pr view", A, False),
+        ("pytest -q", A, False),
+    ]
+    for cmd, expect, ps in round3:
+        ctx = Ctx(["main", "master"], "/repo", branch_lookup=win_lookup, alias_lookup=lambda cwd, name: None,
+                  powershell=ps, gitdir_lookup=gd_lookup, msys=True)
         reason = decide(cmd, ctx)
         ok = (reason is not None) == expect
         passed += ok
