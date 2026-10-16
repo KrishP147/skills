@@ -21,11 +21,12 @@ Entry format for both: optional "bash:" or "mcp:" prefix, default "bash:".
 Blank lines and lines starting with # are ignored.
 
 Approval (either one allows the single matched action):
-  1. File-based, one-shot: drop any file into skilleddocs/spend-approvals/
+  1. File-based, one-shot: drop a file into skilleddocs/spend-approvals/
      (relative to cwd; override the directory with
-     SPEND_GATE_APPROVALS_DIR). The filename is just a label for your own
-     audit trail - contents are ignored. The hook consumes (deletes) the
-     first one it finds (sorted by name) and allows that single call.
+     SPEND_GATE_APPROVALS_DIR). The filename is just a label - contents are
+     ignored. Names starting with "." (.gitkeep, .DS_Store) never count.
+     The hook consumes (deletes) the first one it finds (sorted by name)
+     and allows that single call; the log is skilleddocs/spend.md.
   2. SPEND_GATE_APPROVED=<label>, two ways to set it:
        - PowerShell only: start the command with
          `$env:SPEND_GATE_APPROVED='<label>'; <cmd>` (leading only, `;`
@@ -295,14 +296,17 @@ def env_approved(env):
 
 
 def consume_file_approval(approvals_dir):
-    """If approvals_dir has any file, delete the first one (sorted) and
-    return True. Never raises."""
+    """If approvals_dir has a regular file whose name does not start with
+    ".", delete the first one (sorted) and return True. Dotfiles
+    (.gitkeep, .DS_Store) are ignored and never deleted: a committed
+    .gitkeep must not auto-approve after every checkout. Never raises."""
     try:
         if not os.path.isdir(approvals_dir):
             return False
         names = sorted(
             n for n in os.listdir(approvals_dir)
-            if os.path.isfile(os.path.join(approvals_dir, n))
+            if not n.startswith(".")
+            and os.path.isfile(os.path.join(approvals_dir, n))
         )
         if not names:
             return False
@@ -520,6 +524,28 @@ def run_self_test():
             "approval file is consumed (second call blocks again)",
             reason2 is not None,
         )
+
+    # 5a. dotfiles (.gitkeep, .DS_Store) are not approvals and are kept
+    with tempfile.TemporaryDirectory() as tmp:
+        for dot in (".gitkeep", ".DS_Store"):
+            open(os.path.join(tmp, dot), "w").close()
+        os.makedirs(os.path.join(tmp, "subdir"))
+        env = {"SPEND_GATE_APPROVALS_DIR": tmp}
+        record("approval dir with only dotfiles/subdir blocks",
+               check("Bash", {"command": "runpodctl create pod x"}, None, env=env)
+               is not None)
+        record("dotfiles not deleted by a blocked call",
+               os.path.exists(os.path.join(tmp, ".gitkeep"))
+               and os.path.exists(os.path.join(tmp, ".DS_Store")))
+        open(os.path.join(tmp, "approved-1"), "w").close()
+        record("real approval file beside .gitkeep allows",
+               check("Bash", {"command": "runpodctl create pod x"}, None, env=env)
+               is None)
+        record("real file consumed, .gitkeep kept",
+               not os.path.exists(os.path.join(tmp, "approved-1"))
+               and os.path.exists(os.path.join(tmp, ".gitkeep")))
+        record("MCP call with only .gitkeep blocks",
+               check("mcp__runpod__create-pod", {}, None, env=env) is not None)
 
     # 6. env approval allows - inline (Bash), process env (MCP)
     reason = check(
