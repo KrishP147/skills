@@ -215,6 +215,9 @@ def _extract(cmd, i, closer):
                 _, j = _heredoc_body(cmd, j + 1, delim, strip)
             pending = []
             continue
+        if q is None and cmd.startswith("<<<", j):
+            j += 3  # here-string, not a here-doc at j+1
+            continue
         if q is None and c == "<":
             hd = _heredoc_at(cmd, j)
             if hd:
@@ -312,6 +315,10 @@ def split_commands(cmd, ps=False):
         if c in "<>" and cmd.startswith("(", i + 1):
             i = subst(i + 2, ")")
             continue
+        if cmd.startswith("<<<", i):
+            buf.append("<<<")  # here-string, not a here-doc at i+1
+            i += 3
+            continue
         if c == "<":
             hd = _heredoc_at(cmd, i)
             if hd:
@@ -371,7 +378,37 @@ def _ps_call_op(cmd, i, buf):
 
 
 def tokenize(seg, ps=False):
-    """shlex(posix) tokens with redirections dropped. None on parse failure.
+    """shlex(posix) tokens with redirections dropped. None on parse failure."""
+    raw = _shlex_raw(seg, ps)
+    if raw is None:
+        return None
+    toks, skip = [], False
+    for t in raw:
+        if skip:
+            skip = False
+            continue
+        m = REDIRECT_RE.match(t)
+        if m:
+            skip = m.group(2) == ""
+            continue
+        toks.extend(brace_expand(t))
+    return toks
+
+
+def herestrings(seg, ps=False):
+    """Words fed to stdin by `<<< word` (a shell reading stdin runs them)."""
+    raw = _shlex_raw(seg, ps) or []
+    out = []
+    for k, t in enumerate(raw):
+        m = re.match(r"^[0-9]*<<<(.*)$", t)
+        if m:
+            word = m.group(1) or (raw[k + 1] if k + 1 < len(raw) else "")
+            out.append(word)
+    return out
+
+
+def _shlex_raw(seg, ps=False):
+    """shlex(posix) tokens, redirections kept. None on parse failure.
     With `ps=True`, backslashes outside '...' are doubled so POSIX shlex keeps
     Windows paths (`C:\\x\\repo`) instead of eating the separators."""
     if not ps:  # bash drops the `\` of `\`` and `\$` inside "...", shlex keeps it
@@ -399,20 +436,9 @@ def tokenize(seg, ps=False):
             out.append("\\\\" if c == "\\" and q != "'" else c)
         seg = "".join(out)
     try:
-        raw = shlex.split(seg, posix=True)
+        return shlex.split(seg, posix=True)
     except ValueError:
         return None
-    toks, skip = [], False
-    for t in raw:
-        if skip:
-            skip = False
-            continue
-        m = REDIRECT_RE.match(t)
-        if m:
-            skip = m.group(2) == ""
-            continue
-        toks.extend(brace_expand(t))
-    return toks
 
 
 BRACE_LIMIT = 64
@@ -512,7 +538,7 @@ def analyze(cmd, ctx, depth=0):
         ctx.powershell = ps  # a nested shell must not leak its mode
         if mode:
             stdin_modes.append(mode)
-            for body in docs.get(idx, []):  # `bash <<EOF ... EOF`
+            for body in docs.get(idx, []) + herestrings(seg, ps):  # `bash <<EOF`, `bash <<< '...'`
                 analyze_in(body, ctx, depth + 1, mode == "ps")
     for mode in stdin_modes:
         # `echo "git push origin main" | sh` (or `'...' | iex`): the piped text
@@ -880,6 +906,8 @@ def strip_prefixes(toks, ctx, depth):
                     toks = tokenize(o.split("=", 1)[1]) + toks
                 elif o in ("-u", "-C", "--unset", "--chdir") and toks:
                     toks.pop(0)
+        elif b == "busybox":
+            toks.pop(0)  # `busybox sh -c ...` runs the applet
         elif b == "sudo":
             toks.pop(0)
             while toks and toks[0].startswith("-"):
