@@ -36,7 +36,7 @@ planner → manager | implementer → merge gate (you) → verifier → repeat
 
 - Each arrow is a **fresh** Agent call. In pair mode save the manager's report to `skilleddocs/orchestrator/reports/`; that report or the handoff is the only bridge to the verifier.
 - `parallel > 1` → one worktree per manager (`../_worktrees/<repo>-<slug>`, set up as `pair` §2 does). Never two managers on one checkout.
-- Lanes: each lane in scope.md `lanes:` works its issues in order. [`/lanes`](../lanes/SKILL.md) changes them; apply at your next loop. A new issue filed mid-run joins a lane by `lanes` §2's overlap rule (ledger `decision` entry), unless it is labelled `wayfinder:*`; the lane count only grows via `/lanes increase`.
+- Lanes: each lane in scope.md `lanes:` works its issues in order. [`/lanes`](../lanes/SKILL.md) changes them; apply at your next loop. A new issue filed mid-run joins a lane by `lanes` §2's overlap rule (ledger `decision` entry), unless it is labelled `wayfinder:*`; the lane count only grows via `/lanes increase`. A `serial` lane starts an issue only when no other lane has one in flight.
 - **Nested fan-out stalls.** Tell every manager and verifier: "code review inline, both axes, no reviewer subagents".
 - A handback titled **INTERIM** isn't a result; wait for that agent's next one.
 
