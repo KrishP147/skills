@@ -15,11 +15,12 @@ Name `origin`: on a fork clone a bare `gh repo view`, and any `gh` call without 
 - `<owner>/<repo>` = `nameWithOwner`. Pass it on every `gh` call that takes one: `-R <owner>/<repo>` (`issue`, `pr`, `label`, `run`, `workflow`, `release`); `gh project` takes `--owner <owner>` (`item-edit` takes none: its ids come from that owner's lookup); `gh api` uses explicit `repos/<owner>/<repo>/…` paths (graphql: `owner:`/`name:` from it); `gh repo view`/`edit` take it positionally.
 - **Fork** (`isFork` true): before the first write (issue, comment, label, card move, PR, repo edit), stop and ask which repo to write to: the fork `<owner>/<repo>` or the parent `<parent.owner.login>/<parent.name>`. Write to the parent only after an explicit yes naming it; that repo is then the target for writes. Unattended with no answer in the brief → write nothing to GitHub and say so in the handoff. Reading the parent for context (its issues, PRs, CI) is fine.
   - **Fork issues off** (GitHub's default for forks): check `gh repo view <owner>/<repo> --json hasIssuesEnabled -q .hasIssuesEnabled`. `false` → tell the user the fork has issues disabled, read issues and the board from the parent (`-R <parent>`), and keep the write rule above: no write to the parent without the explicit yes naming it. Or offer to enable them on the fork (`gh repo edit <owner>/<repo> --enable-issues`), itself a write needing a yes. Never fall back to the parent for a write silently.
+  - **Both declined** (no parent write, no enabling), or unattended with no answer: write nothing to GitHub. A step that would open an issue or comment records it locally instead (a decisions register row or a roadmap line), hands the user the title and body to file later, and says so.
 - Not a fork: unchanged, apart from the explicit `-R`.
 
 ## Find the board
 
-`gh project list --owner <owner> --format json` (`<owner>` per Target repo) returns every project the owner has. Match by title (`<repo> Board`, as `kanban-setup` names it) or by items linking this repo. One match: use it. Several: ask. None, in order:
+`gh project list --owner <owner> --format json` (`<owner>` per Target repo) returns every project the owner has. Match by title (`<repo> Board`, as `kanban-setup` names it) or by items linking this repo. One match: use it. Several: for one issue's card, the board the `## Boards` mapping in `AGENTS.md`/`CLAUDE.md` assigns (its labels, or the paths it names; `kanban-setup` writes it), else the only one already holding the issue (`gh issue view <n> -R <owner>/<repo> --json projectItems`); otherwise ask. Unattended with no answer → don't move the card; report the move as parked in the handoff. None, in order:
 
 1. **Labels**: `status:todo`, `status:in-progress`, `status:in-review`, `status:done`.
 2. **Roadmap doc** (`ROADMAP.md`, `docs/roadmap.md`): its execution-order section is the queue; no card to move.
@@ -63,7 +64,7 @@ gh issue edit <n> -R <owner>/<repo> --remove-label status:<old> --add-label stat
 
 | Event | Who | Status |
 |---|---|---|
-| Branch created | `pair` / `implementer` | In Progress + comment "Started on branch `<b>`" |
+| Branch created | `pair` / `meta-orchestrator` (an `implementer` lists it for its caller) | In Progress + comment "Started on branch `<b>`" |
 | Session ends complete | `session-handoff` | In Review |
 | Verified, merged (per `update-progress` step 2: on `origin/<default>` or a merged PR, so squash and rebase merges count) | `update-progress` | Done, issue closed |
 | Verified, not merged | `update-progress` | In Review + comment |

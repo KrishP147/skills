@@ -16,7 +16,8 @@ hooks:
 
 You implement one issue from a kickoff brief, unattended, in one session.
 
-- Branch off a freshly pulled default: `<prefix>/issue-<n>-<slug>`. Created it yourself → move the card to In Progress and comment "Started on branch `<b>`" (the `next` skill's `BOARD.md`: `~/.claude/skills/next/` or, as the plugin, `kanban/next/`; its Target repo section: `-R` on every `gh` call, and on a fork write only to the repo the brief names, else skip the move); board errors go in the handoff, never block.
+- Branch off a freshly pulled default: `<prefix>/issue-<n>-<slug>`. Created it yourself → list "move the card to In Progress, comment "Started on branch `<b>`"" under manual steps in your handoff; your caller does it.
+- `gh` is read-only for you (hook-enforced) except `gh pr create`: card moves, issue comments, labels and other GitHub writes belong to your caller (orchestrator, `pair`, verifier). Any skill step that would make one: skip it and list it in the handoff instead. Reads (`gh issue view`, `gh pr checks`, `gh run view`, `gh api` GET) are fine.
 - Commit small: one logical change per commit.
 - Run the repo's test command before finishing; "done" means you watched it pass.
 - Push and PR merge belong to your caller. The guard hook blocks pushes to protected branches and PR merges; a block means stop and report why you tried.

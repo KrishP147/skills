@@ -22,7 +22,10 @@ decodes base64/hex.
 Fail-closed allowlist (#174): after parsing, anything that could push, merge
 or write refs/remote state must match a known-safe form: `git push [-u]
 <remote> <branch>[:<same branch>]` (literal, non-protected) or a bare/HEAD push
-on a readable non-protected branch; `gh pr create` and the GH_ALLOW reads;
+on a readable non-protected branch; `gh pr create` and the GH_ALLOW reads
+(#191: gh is read-only otherwise, so issue/label/project/gist/run/release/
+secret/variable/workflow/codespace/cache/ruleset/pr/repo writes block, also
+when named in inline code, runner args, stdin or a written script);
 `gh api` GET (graphql: literal read query only); curl/wget/irm/iwr GET to the
 GitHub API; local git. Other push options/refspecs, send-pack, unknown git
 subcommands naming push/merge, gh commands outside GH_ALLOW (incl. aliases and
@@ -204,12 +207,13 @@ class Ctx:
     def block(self, reason):
         raise Block("Blocked: " + reason)
 
-    def dynamic_exec(self, what):
+    def dynamic_exec(self, what, args=()):
         """`eval $c`, `iex $c`, `& $sb`: code we can't read. Fail closed when
-        the command as a whole mentions push/merge/delete."""
-        if RISKY_WORDS.search(self.top_cmd):
+        the command as a whole mentions push/merge/delete or a gh write, or
+        its `args` read as one (`& $gh issue close 5`)."""
+        if RISKY_WORDS.search(self.top_cmd) or gh_text_write(self.top_cmd) or gh_words_write(list(args)):
             self.block("%s runs code that can't be read, in a command mentioning "
-                       "push/merge/delete; failing closed." % what)
+                       "push/merge/delete or a gh write; failing closed." % what)
         if self.decoder_seen:
             self.block("%s runs code that can't be read, in a command that decodes "
                        "base64/hex; failing closed." % what)
@@ -593,7 +597,7 @@ def is_dynamic(tok):
 def analyze(cmd, ctx, depth=0):
     """Raise Block if any command inside `cmd` is disallowed."""
     if depth > MAX_DEPTH:
-        if RISKY_WORDS.search(cmd):
+        if risky(cmd):
             ctx.block("command nested too deeply to analyse.")
         return
     ps = ctx.powershell
@@ -724,7 +728,7 @@ def check_feeds(segs, docs, meta, heads, modes, ctx, ps):
             continue
         if head in STDIN_DATA or (INTERPRETER_RE.match(head) and not inline_code(rest)):
             continue  # data: `jq . <<< ...`, `cat > f <<EOF`, `python script.py < x`
-        if PUSHY_RE.search(fed):
+        if pushy(fed):
             ctx.block("%s reads stdin text naming a git push / gh merge / GitHub API call, and may run "
                       "it; failing closed." % head)
         if any(not lit and heads[k] and heads[k][0] in TRANSFORMERS for k, (lit, _) in zip(ups, feeds)):
@@ -844,6 +848,9 @@ def check_code(text, ctx, lang=""):
             ctx.block("inline interpreter code spawns/evals a string built at runtime; failing closed.")
     if CODE_GIT_RE.search(text) or (CODE_RISK_RE.search(text) and CODE_SPAWN_RE.search(text)):
         ctx.block("inline interpreter code mentions git push / merge; failing closed.")
+    if gh_text_write(text):
+        ctx.block("inline interpreter code names a gh write (guarded agents: read-only gh + pr create); "
+                  "failing closed.")
     if DECODER_RE.search(text) and CODE_SPAWN_RE.search(text):
         ctx.block("inline interpreter code runs decoded base64/hex; failing closed.")
     if (re.search(r"api\.github\.com", text, re.I) and re.search(r"\b(put|post|patch|delete)\b", text, re.I)
@@ -1154,9 +1161,12 @@ def _run_segment(toks, ctx, subs, depth):
             # `$GIT push origin main`: unknown binary, assume the worst.
             check_git(rest, ctx, subs, depth)
             check_gh(rest, ctx)
+        if not ASSIGN_RE.match(toks[0]) and gh_words_write(rest):
+            ctx.block("a command named by a variable with gh write words (`$gh issue close 5`); "
+                      "failing closed.")
         if not ctx.powershell and not ASSIGN_RE.match(toks[0]):
             ctx.dynamic_exec("a command named by a variable")  # `c='git push ...'; $c`
-    elif head not in READERS and PUSHY_RE.search(" ".join(rest)):
+    elif head not in READERS and pushy(" ".join(rest)):
         # backstop: `flock l git push`, `awk 'BEGIN{system("git push ...")}'`,
         # `parallel git push ...`: a runner we don't model; fail closed.
         ctx.block("can't read how %s runs its arguments, which name a git push / gh merge / "
@@ -1174,7 +1184,7 @@ def call_op(head, rest, ctx, subs, depth):
         analyze(body[:-1] if body.endswith("}") else body, ctx, depth + 1)
         return False
     if is_dynamic(target):  # `& $sb`, `& $exe --version`
-        ctx.dynamic_exec(head + " " + target)
+        ctx.dynamic_exec(head + " " + target, rest[1:])
         return False
     return run_segment(rest, ctx, subs, depth + 1)
 
@@ -1667,7 +1677,7 @@ def check_config(args, ctx):
     if is_dynamic(key):
         ctx.block("git config write of an unreadable key '%s'; failing closed." % key)
     if key.lower().startswith("alias."):  # `git config alias.up push && git up ...`
-        if not is_dynamic(value) and RISKY_WORDS.search(value):
+        if not is_dynamic(value) and risky(value):
             ctx.block("git config %s '%s': an alias that pushes/merges is not allowed." % (key, value))
         ctx.git_aliases[key[6:].lower()] = DYNAMIC if is_dynamic(value) else value
         return
@@ -1858,47 +1868,151 @@ GRAPHQL_MUTATIONS = re.compile(r"mergePullRequest|enablePullRequestAutoMerge|mer
                                r"|updateRefs|deleteRepository|deleteBranchProtectionRule", re.I)
 
 
-# gh allowlist: top-level command -> allowed subcommands (None = all).
-# Anything else (merge, close, revert, alias set, repo sync/edit, extensions,
-# aliases, unreadable words) is blocked: fail closed.
+# gh allowlist (#174, #191): guarded agents get read-only gh plus `gh pr
+# create`. Top-level command -> allowed subcommands (None = all). Anything else
+# (issue/label/project/gist/run/release/secret/variable/workflow/codespace/
+# cache/ruleset/pr/repo writes, aliases, extensions, unreadable words) is
+# blocked: fail closed. Board moves and issue comments belong to the caller.
 GH_ALLOW = {
-    "pr": {"create", "new", "view", "list", "ls", "checks", "diff", "status", "checkout", "co", "comment",
-           "edit", "ready", "reopen", "review"},
-    "issue": {"view", "list", "ls", "status", "comment", "create", "new", "edit", "close", "reopen",
-              "pin", "unpin", "lock", "unlock"},
-    "repo": {"view", "list", "ls", "clone", "set-default"},
+    "pr": {"create", "new", "view", "list", "ls", "checks", "diff", "status", "checkout", "co"},
+    "issue": {"view", "list", "ls", "status"},
+    "repo": {"view", "list", "ls", "clone"},
     "release": {"view", "list", "ls", "download"},
     "workflow": {"view", "list", "ls"},
+    "run": {"view", "list", "ls", "watch", "download"},
+    "label": {"list", "ls"},
+    "project": {"view", "list", "ls", "field-list", "item-list"},
+    "cache": {"list", "ls"},
+    "ruleset": {"view", "list", "ls", "check"},
+    "secret": {"list", "ls"},
+    "variable": {"list", "ls", "get"},
+    "org": {"list", "ls"},
     "alias": {"list", "ls"},
     "extension": {"list", "ls", "search", "browse"},
     "ext": {"list", "ls", "search", "browse"},
-    "project": None, "run": None, "label": None, "search": None, "status": None, "browse": None,
-    "auth": None, "help": None, "version": None, "config": None, "cache": None, "ruleset": None,
-    "completion": None, "gist": None,
+    "auth": {"status", "token"},
+    "config": {"get", "list", "ls"},
+    "search": None, "status": None, "browse": None, "help": None, "version": None, "completion": None,
 }
+# gh words the free-text scan (inline code, runner args, stdin, written files) knows
+GH_FAMILIES = set(GH_ALLOW) | {"gist", "codespace", "cs", "attestation", "ssh-key", "gpg-key", "extensions",
+                               "agent-task", "preview", "copilot"}
+GH_VALUE_OPTS = ("-R", "--repo", "--hostname")
 
 
-def check_gh(args, ctx):
+def gh_positionals(args, cobra=False):
+    """First two non-flag words of a gh command. `cobra=True` reads it the way
+    gh's parser finds the subcommand: an unknown `--flag`/`-f` before it takes
+    the next word as its value (`gh issue --add-label view edit 5` is `edit`)."""
     pos, i = [], 0
     while i < len(args) and len(pos) < 2:
         t = args[i]
-        if t in ("-R", "--repo", "--hostname"):
+        if t in GH_VALUE_OPTS:
             i += 2
             continue
-        if not t.startswith("-"):
-            pos.append(t)
+        if t.startswith("-"):
+            i += 2 if cobra and t != "--" and "=" not in t and (t.startswith("--") or len(t) == 2) else 1
+            continue
+        pos.append(t)
         i += 1
-    if not pos:
-        return  # `gh --version`, `gh --help`
-    if pos[0] == "api":
-        check_gh_api(args[args.index("api") + 1:], ctx)
-        return
-    if pos[0] not in GH_ALLOW:
-        ctx.block("gh %s is not on the allowlist (aliases/extensions can't be read); failing closed." % pos[0])
-    subs = GH_ALLOW[pos[0]]
+    return pos
+
+
+def gh_reason(pos, args):
+    """Why `gh <pos>` is blocked, or None when it's on the allowlist."""
+    fam = pos[0]
+    if fam not in GH_ALLOW:
+        return "gh %s is not on the allowlist (read-only gh + pr create; aliases/extensions can't be read)" % fam
+    if fam == "browse" and not any(t in ("-n", "--no-browser") for t in args):
+        return "gh browse without --no-browser is not on the allowlist"
+    subs = GH_ALLOW[fam]
     if subs is not None and len(pos) > 1 and pos[1] not in subs:
-        ctx.block("gh %s %s is not on the allowlist (can merge/delete/write refs); not allowed."
-                  % (pos[0], pos[1]))
+        return "gh %s %s is a write; guarded agents get read-only gh + pr create" % (fam, pos[1])
+    return None
+
+
+def check_gh(args, ctx):
+    for cobra in (False, True):
+        pos = gh_positionals(args, cobra)
+        if not pos:
+            continue  # `gh --version`, `gh --help`
+        if pos[0] == "api":
+            check_gh_api(args[args.index("api") + 1:], ctx)
+            continue
+        reason = gh_reason(pos, args)
+        if reason:
+            ctx.block(reason + "; card moves, comments and labels belong to the caller.")
+
+
+GH_TEXT_RE = re.compile(r"(?i)(?<![\w.-])gh(?:\.exe)?(?![\w-])")
+GH_WORD_RE = re.compile(r"[^\s'\"`,;|&()\[\]{}]+")
+
+
+def gh_text_write(text):
+    """Free text (inline code, a runner's args, stdin, a written script) that
+    names a gh write: `subprocess.run(['gh','issue','edit','5'])`."""
+    for m in GH_TEXT_RE.finditer(text):
+        words = GH_WORD_RE.findall(text[m.end():m.end() + 240])
+        for cobra in (False, True):
+            pos = gh_positionals(words, cobra)
+            if pos and pos[0] in GH_FAMILIES and gh_reason(pos, words):
+                return True
+    return False
+
+
+# After an unreadable command name (`$x ...`) only its first positionals are
+# read. Families other CLIs share (`$NPM run build`, `$GIT config --get`,
+# `$KUBECTL auth whoami`) block only on a known gh write verb; gh-distinctive
+# families (issue, pr, gist, codespace, ...) keep the allowlist rule.
+GH_SHARED_WRITES = {
+    "run": {"rerun", "cancel", "delete"},
+    "auth": {"login", "logout", "refresh", "setup-git", "switch"},
+    "config": {"set", "clear-cache"},
+    "cache": {"delete"},
+    "release": {"create", "edit", "delete", "delete-asset", "upload"},
+    "label": {"create", "edit", "delete", "clone"},
+    "project": {"create", "edit", "delete", "close", "copy", "link", "unlink", "mark-template", "field-create",
+                "field-delete", "item-add", "item-archive", "item-create", "item-delete", "item-edit"},
+    "secret": {"set", "delete", "remove"},
+    "variable": {"set", "delete", "remove"},
+    "workflow": {"run", "enable", "disable"},
+    "repo": {"create", "new", "edit", "delete", "fork", "rename", "archive", "unarchive", "sync", "set-default",
+             "deploy-key", "autolink"},
+    "alias": {"set", "delete", "import"},
+    "extension": {"install", "remove", "upgrade", "create", "exec"},
+    "org": set(), "search": set(), "status": set(), "browse": set(), "help": set(), "version": set(),
+    "completion": set(), "preview": set(),
+}
+GH_SHARED_WRITES["ext"] = GH_SHARED_WRITES["extensions"] = GH_SHARED_WRITES["extension"]
+
+
+def gh_words_write(words):
+    """The args of an unreadable command name read as a gh write:
+    `$gh issue close 5` -> ['issue', 'close', '5']."""
+    for cobra in (False, True):
+        pos = gh_positionals(words, cobra)
+        if not pos or pos[0] not in GH_FAMILIES:
+            continue
+        if pos[0] in GH_SHARED_WRITES:
+            if len(pos) > 1 and pos[1] in GH_SHARED_WRITES[pos[0]]:
+                return True
+        elif gh_reason(pos, words):
+            return True
+    return False
+
+
+def risky(text):
+    """Text the fail-closed gates treat as dangerous: push/merge/delete words,
+    a literal gh write, or a gh write after a `$var` command name."""
+    if RISKY_WORDS.search(text) or gh_text_write(text):
+        return True
+    words = GH_WORD_RE.findall(re.sub(r"\$\{(\w+)\}", r"$\1", text))
+    return any("$" in w and gh_words_write(words[k + 1:]) for k, w in enumerate(words))
+
+
+def pushy(text):
+    """Text naming a push/merge-capable command or a gh write."""
+    return PUSHY_RE.search(text) is not None or gh_text_write(text)
 
 
 HTTP_CLIENTS = {"curl", "wget", "invoke-webrequest", "iwr", "invoke-restmethod", "irm"}
@@ -2066,14 +2180,14 @@ def decide(command, ctx):
         analyze(command, ctx)
         ran_written = ctx.written & ctx.ran or (DYNAMIC in ctx.written and ctx.ran) or (
             DYNAMIC in ctx.ran and ctx.written)
-        if ran_written and PUSHY_RE.search(command):
+        if ran_written and pushy(command):
             # `echo 'git push origin main' > x.sh && sh x.sh`
             ctx.block("command writes git push / merge text to a file and runs it; failing closed.")
         return None
     except Block as b:
         return str(b)
     except Exception as e:  # noqa: BLE001 - fail closed on risky commands
-        if RISKY_WORDS.search(command):
+        if risky(command):
             return "Blocked: guard-git could not analyse this command (%s: %s); failing closed." % (
                 type(e).__name__, e)
         return None
@@ -2707,8 +2821,8 @@ def run_self_test():
         ("gh pr checks 5 && gh pr diff 5 && gh issue view 5 && gh repo view o/r", A, False),
         ("gh api graphql -f query='query{repository(owner:\"o\",name:\"r\"){issue(number:1){id}}}'", A, False),
         ("gh api -X GET search/issues -f q=repo:o/r", A, False),
-        ("gh project item-edit --id i --field-id f --project-id p --single-select-option-id o", A, False),
-        ("gh issue comment 5 --body 'Started on branch krish/x'", A, False),
+        ("gh project item-edit --id i --field-id f --project-id p --single-select-option-id o", B, False),  # #191
+        ("gh issue comment 5 --body 'Started on branch krish/x'", B, False),  # #191: caller's job
         ("git stash push -m wip && git stash pop", A, False),
         ("git merge-base HEAD origin/main && git rebase origin/main", A, False),
         ("git worktree add ../wt -b krish/y origin/master && git worktree remove ../wt", A, False),
@@ -2843,6 +2957,176 @@ def run_self_test():
     for cmd, expect, ps in round174:
         ctx = Ctx(["main", "master"], "/repo", branch_lookup=feat, alias_lookup=lambda cwd, name: None,
                   powershell=ps, ref_lookup=refs)
+        reason = decide(cmd, ctx)
+        ok = (reason is not None) == expect
+        passed += ok
+        failed += not ok
+        print("%s: %-62s block=%-5s %s" % (
+            "PASS" if ok else "FAIL", cmd.replace("\n", "\\n")[:62], reason is not None, reason or ""))
+
+    # --- #191: read-only gh for guarded agents, except `gh pr create`
+    round191 = [  # (command, expect_block, powershell)
+        # blocked: one per write family
+        ("gh issue create --title t --body b", B, False),
+        ("gh issue edit 5 --add-label status:doing", B, False),
+        ("gh issue close 5", B, False),
+        ("gh issue comment 5 --body x", B, False),
+        ("gh issue reopen 5", B, False),
+        ("gh issue delete 5 --yes", B, False),
+        ("gh issue transfer 5 o/r2", B, False),
+        ("gh issue pin 5", B, False),
+        ("gh issue lock 5", B, False),
+        ("gh issue develop 5 --checkout", B, False),
+        ("gh label create bug", B, False),
+        ("gh label edit bug --color fff", B, False),
+        ("gh label delete bug --yes", B, False),
+        ("gh label clone o/r2", B, False),
+        ("gh project item-add 4 --owner o --url u", B, False),
+        ("gh project field-create 4 --owner o --name n", B, False),
+        ("gh project create --owner o --title t", B, False),
+        ("gh project link 4 --owner o --repo r", B, False),
+        ("gh project mark-template 4", B, False),
+        ("gh gist create f.txt", B, False),
+        ("gh gist list", B, False),
+        ("gh run rerun 9", B, False),
+        ("gh run cancel 9", B, False),
+        ("gh run delete 9", B, False),
+        ("gh release create v1 --notes x", B, False),
+        ("gh release upload v1 a.zip", B, False),
+        ("gh secret set TOKEN --body x", B, False),
+        ("gh variable set X --body y", B, False),
+        ("gh workflow run ci.yml", B, False),
+        ("gh workflow enable ci.yml", B, False),
+        ("gh workflow disable ci.yml", B, False),
+        ("gh codespace create -R o/r", B, False),
+        ("gh cs list", B, False),
+        ("gh cache delete --all", B, False),
+        ("gh ruleset delete 1", B, False),
+        ("gh pr close 5", B, False),
+        ("gh pr reopen 5", B, False),
+        ("gh pr ready 5", B, False),
+        ("gh pr edit 5 --add-label x", B, False),
+        ("gh pr comment 5 --body x", B, False),
+        ("gh pr review 5 --approve", B, False),
+        ("gh pr lock 5", B, False),
+        ("gh pr update-branch 5", B, False),
+        ("gh repo create o/new --private", B, False),
+        ("gh repo fork o/r", B, False),
+        ("gh repo edit --visibility public", B, False),
+        ("gh repo archive o/r --yes", B, False),
+        ("gh repo rename x", B, False),
+        ("gh repo set-default o/r", B, False),
+        ("gh repo deploy-key add k.pub", B, False),
+        ("gh api -X POST repos/o/r/issues/5/labels -f labels[]=x", B, False),
+        ("gh browse 5", B, False),
+        ("gh auth logout", B, False),
+        ("gh config set editor vim", B, False),
+        # blocked: parser tricks
+        ("gh issue --add-label view edit 5", B, False),
+        ("gh pr --body view comment 5", B, False),
+        ("gh -R o/r issue edit 5 --add-label x", B, False),
+        ("gh --repo=o/r label create x", B, False),
+        ("GH_REPO=o/r gh issue close 5", B, False),
+        ("$env:GH_REPO='o/r'; gh.exe issue comment 5 -b x", B, True),
+        ("& 'C:\\Program Files\\GitHub CLI\\gh.exe' issue edit 5 --add-label x", B, True),
+        ("/usr/bin/gh project item-edit --id i", B, False),
+        ("gh issue $SUB 5", B, False),
+        ("bash -c 'gh issue close 5'", B, False),
+        ("pwsh -Command \"gh label delete bug --yes\"", B, False),
+        ("python -c \"import subprocess; subprocess.run(['gh','issue','edit','5','--add-label','x'])\"", B, False),
+        ("node -e \"require('child_process').execSync('gh issue comment 5 -b x')\"", B, False),
+        ("flock /tmp/l gh issue close 5", B, False),
+        ("parallel gh issue close ::: 1 2", B, False),
+        ("echo 'gh issue close 5' > x.sh && sh x.sh", B, False),
+        ("echo gh issue close 5 | sh", B, False),
+        ("xargs -n1 gh issue close <<< '5'", B, False),
+        # allowed: reads + pr create
+        ("gh pr create --base master --head krish/x --title t --body b", A, False),
+        ("gh pr create -R o/r --fill --draft", A, False),
+        ("gh pr new --fill", A, False),
+        ("gh pr view 5 --json title,body", A, False),
+        ("gh pr list --state open", A, False),
+        ("gh pr checks 5 --watch", A, False),
+        ("gh pr diff 5", A, False),
+        ("gh pr status", A, False),
+        ("gh pr checkout 5", A, False),
+        ("gh issue view 191", A, False),
+        ("gh issue list --label status:todo --json number,title", A, False),
+        ("gh issue status", A, False),
+        ("gh -R o/r issue view 5 --comments", A, False),
+        ("gh repo view o/r --json defaultBranchRef", A, False),
+        ("gh repo clone o/r", A, False),
+        ("gh release list", A, False),
+        ("gh release view v1", A, False),
+        ("gh workflow list", A, False),
+        ("gh run list --limit 5", A, False),
+        ("gh run view 9 --log-failed", A, False),
+        ("gh run watch 9", A, False),
+        ("gh label list", A, False),
+        ("gh project list --owner o", A, False),
+        ("gh project view 4 --owner o --format json", A, False),
+        ("gh project item-list 4 --owner o", A, False),
+        ("gh project field-list 4 --owner o", A, False),
+        ("gh cache list", A, False),
+        ("gh ruleset list", A, False),
+        ("gh secret list", A, False),
+        ("gh variable get X", A, False),
+        ("gh search issues guard --repo o/r", A, False),
+        ("gh status", A, False),
+        ("gh browse --no-browser", A, False),
+        ("gh browse 5 -n", A, False),
+        ("gh auth status", A, False),
+        ("gh config get editor", A, False),
+        ("gh api repos/o/r/issues/5", A, False),
+        ("gh api -X GET repos/o/r/issues -f state=open", A, False),
+        ("gh api graphql -f query='query{viewer{login}}'", A, False),
+        ("gh --version", A, False),
+        ("gh help issue", A, False),
+        ("gh.exe pr view 5", A, True),
+        ("gh issue view 5 | Select-String title", A, True),
+        ("python -c \"import subprocess; subprocess.run(['gh','issue','view','5'])\"", A, False),
+        ("git commit -m 'note: gh issue close is blocked'", A, False),
+        ("rg 'gh issue edit' agents/", A, False),
+        ("python scripts/gh_issue_edit.py", A, False),
+        # a command named by a variable / unreadable expression + gh write words
+        ("& $gh issue close 5", B, True),
+        ("$gh issue close 5", B, True),
+        (". $gh issue close 5", B, True),
+        ("& ${gh} issue close 5", B, True),
+        ("&$gh issue close 5", B, True),
+        ("& (gcm gh) issue close 5", B, True),
+        ("& $gh label create x", B, True),
+        ("& $x project item-edit --id i", B, True),
+        ("$gh issue close 5", B, False),
+        ("${GH} issue comment 5 -b x", B, False),
+        ("\"$gh\" pr comment 5 -b x", B, False),
+        ("& $py scripts/lint.py", A, True),
+        ("& $exe --version", A, True),
+        ("$PY -m unittest discover -s scripts", A, False),
+        ("& $gh issue view 5", A, True),
+        ("& $gh pr create --fill", A, True),
+        ("$gh pr checks 5", A, False),
+        ("\"$EDITOR\" notes.md", A, False),
+        ("git config alias.ic '!gh issue close'", B, False),
+        ("$gh run cancel 9", B, False),
+        ("& $gh release delete v1 -y", B, True),
+        ("$gh auth logout", B, False),
+        ("$TOOL project create foo", B, False),  # shared family + gh write verb: fail closed
+        # variable-named non-gh tools sharing gh family words
+        ("$NPM run build", A, False),
+        ("$UV run pytest -q", A, False),
+        ("$DOCKER run --rm img", A, False),
+        ("$GIT config --get user.name", A, False),
+        ("$PNPM run lint", A, False),
+        ("$KUBECTL auth whoami", A, False),
+        ("$PY -m pytest -k \"config set\"", A, False),
+        ("& $npm run test", A, True),
+        ("& $uv run python scripts/lint.py", A, True),
+        ("& $poetry run pytest", A, True),
+    ]
+    for cmd, expect, ps in round191:
+        ctx = Ctx(["main", "master"], "/repo", branch_lookup=feat, alias_lookup=lambda cwd, name: None,
+                  powershell=ps)
         reason = decide(cmd, ctx)
         ok = (reason is not None) == expect
         passed += ok

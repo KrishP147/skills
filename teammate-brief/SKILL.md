@@ -4,7 +4,7 @@ description: Write an onboarding document for a person joining or picking up a p
 argument-hint: "[teammate name or role]"
 ---
 
-One Markdown file for a human reader, in plain language: "run this command", not "invoke"; no skill or session jargon. **Gate**: commit only if the `handoff-auto` skill's `TRACKING.md` allows it, only on `<default>` (defined there), and on the user's yes; push needs its own yes; sharing the file is the user's call.
+One Markdown file for a human reader, in plain language: "run this command", not "invoke"; no skill or session jargon. **Gate**: commit only if the `handoff-auto` skill's `TRACKING.md` allows it, only on `<default>` (defined there; protected → its docs branch `docs/brief-<name-slug>`, "Protected `<default>`" there), and on the user's yes; push needs its own yes; sharing the file is the user's call.
 
 ## 1. Ask (one batch, each with its default)
 
