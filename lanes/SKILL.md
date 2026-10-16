@@ -19,14 +19,14 @@ For each queued issue (open, in scope, not excluded, not already merged), in que
 
 1. Paths named in the issue body, its comments, or a linked plan.
 2. Area labels (`area:site`, `docs`, `hooks`, ...) mapped to the directories they cover.
-3. A quick `git grep -l` for the identifiers, commands or file names the issue mentions, keeping only where the change lands: the file defining an identifier the issue changes, or files the issue names. A file that only imports, re-exports or calls the identifier (a package `__init__.py`, a `cli.py`) is not in the set, unless the issue renames the identifier or changes a signature or behaviour its callers depend on; then those callers are in.
+3. A quick `git grep -l` for the identifiers, commands or file names the issue mentions, keeping only where the change lands: the file defining an identifier the issue changes, or files the issue names. A file that only imports, re-exports or calls the identifier (a package `__init__.py`, a `cli.py`) is not in the set, unless the issue renames the identifier or changes its signature, so the callers must be edited too; then those callers are in. A behaviour change alone keeps callers out.
 
 Record a file set per issue. Mark it **uncertain** when it rests only on a label or a guess, or the issue says "and wherever else". Shared files every change touches (a changelog, a lockfile, a generated count) count as overlap like any other file; name them in the proposal's Why line.
 
 ## 2. Group
 
 - Two issues whose file sets overlap go in the same lane, in queue order. Overlap is transitive.
-- The connected groups that result are the **independent streams**. Treat an uncertain issue as overlapping anything in its predicted area: the directories of its area label, or with no label the directories of its predicted files. An unbounded issue ("and wherever else", or no file predictable at all) does not join lanes by overlap, which would collapse every lane into one; put it in a lane named `serial`, which runs only when no other lane has an issue in flight.
+- The connected groups that result are the **independent streams**. Treat an uncertain issue as overlapping anything in its predicted area: the directories of its area label, or with no label the directories of its predicted files. An unbounded issue ("and wherever else", or no file predictable at all) does not join lanes by overlap, which would collapse every lane into one; put it in a lane named `serial`, which runs only when no other lane has an issue in flight. `serial` never runs alongside another lane, so it does not count toward `parallel` or the §3 count.
 - Pinned issues (scope.md `lanes:` or the user) stay in their lane.
 - Name each lane after its area (`site`, `hooks`, `docs`), not a number.
 

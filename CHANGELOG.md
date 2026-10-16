@@ -6,7 +6,7 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 
 ## [0.1.0] - 2026-10-15
 
-- Docs fixes from batch-4 testing (#148): `lanes` file sets keep only where a change lands, uncertain-area rule and an unbounded-issue `serial` lane; rotation resume resets `handoff_budget` but not per-run `stop: after N merges`; implementer wording no longer claims it cannot local-merge; verifier states git facts only from its own commands; manager handles Agent tools with no foreground mode (no fabricating, no sleep-poll, notification wakes it).
+- `lanes` file sets keep only where a change lands, uncertain-area rule and an unbounded-issue `serial` lane; rotation resume resets `handoff_budget` but not per-run `stop: after N merges`; implementer wording no longer claims it cannot local-merge; verifier states git facts only from its own commands; manager handles Agent tools with no foreground mode (no fabricating, no sleep-poll, notification wakes it).
 - `progress-report`: one-pass link rule (headings, code spans, existing links and decimal CI run ids left alone; no `PR #n` double links), `Progress report NNN` header, `.last-reported` is `<NNN> <filename>`, un-ledgered git work is reported as "not in ledger", and the zone prints a UTC offset on Windows.
 - `pair`/`meta-orchestrator`: Windows `.venv`/`node_modules` link and teardown commands work from Git Bash and PowerShell; a hard check stops `git worktree remove` while a dep link (dangling included) remains.
 - Agents: manager, implementer and verifier honour `decisions=assume` (open `A-n` recorded and reported); planner README lists **Assumptions needed**.
