@@ -20,7 +20,7 @@ Every `key` below is a field of that contract. Respect the repo's `skilleddocs/`
 |---|---|---|---|
 | Plan | `planner` | repo path + scope.md + `decisions` | ≤40-line kickoff brief, model rec, divide? |
 | Implement (`execution: pair`) | `manager` | working dir + brief verbatim + prefix + protected branch + `max_rounds=3` + `decisions` + "never push or merge" | branch, commits, tests it reran, review findings, rounds, `skilleddocs/HANDOFF.md` if unfinished |
-| Implement (`execution: flat`) | `implementer` | brief verbatim + prefix + protected branch | handoff path as its last line |
+| Implement (`execution: flat`) | `implementer` | brief verbatim + prefix + protected branch + `decisions` | handoff path as its last line |
 | Verify | `verifier` | handoff or manager-report path + `interview` + `decisions` + `review-done=<yes in pair / no in flat>` | verified-by, fixes, decided-for-you, manual steps, next |
 | Chores | `general-purpose` on `haiku` | exact commands + expected output | its report; check it (`gh` read, diff skim) before relying on it |
 
