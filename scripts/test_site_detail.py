@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build_site  # noqa: E402
 import lint  # noqa: E402
 import site_detail  # noqa: E402
+import site_workflows  # noqa: E402
 
 ROOT = lint.repo_root()
 
@@ -34,6 +35,39 @@ class DetailPagesTest(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.out, ignore_errors=True)
+
+    def test_sample_workflows_section(self):
+        # Every page lists exactly the workflows it appears in, in file order, just before Source.
+        mapping = site_workflows.by_name(site_workflows.load(ROOT))
+        for e in self.entries:
+            page = self.pages[e["name"]]
+            m = re.search(r'<h2 id="sample-workflows">Sample workflows</h2>\n<ul class="wf-links">\n(.*?)\n</ul>\n</section>\n'
+                          r'<section class="sec" aria-labelledby="source">', page, re.S)
+            want = [wf["name"] for wf in mapping.get(e["name"], [])]
+            if e["group"] in ("core", "kanban"):
+                self.assertTrue(want, e["name"])  # coverage: every skill is in a workflow
+            if not want:
+                self.assertNotIn("Sample workflows", page, e["name"])
+                continue
+            self.assertIsNotNone(m, e["name"])
+            self.assertEqual(re.findall(r'<a href="/workflows#([a-z0-9-]+)">', m.group(1)), want, e["name"])
+        self.assertIn("session-handoff → you → update-progress → next → you", self.pages["next"])
+
+    def test_sample_workflows_not_inherited(self):
+        # Generated per entry: a kanban sibling never picks up another's section (D8/D76).
+        wf = {"name": "only-divide", "title": "Only divide", "steps": []}
+        meta = site_detail.load_meta(ROOT)
+        with open(os.path.join(ROOT, "site", "src", "detail.html"), encoding="utf-8") as f:
+            template = f.read()
+        with contextlib.redirect_stderr(io.StringIO()):
+            pages = site_detail.build_pages(ROOT, self.entries, meta, template, "[]", "/b",
+                                            workflows={"divide": [wf]})
+        self.assertIn('<a href="/b/workflows#only-divide">Only divide</a>', pages["divide"])
+        for name in ("next", "session-handoff", "kanban-setup", "pair"):
+            self.assertNotIn("Sample workflows", pages[name], name)
+        with contextlib.redirect_stderr(io.StringIO()):
+            bare = site_detail.build_pages(ROOT, self.entries, meta, template, "[]")
+        self.assertFalse(any("Sample workflows" in p for p in bare.values()))
 
     def test_every_page_has_description_and_meta(self):
         for e in self.entries:

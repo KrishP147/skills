@@ -18,6 +18,7 @@ import posixpath
 import re
 import sys
 
+import site_workflows
 from flow_svg import FlowError
 from md_render import Renderer, safe_url, strip_inline, tx_prompt, tx_reply, tx_wrap
 
@@ -394,8 +395,10 @@ def _as_text(v):
 
 # ---- page -------------------------------------------------------------------
 
-def build_pages(root, entries, meta, template, data_json, site_base=""):
-    """Return {name: html}. Two passes: render, then compose (for backlinks)."""
+def build_pages(root, entries, meta, template, data_json, site_base="", workflows=None):
+    """Return {name: html}. Two passes: render, then compose (for backlinks).
+    workflows: {name: [workflow, ...]} (site_workflows.by_name); each page
+    lists only its own, generated here (never inherited from a group README)."""
     agents_readme = ""
     p = os.path.join(root, "agents", "README.md")
     if os.path.isfile(p):
@@ -455,6 +458,9 @@ def build_pages(root, entries, meta, template, data_json, site_base=""):
             body.append(_section(rd, title, md, example=key == "example"))
         for heading, md in extras:
             body.append(_section(rd, heading, md, extra=True))
+        wfs = (workflows or {}).get(e["name"])
+        if wfs:
+            body.append(site_workflows.detail_section(wfs, site_base, rd.unique_id("sample-workflows")))
         body.append(_source_section(e))
         chip_html, _level = chips(meta, e, prereq_md, hint)
         prev_e = entries[i - 1] if i > 0 else None
