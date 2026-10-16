@@ -18,8 +18,8 @@ and a `/<name>` detail page for each. No framework, no npm install, no runtime d
 | `src/404.html`, `src/style.css` | not-found page (`noindex`), all styles. Two palettes as `:root` tokens: dark by default, light under `prefers-color-scheme: light` (Claude Code's dark and light themes); rules use only tokens. `--accent` is the text accent (light: darkened to pass 4.5:1), `--accent-line` the brand orange for borders, `--sel-bg` / `--accent-sel` the selected menu row and the home list's hover row (name and dim text >= 4.5:1 over `--panel` and `--bg`, checked by `PaletteContrastTest`), `--band` the mobile corner band. Every page has `<meta name="color-scheme" content="light dark">` |
 | `src/rocky.webp` | 128px Rocky for the krishpunjabi.com corner link (owner's asset, cropped to the carapace, no metadata); copied byte for byte |
 | `src/favicon-32.png`, `src/apple-touch-icon.png` | favicon (32px) and iOS icon (180px, solid dark bg), same Rocky crop; copied byte for byte |
-| `src/filter.js` | pure slash-search logic (browser global `SkillFilter`, CommonJS in node), see [Slash search](#slash-search) |
-| `src/app.js` | DOM wiring: events, dropdown, navigation, intro skip (shared by home and detail pages; `data-autofocus="false"` on the input skips autofocus and the home-only click-to-refocus) |
+| `src/filter.js` | pure slash-search logic and menu key transitions (`key` reducer; browser global `SkillFilter`, CommonJS in node), see [Slash search](#slash-search) |
+| `src/app.js` | DOM wiring: events (applies `SkillFilter.key` results), dropdown, navigation, intro skip (shared by home and detail pages; `data-autofocus="false"` on the input skips autofocus and the home-only click-to-refocus) |
 | `test/filter.test.mjs` | node:test suite for `filter.js`; loads the real nav data through `scripts/build_site.py` (needs `python3` or `python` on PATH) and checks every name surfaces from a prefix, a mid-word fragment and 1-2 char typos |
 | `dist/` | build output, git-ignored |
 

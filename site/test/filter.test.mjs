@@ -225,6 +225,162 @@ test("tab fills the highlighted name; null when nothing changes", () => {
   assert.equal(F.resolve(h, 99), null);
 });
 
+// ---- Menu keyboard reducer (F.key). Spec: site/README.md "Keys" + "Back home".
+const menu = (buffer, extra = {}) => {
+  const state = F.search(buffer, FIX);
+  return { buffer, state, active: F.firstRow(state), open: false, ...extra };
+};
+const press = (m, key, ev = {}) => F.key(m, { key, home: true, collapsed: true, ...ev });
+
+test("menu: firstRow is 0 with options, -1 without", () => {
+  assert.equal(F.firstRow(F.search("/", FIX)), 0);
+  assert.equal(F.firstRow(F.search("/zzzzzz", FIX)), -1);
+});
+
+test("menu: openMenu highlights row 0, returns same object when already open", () => {
+  const m = menu("/", { active: 5 });
+  const o = F.openMenu(m);
+  assert.deepEqual([o.open, o.active], [true, 0]);
+  assert.equal(m.open, false, "no mutation");
+  const again = F.openMenu(o);
+  assert.equal(again, o);
+  const none = F.openMenu(menu("/zzzzzz"));
+  assert.deepEqual([none.open, none.active], [true, -1]);
+});
+
+test("menu: move wraps both ways; no highlight -> first/last; no options -> same", () => {
+  const n = FIX.length;
+  const m = menu("/", { open: true });
+  assert.equal(F.move(m, 1).active, 1);
+  assert.equal(F.move(m, -1).active, n - 1, "up from 0 wraps to last");
+  assert.equal(F.move({ ...m, active: n - 1 }, 1).active, 0, "down from last wraps to 0");
+  assert.equal(F.move({ ...m, active: -1 }, 1).active, 0);
+  assert.equal(F.move({ ...m, active: -1 }, -1).active, n - 1);
+  const empty = menu("/zzzzzz", { open: true });
+  assert.equal(F.move(empty, 1), empty);
+});
+
+test("key: every open path (/, Enter, Down, Up) highlights row 0 (#76, D2, #48)", () => {
+  for (const k of ["/", "Enter", "ArrowDown", "ArrowUp"]) {
+    const r = press(menu("/", { active: 3 }), k);
+    assert.equal(r.action, "open", k);
+    assert.equal(r.preventDefault, true, k);
+    assert.deepEqual([r.menu.open, r.menu.active], [true, 0], k);
+  }
+  // Typed text, closed menu: Enter and arrows open on row 0 too.
+  for (const k of ["Enter", "ArrowDown", "ArrowUp"]) {
+    const r = press(menu("/gri", { active: 1 }), k);
+    assert.deepEqual([r.action, r.menu.open, r.menu.active], ["open", true, 0], k);
+  }
+});
+
+test("key: arrows on an open menu move with wraparound", () => {
+  const m = menu("/gri", { open: true }); // grill-me, grilling
+  let r = press(m, "ArrowDown");
+  assert.deepEqual([r.action, r.preventDefault, r.menu.active, r.menu.open], ["move", true, 1, true]);
+  r = press(r.menu, "ArrowDown");
+  assert.equal(r.menu.active, 0, "wraps to first");
+  r = press(r.menu, "ArrowUp");
+  assert.equal(r.menu.active, 1, "wraps to last");
+});
+
+test("key: arrows with no options do nothing, no preventDefault", () => {
+  for (const open of [false, true]) {
+    const m = menu("/zzzzzz", { open });
+    for (const k of ["ArrowDown", "ArrowUp"]) {
+      const r = press(m, k);
+      assert.deepEqual([r.action, r.preventDefault, r.menu], [null, false, m], k);
+    }
+  }
+});
+
+test("key: Tab completes the highlighted name", () => {
+  const r = press(menu("/pa", { open: true }), "Tab");
+  assert.deepEqual([r.action, r.buffer, r.preventDefault], ["complete", "/pair", true]);
+  const h = press(menu("/handoff", { open: true, active: 2 }), "Tab");
+  assert.equal(h.buffer, "/session-handoff");
+});
+
+test("key: Tab with nothing to fill, closed menu or a modifier: no trap", () => {
+  const cases = [
+    [menu("/pair", { open: true }), {}],
+    [menu("/zzzzzz", { open: true }), {}],
+    [menu("/pa"), {}],
+    [menu("/pa", { open: true }), { shift: true }],
+    [menu("/pa", { open: true }), { alt: true }],
+    [menu("/pa", { open: true }), { ctrl: true }],
+    [menu("/pa", { open: true }), { meta: true }],
+  ];
+  for (const [m, ev] of cases) {
+    const r = press(m, "Tab", ev);
+    assert.deepEqual([r.action, r.preventDefault, r.menu], [null, false, m], m.buffer + JSON.stringify(ev));
+  }
+});
+
+test("key: Enter on an open menu goes to the highlighted name", () => {
+  const r = press(menu("/handoff", { open: true, active: 1 }), "Enter");
+  assert.deepEqual([r.action, r.name, r.preventDefault], ["go", "handoff-auto", true]);
+  const first = press(menu("/", { open: true }), "Enter");
+  assert.deepEqual([first.action, first.name], ["go", "grill-me"]);
+});
+
+test("key: Enter with nothing to open still prevents default", () => {
+  const m = menu("/zzzzzz", { open: true });
+  const r = press(m, "Enter");
+  assert.deepEqual([r.action, r.preventDefault, r.menu], [null, true, m]);
+  const closed = press(menu("/zzzzzz"), "Enter");
+  assert.deepEqual([closed.action, closed.preventDefault, closed.menu.open], ["open", true, true]);
+});
+
+test("key: Esc with text clears to '/' and closes (home and detail)", () => {
+  for (const home of [true, false]) {
+    const r = press(menu("/gri", { open: true }), "Escape", { home });
+    assert.deepEqual([r.action, r.preventDefault, r.menu.open], ["clear", true, false]);
+  }
+});
+
+test("key: Esc on bare '/': detail goes home in one press, open or not", () => {
+  for (const open of [false, true]) {
+    const r = press(menu("/", { open }), "Escape", { home: false });
+    assert.deepEqual([r.action, r.preventDefault], ["home", true]);
+  }
+});
+
+test("key: Esc on bare '/' at home closes an open menu, never navigates", () => {
+  const r = press(menu("/", { open: true }), "Escape", { home: true });
+  assert.deepEqual([r.action, r.preventDefault, r.menu.open], ["close", true, false]);
+  const m = menu("/");
+  const idle = press(m, "Escape", { home: true });
+  assert.deepEqual([idle.action, idle.preventDefault, idle.menu], [null, false, m]);
+});
+
+test("key: Backspace blocked only on bare '/' with a collapsed selection", () => {
+  assert.equal(press(menu("/"), "Backspace", { collapsed: true }).preventDefault, true);
+  assert.equal(press(menu("/"), "Backspace", { collapsed: false }).preventDefault, false);
+  assert.equal(press(menu("/pa"), "Backspace", { collapsed: true }).preventDefault, false);
+  assert.equal(press(menu("/"), "Backspace").action, null);
+});
+
+test("key: '/' opens only on the bare prompt; already open does nothing more", () => {
+  const typed = press(menu("/pa"), "/");
+  assert.deepEqual([typed.action, typed.preventDefault, typed.menu.open], [null, false, false]);
+  const m = menu("/", { open: true, active: 4 });
+  const r = press(m, "/");
+  assert.deepEqual([r.action, r.preventDefault, r.menu], [null, true, m]);
+});
+
+test("key: ArrowLeft/Home keep the caret at the end; other keys pass through", () => {
+  for (const k of ["ArrowLeft", "Home"]) {
+    const r = press(menu("/pa"), k);
+    assert.deepEqual([r.action, r.preventDefault], [null, true], k);
+  }
+  for (const k of ["a", "ArrowRight", "End", "Delete"]) {
+    const m = menu("/pa");
+    const r = press(m, k);
+    assert.deepEqual([r.action, r.preventDefault, r.menu], [null, false, m], k);
+  }
+});
+
 test("status text counts matches", () => {
   assert.equal(F.statusText(F.search("/gri", FIX)), "2 matching commands");
   assert.equal(F.statusText(F.search("/sitr", FIX)), "1 matching command");

@@ -50,7 +50,7 @@ import re
 import sys
 
 DEFAULT_BASH_PATTERNS = [
-    r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:(?:pods?|serverless|network-volume|nv|template|registry)\s+)?(?:create|start)\b""",
+    r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:(?:pods?|serverless|network-volume|nv)\s+)?(?:create|start)\b""",
     r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:network-volume|nv)\s+update\b[^\n]*--size\b""",
     r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+serverless\s+update\b""",
     r"""\bvultr-cli(?:\.exe|\.cmd)?["']?\s+instance\s+create\b""",
@@ -378,6 +378,10 @@ def run_self_test():
     # 2. each default bash pattern blocks
     default_cases = [
         "runpodctl create pod --gpuType RTX4090",
+        "runpodctl pod create --gpu-id RTX4090",
+        "runpodctl serverless create --template-id t1",
+        "runpodctl network-volume create --size 10",
+        "runpodctl.exe pod create --gpu-id RTX4090",
         "vultr-cli instance create --region ewr",
         "aws ec2 run-instances --image-id ami-123",
         "gcloud compute instances create my-vm",
@@ -393,7 +397,6 @@ def run_self_test():
         "runpodctl start pod x", "runpodctl pod start x", "runpodctl pods start x",
         "runpodctl pod create --image y", "runpodctl serverless create --name z",
         "runpodctl network-volume create --size 10", "runpodctl nv create",
-        "runpodctl template create", "runpodctl registry create",
         "runpodctl network-volume update id --size 200",
         "runpodctl nv update id --name a --size 2",
         "runpodctl serverless update id --workers-max 3",
@@ -408,6 +411,7 @@ def run_self_test():
     rp_allow = [
         "runpodctl pod list", "runpodctl pod logs x", "runpodctl pod stop x",
         "runpodctl pod get x", "runpodctl get pod",
+        "runpodctl template create --name t", "runpodctl registry create",
         "runpodctl network-volume update id --name x",
         "myrunpodctl pod start x", "runpodctl pod delete x",
     ]

@@ -309,9 +309,16 @@ class DetailPagesTest(unittest.TestCase):
 
     def test_back_link_and_esc_home(self):
         self.assertIn('<a class="back" href="/">&larr; all commands</a>', self.pages["pair"])
-        with open(os.path.join(ROOT, "site", "src", "app.js"), encoding="utf-8") as f:
+        src = os.path.join(ROOT, "site", "src")
+        with open(os.path.join(src, "filter.js"), encoding="utf-8") as f:
+            fjs = f.read()
+        with open(os.path.join(src, "app.js"), encoding="utf-8") as f:
             js = f.read()
-        self.assertIn("else if (!home) { e.preventDefault(); goHome(); }", js)
+        # Detail page: Esc on a bare "/" -> reducer action "home" -> goHome().
+        self.assertIn('} else if (!ev.home) {', fjs)
+        self.assertIn('r.preventDefault = true; r.action = "home";', fjs)
+        self.assertIn('home: home,', js)
+        self.assertIn('case "home": goHome(); break;', js)
 
 
 class MetaTest(unittest.TestCase):

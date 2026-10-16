@@ -22,7 +22,7 @@
 
   var buffer = "/";
   var state = F.search(buffer, items);
-  var active = firstRow(state);
+  var active = F.firstRow(state);
   var open = false; // menu shows only once the user engages the prompt
   var composing = false; // IME composition: never touch value/caret mid-word
 
@@ -33,23 +33,22 @@
       caretToEnd();
     }
     state = F.search(buffer, items);
-    active = firstRow(state);
+    active = F.firstRow(state);
     if (engage) open = true;
     render(true);
   }
 
-  // Row highlighted whenever a list is (re)shown: the first, bare "/" included,
-  // so Enter/Tab always act on a visible highlight.
-  function firstRow(s) { return s.options.length ? 0 : -1; }
+  function menuState() {
+    return { buffer: buffer, state: state, active: active, open: open };
+  }
 
-  // Single entry for every path that opens a closed menu (click, "/", Enter,
-  // arrows): highlight the first row before rendering.
+  // Click on the prompt: same opening path as the keys (F.openMenu).
   function openMenu() {
-    if (open) return false;
-    open = true;
-    active = firstRow(state);
+    if (open) return;
+    var m = F.openMenu(menuState());
+    active = m.active;
+    open = m.open;
     render(true);
-    return true;
   }
 
   function caretToEnd() {
@@ -100,11 +99,7 @@
     if (announce) status.textContent = open ? F.statusText(state) : "";
   }
 
-  function move(delta) {
-    var n = state.options.length;
-    if (!n || openMenu()) return;
-    active = active < 0 ? (delta > 0 ? 0 : n - 1) : (active + delta + n) % n;
-    render(false);
+  function scrollToActive() {
     var el = document.getElementById("opt-" + active);
     if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
   }
@@ -141,41 +136,21 @@
 
   input.addEventListener("keydown", function (e) {
     if (e.keyCode === 229 || e.isComposing) return;
-    switch (e.key) {
-      case "Tab":
-        if (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey || !open) return;
-        var c = F.complete(buffer, state, active);
-        if (c !== null) { e.preventDefault(); setBuffer(c, true); }
-        // Nothing to fill: let Tab move focus (no keyboard trap).
-        return;
-      case "ArrowDown":
-        if (state.options.length) { e.preventDefault(); move(1); }
-        return;
-      case "ArrowUp":
-        if (state.options.length) { e.preventDefault(); move(-1); }
-        return;
-      case "Enter":
-        e.preventDefault();
-        var name = open ? F.resolve(state, active) : null;
-        if (name) go(name);
-        else openMenu();
-        return;
-      case "Escape":
-        if (buffer !== "/") { e.preventDefault(); setBuffer("/", false); close(); }
-        else if (!home) { e.preventDefault(); goHome(); } // detail page: Esc on a bare "/" goes home
-        else if (open) { e.preventDefault(); close(); }
-        return;
-      case "Backspace":
-        if (buffer === "/" && input.selectionStart === input.selectionEnd) e.preventDefault();
-        return;
-      case "/":
-        // "/" on the bare prompt shows everything (nothing to type: it is there).
-        if (buffer === "/") { e.preventDefault(); openMenu(); }
-        return;
-      case "ArrowLeft":
-      case "Home":
-        e.preventDefault(); // caret stays at the end
-        return;
+    // Transitions live in F.key; this applies the result.
+    var r = F.key(menuState(), {
+      key: e.key, shift: e.shiftKey, alt: e.altKey, ctrl: e.ctrlKey, meta: e.metaKey,
+      home: home, collapsed: input.selectionStart === input.selectionEnd
+    });
+    if (r.preventDefault) e.preventDefault();
+    active = r.menu.active;
+    open = r.menu.open;
+    switch (r.action) {
+      case "complete": setBuffer(r.buffer, true); break;
+      case "clear": setBuffer("/", false); close(); break;
+      case "go": go(r.name); break;
+      case "home": goHome(); break; // detail page: Esc on a bare "/" goes home
+      case "open": case "close": render(true); break;
+      case "move": render(false); scrollToActive(); break;
     }
   });
 

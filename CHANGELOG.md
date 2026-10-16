@@ -6,9 +6,10 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 
 ## [0.1.0] - 2026-10-15
 
+- `session-bridge` snapshot: LAST USER ASK skips reminders, tool results and agent relays (slash commands shown as `/name args`); Agent/Skill/WebFetch actions labelled; secrets redacted before truncation.
 - `spend-guard` default patterns also match `.exe`/`.cmd`, quoted and full-path CLI forms (e.g. `& "C:\...\runpodctl.exe" create`).
 - `spend-guard` also covers the PowerShell tool (inline `$env:SPEND_GATE_APPROVED='x';` approval) and more Runpod MCP tools (job submits, endpoint updates, pod start).
-- `spend-guard` also blocks `runpodctl start`/`pod start`, v2 noun-verb creates, `serverless update`, and network-volume resize (`--size` flag or MCP `update-network-volume` body with `size`).
+- `spend-guard` also blocks `runpodctl start`/`pod start`, noun-first creates (`pod|serverless|network-volume create`), `serverless update`, and network-volume resize (`--size` flag or MCP `update-network-volume` body with `size`).
 - Installable as a Claude Code plugin: `/plugin marketplace add KrishP147/skills`, then `/plugin install krish@krish`.
 - Plugin ships every skill (as `/krish:<skill>`), the four agents (as `krish:<agent>`) and the `guard-git` hook.
 - `guard-git` gains `--plugin`: as a plugin hook it guards only the `implementer` and `manager` agents, so your own session can still push. Without Python 3.8+ the plugin hook blocks only those two agents, not your session.
