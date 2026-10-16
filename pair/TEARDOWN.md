@@ -100,16 +100,17 @@ Git Bash or mac/linux:
 
 ```sh
 wt="<wt>"; main="<main>"
-left=$(git -C "$wt" status --porcelain --ignored --untracked-files=all -- skilleddocs <more>)
-if [ -e "$wt/.venv" ] || [ -L "$wt/.venv" ] || [ -e "$wt/node_modules" ] || [ -L "$wt/node_modules" ] || [ -n "$left" ]; then echo "STOP: left in $wt:"; echo "$left"; else git -C "$main" worktree remove "$wt"; fi
+if ! left=$(git -C "$wt" status --porcelain --ignored --untracked-files=all -- skilleddocs <more>); then echo "STOP: $wt is not a readable worktree"
+elif [ -e "$wt/.venv" ] || [ -L "$wt/.venv" ] || [ -e "$wt/node_modules" ] || [ -L "$wt/node_modules" ] || [ -n "$left" ]; then echo "STOP: left in $wt:"; echo "$left"; else git -C "$main" worktree remove "$wt"; fi
 ```
 
 PowerShell:
 
 ```powershell
 $wt = '<wt>'; $main = '<main>'
-$left = git -C $wt status --porcelain --ignored --untracked-files=all -- skilleddocs <more>
-if ((Get-ChildItem -Force $wt | Where-Object Name -in '.venv','node_modules') -or $left) { "STOP: left in ${wt}:"; $left } else { git -C $main worktree remove $wt }
+$left = git -C $wt status --porcelain --ignored --untracked-files=all -- skilleddocs <more>; $ok = $LASTEXITCODE -eq 0
+if (-not $ok -or -not (Test-Path -LiteralPath $wt -PathType Container)) { "STOP: $wt is not a readable worktree" }
+elseif ((Get-ChildItem -Force -LiteralPath $wt | Where-Object Name -in '.venv','node_modules') -or $left) { "STOP: left in ${wt}:"; $left } else { git -C $main worktree remove $wt }
 ```
 
 STOP → leave the worktree and report what is left (link, `CLASH` file, register lines step 1 listed). `git worktree remove` refuses (untracked or modified files elsewhere) → stop and report `git -C "<wt>" status --short`. Never `--force`.
