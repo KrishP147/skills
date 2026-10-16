@@ -26,7 +26,7 @@ Record a file set per issue. Mark it **uncertain** when it rests only on a label
 ## 2. Group
 
 - Two issues whose file sets overlap go in the same lane, in queue order. Overlap is transitive.
-- The connected groups that result are the **independent streams**. Treat an uncertain issue as overlapping anything in its predicted area: the directories of its area label, or with no label the directories of its predicted files. An unbounded issue ("and wherever else", or no file predictable at all) does not join lanes by overlap, which would collapse every lane into one; put it in a lane named `serial`, which runs only when no other lane has an issue in flight. `serial` never runs alongside another lane, so it does not count toward `parallel` or the §3 count.
+- The connected groups that result are the **independent streams**. Treat an uncertain issue as overlapping anything in its predicted area: the directories of its area label, or with no label the directories of its predicted files. An unbounded issue ("and wherever else", or no file predictable at all) does not join lanes by overlap, which would collapse every lane into one; put it in a lane named `serial`, which runs only when no other lane has an issue in flight. Once every issue queued ahead of a serial issue has started, the other lanes finish their in-flight issue and start nothing new until it merges, so it can't starve. `serial` never runs alongside another lane, so it does not count toward `parallel` or the §3 count.
 - Pinned issues (scope.md `lanes:` or the user) stay in their lane.
 - Name each lane after its area (`site`, `hooks`, `docs`), not a number.
 
