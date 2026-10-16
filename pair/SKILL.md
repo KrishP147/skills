@@ -10,9 +10,9 @@ Flags: `--no-worktree` (new branch in the current checkout), `--push` (push + PR
 
 ## 1. Resolve
 
-- Number → `gh issue view <n>`. Text → write a 3–6 item acceptance checklist.
+- **Target repo** per the `next` skill's `BOARD.md`, Target repo section (path in §2): `-R <o/r>` on every `gh` call. Number → `gh issue view <n> -R <o/r>` (on a fork, the parent's issue is fine to read). Text → write a 3–6 item acceptance checklist.
 - Repo facts: default branch, branch prefix (user's `CLAUDE.md`, else `feat`), test command, `CONTRIBUTING.md` / `AGENTS.md`.
-- **Fork** (`upstream` remote): `git fetch upstream`, fast-forward default to `upstream/<default>`, then confirm every file or symbol the issue names still exists. Put anything missing in the brief.
+- **Fork** (`upstream` remote): reading is fine, so `git fetch upstream`, fast-forward default to `upstream/<default>`, then confirm every file or symbol the issue names still exists. Put anything missing in the brief.
 
 ## 2. Isolate
 
@@ -28,7 +28,7 @@ Deps (`node_modules`, `.venv`): link each from the main checkout, paths quoted (
 - Windows, PowerShell: `cmd /c mklink /J "<wt>\.venv" "<main>\.venv"`.
 - mac/linux: `ln -s "<main>/.venv" "<wt>/.venv"`.
 
-Issue number on a board, worktree/branch not reused → move it to In Progress and comment "Started on branch `<branch>`" (the `next` skill's `BOARD.md`: `~/.claude/skills/next/` or, as the plugin, `kanban/next/`). Board errors never block the task.
+Issue number on a board, worktree/branch not reused → (fork: only after the target-repo answer) move it to In Progress and comment "Started on branch `<branch>`" (the `next` skill's `BOARD.md`: `~/.claude/skills/next/` or, as the plugin, `kanban/next/`). Board errors never block the task.
 
 ## 3. Delegate
 
@@ -56,9 +56,9 @@ Leave the worktree alone while it runs.
 6. `--push` or the user says go:
    ```
    git -C <worktree> push -u origin <branch>
-   gh pr create --head <branch> --title "<title>" --body "<summary>\n\nCloses #<n>"
+   gh pr create -R <o/r> --head <origin-owner>:<branch> --title "<title>" --body "<summary>\n\nCloses #<n>"
    ```
-   Never merge.
+   `<o/r>` = the PR's base: on a fork, ask fork or parent first; the parent only on an explicit yes naming it. Never merge.
 7. Review comments later → step 3 again, comments as the task, same worktree.
 
 ## 5. Print and teardown
