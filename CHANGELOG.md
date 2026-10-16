@@ -8,6 +8,6 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 
 - Installable as a Claude Code plugin: `/plugin marketplace add KrishP147/skills`, then `/plugin install krish@krish`.
 - Plugin ships every skill (as `/krish:<skill>`), the four agents (as `krish:<agent>`) and the `guard-git` hook.
-- `guard-git` gains `--plugin`: as a plugin hook it guards only the `implementer` and `manager` agents, so your own session can still push.
+- `guard-git` gains `--plugin`: as a plugin hook it guards only the `implementer` and `manager` agents, so your own session can still push. Without Python 3.8+ the plugin hook blocks only those two agents, not your session.
 - `pair`, `meta-orchestrator`, `implementer` and `manager` name agents and skill files in a form that works under both installs.
 - `scripts/lint.py` checks this file's top version against `plugin.json`.

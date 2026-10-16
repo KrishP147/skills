@@ -46,6 +46,7 @@ CURRENT_BRANCH_IDIOMS = (
 )
 
 
+# Keep in sync with the no-Python grep in .claude-plugin/plugin.json.
 GUARDED_AGENTS = ("implementer", "manager")
 
 

@@ -23,7 +23,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "for p in python3 python py; do \"$p\" -c \"import sys; sys.exit(sys.version_info < (3, 8))\" </dev/null >/dev/null 2>&1 && exec \"$p\" \"${CLAUDE_PLUGIN_ROOT}/agents/hooks/guard-git.py\" --plugin; done; echo \"guard-git blocked - no Python 3.8+ (python3/python/py) on PATH\" >&2; exit 2"
+            "command": "for p in python3 python py; do \"$p\" -c \"import sys; sys.exit(sys.version_info < (3, 8))\" </dev/null >/dev/null 2>&1 && exec \"$p\" \"${CLAUDE_PLUGIN_ROOT}/agents/hooks/guard-git.py\" --plugin; done; grep -Eq '\"agent_type\"[[:space:]]*:[[:space:]]*\"([^\"]*:)?(implementer|manager)\"' && { echo \"guard-git blocked - no Python 3.8+ (python3/python/py) on PATH\" >&2; exit 2; }; exit 0"
           }
         ]
       }
