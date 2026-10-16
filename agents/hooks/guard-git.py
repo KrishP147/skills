@@ -963,8 +963,13 @@ def check_git(args, ctx, subs, depth, alias_depth=0):
         return
     sub, rest = args[i], args[i + 1:]
 
+    if is_dynamic(sub):  # `a=push; git $a origin main`
+        ctx.block("git subcommand '%s' can't be read; failing closed." % sub)
     if sub not in GIT_KNOWN and alias_depth < 3:
-        alias = inline_aliases.get(sub) or (None if is_dynamic(sub) else ctx.alias_lookup(cwd, sub))
+        alias = (inline_aliases.get(sub) or ctx.git_aliases.get(sub.lower())
+                 or ctx.alias_lookup(cwd, sub))
+        if alias == DYNAMIC:
+            ctx.block("git alias '%s' was set to an unreadable value; failing closed." % sub)
         if alias:
             if alias.startswith("!"):
                 analyze(alias[1:] + " " + " ".join(shlex.quote(r) for r in rest), ctx, depth + 1)
@@ -1106,6 +1111,11 @@ def check_config(args, ctx):
         return
     if is_dynamic(key):
         ctx.block("git config write of an unreadable key '%s'; failing closed." % key)
+    if key.lower().startswith("alias."):  # `git config alias.up push && git up ...`
+        if not is_dynamic(value) and RISKY_WORDS.search(value):
+            ctx.block("git config %s '%s': an alias that pushes/merges is not allowed." % (key, value))
+        ctx.git_aliases[key[6:].lower()] = DYNAMIC if is_dynamic(value) else value
+        return
     if config_write_redirects(key, None if is_dynamic(value) else value, ctx):
         ctx.block("git config %s %s persists a setting that can redirect a later push "
                   "(push.default/remote.*.push/mirror/branch.*.merge/include); not allowed." % (key, value))
