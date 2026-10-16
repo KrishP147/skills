@@ -24,14 +24,14 @@ Defaults to the current repo. Model-invocable, so any of the trigger phrases abo
 ## How it works
 
 1. **Ask up front, one batch** — outcome, audience, what to emphasize, each with a recommended default; proceeds on the answers or the defaults.
-2. **Inventory docs** — every doc in the repo into a keep / merge / delete table with a reason per row; nothing deleted or merged without an explicit yes.
-3. **Grep claims against reality** — every factual claim in the README/docs checked against the actual code, config, and `git log`; contradictions reported as `file:line` (claim) plus `file:line`/commit (evidence).
-4. **Rewrite the README, lean by default** — one-line pitch, result, demo media placeholder(s) the user fills in themselves (never a fabricated screenshot/GIF/metric), quickstart verified against step 3's findings, architecture only if the audience needs it, credits.
-5. **Scan for secrets and private names** — tracked files only; key/token/connection-string patterns, un-ignored `.env` files, and emails or names that aren't authors or already public, reported as `file:line`, redacted only on yes.
-6. **Propose GitHub metadata** — description/topics/homepage, shown as the exact `gh repo edit` command, applied only on yes.
+2. **Inventory docs** — every tracked doc in the repo into a keep / merge / delete table with a reason per row; untracked docs listed separately as not shipped; nothing deleted or merged without an explicit yes.
+3. **Grep claims against reality** — a missing `LICENSE` is flagged and gated (you choose; it never picks one); every factual claim in the README/docs checked against the actual code, config, and `git log`; contradictions reported as `file:line` (claim) plus `file:line`/commit (evidence).
+4. **Rewrite the README, lean by default** — one-line pitch, result, demo media placeholder(s) the user fills in themselves (never a fabricated screenshot/GIF/metric), quickstart actually run in a scratch venv or clean clone (result reported), architecture only if the audience needs it, credits.
+5. **Scan for secrets and private names** — tracked files only; key/token/connection-string patterns, un-ignored `.env` files, `gitleaks dir .`, and emails or person names (email grep, then reading comments and docs) that aren't authors or already public, reported as `file:line`, redacted only on yes.
+6. **Propose GitHub metadata** — description/topics/homepage, shown as the exact `gh repo edit` command, applied only on yes; no GitHub remote means the command is printed and skipped.
 7. **GATE** — shows the diff summary; commits (small, one logical change each) only on yes, on a branch; pushes only on a separate yes.
 8. **Hands off to `repo-scrub`** — states plainly that history scanning and the visibility flip happen there, not here.
-9. **Writes the report** — the doc inventory, contradicted-claims list, and secret/name findings (plus what was done about each) to `skilleddocs/showcase/<local-date>.md`.
+9. **Writes the report** — the doc inventory, contradicted-claims list, and secret/name findings (plus what was done about each) to `skilleddocs/showcase/<local-date>.md`, uncommitted unless asked.
 
 ## Design principles
 

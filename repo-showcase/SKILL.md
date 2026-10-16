@@ -16,25 +16,27 @@ Working tree only. History and visibility belong to `/repo-scrub`. **Gate**: eve
 
 ## 2. Doc inventory
 
-Every doc (`README*`, `docs/**`, `CONTRIBUTING*`, stray notes): table Path · keep / merge / delete · reason. Act on rows only after a yes, echoed back.
+Every tracked doc (`README*`, `docs/**`, `CONTRIBUTING*`, stray notes): table Path · keep / merge / delete · reason. Untracked docs are listed separately as `not shipped` and never rewritten or published. Act on rows only after a yes, echoed back.
 
 ## 3. Claims vs reality
 
 Check every factual claim (languages, versions, install steps, commands, badges, "beta", architecture) against code, config and `git log`. Report `claim file:line` — `evidence file:line or SHA`. These feed §4 and the diff gate.
 
+**License**: no `LICENSE*` file → flag it here and gate it. Offer the user the choice (name a few common ones); never pick one for them, and don't name a license in the README until they have.
+
 ## 4. README draft (lean)
 
-1. One-line pitch. 2. Result: what using it produces. 3. Demo slot: `<!-- screenshot/GIF: paste path or URL -->` for the user to fill; media and metrics are never fabricated. 4. Quickstart, verified against §3. 5. Architecture, only if the audience needs it. 6. Credits and license.
+1. One-line pitch. 2. Result: what using it produces. 3. Demo slot: `<!-- screenshot/GIF: paste path or URL -->` for the user to fill; media and metrics are never fabricated. 4. Quickstart, actually run: in a scratch venv or a clean clone (`git clone . "$(mktemp -d)/x"`; a working tree with an untracked `skilleddocs/` can break `pip install .`, see [TRACKING.md](../handoff-auto/TRACKING.md)), execute each quickstart command and report pass/fail with the output; fix or drop what fails. 5. Architecture, only if the audience needs it. 6. Credits and license.
 
 Draft only; the file changes at §7.
 
 ## 5. Secrets and private names
 
-Tracked files: key/token/connection-string patterns, un-ignored `.env`; emails and names that aren't authors (`git shortlog -sne`) or already public. Report `file:line`; redact per item on yes.
+Tracked files: key/token/connection-string patterns (`gitleaks dir .` if installed), un-ignored `.env`. Personal names: grep for email addresses, then read comments and docs for person names; flag any that aren't authors (`git shortlog -sne`) or already public. Report `file:line`; redact per item on yes.
 
 ## 6. Metadata
 
-Propose description, topics, homepage; show `gh repo edit <o/r> --description "…" --add-topic … --homepage …`; run on yes.
+Propose description, topics, homepage; show `gh repo edit <o/r> --description "…" --add-topic … --homepage …`; run on yes. No GitHub remote (`git remote -v` shows none, or a non-GitHub host) → print the command for later and skip.
 
 ## 7. Gate: diff, commit, push
 
@@ -42,4 +44,4 @@ Show the full README diff plus one line per doc change and redaction. Commit on 
 
 ## 8. Hand off and record
 
-Next step: `/repo-scrub` for the history scan and the visibility flip, kept separate on purpose. Save inventory, claims, findings, and what was done to `skilleddocs/showcase/<local-date>.md`.
+Next step: `/repo-scrub` for the history scan and the visibility flip, kept separate on purpose. Save inventory, claims, findings, and what was done to `skilleddocs/showcase/<local-date>.md`, uncommitted unless asked (and not counted among the files you commit in §7). Untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md) (it also covers the `pip install .` hazard).
