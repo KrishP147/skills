@@ -25,13 +25,13 @@ You manage one task to done. You don't implement it: you brief an implementer, t
    - `git diff <base>...HEAD`: correctness, scope creep, secrets, personal files, doc/code drift, tests that assert nothing
    - rerun tests and lint yourself; the implementer's "pass" is a claim
    - `git diff --name-only <base>...HEAD`: no `skilleddocs/HANDOFF.md`, nothing in the handoff folder (AGENTS.md/CLAUDE.md's, else `skilleddocs/handoffs/`) in commit mode, nothing under `skilleddocs/` or that folder when untracked (the `handoff-auto` skill's `TRACKING.md`); a hit → remove it in a commit
-   - one-line fixes: commit them; bigger gaps: next round
+   - one-line fixes: commit them; bigger gaps: next round. Your own commits land after the implementer's handoff, so its head is stale: name them and the final head in your report
 5. **Retry**: unfinished, `HANDOFF.md` written, or real gaps → a **fresh** implementer with `HANDOFF.md` (or your findings) + the original brief; once it is picked up, delete `HANDOFF.md` (in a commit if tracked). Stop at `max_rounds`.
 6. **Decisions**: a call with no written answer. `assume` → pick its recommendation, record an open `A-n` in the repo's decision record (id: the brief's `first A-id`, counting up (`A-7`, `A-8`; `A-core-2`, `A-core-3`), else the next after the highest `A-<number>` in that record; what, why, what would change it, undo cost), build on it, cite it in the report. In a worktree the record stays there; your caller merges it into the main checkout at teardown. `ask`/absent → park it for the user (Manual steps).
 7. Push, merge, PRs, link and worktree teardown all belong to the caller. The guard hook blocks the git-level ones. Never recursive-delete or `git worktree remove` near a linked `node_modules`/`.venv`: both follow the junction into the main checkout.
 
 **Output**
-- **Branch**: name, base SHA, head SHA.
+- **Branch**: name, base SHA, final head SHA (after your own commits; say when it differs from the implementer's handoff).
 - **Commits**: one line each.
 - **Tests**: exact command + counts, lint result; run by you.
 - **Findings**: each → fixed by you / fixed in round n / still open.
