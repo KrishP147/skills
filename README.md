@@ -29,13 +29,14 @@ New to the repo? Check the prereqs, install, then try one skill.
 
 **60-second quickstart**
 
-```bash
-git clone https://github.com/KrishP147/skills.git
-cd skills
-./scripts/install-skills.sh        # Windows PowerShell: .\scripts\install-skills.ps1
+In Claude Code:
+
+```
+/plugin marketplace add KrishP147/skills
+/plugin install krish@krish
 ```
 
-Open a new Claude Code session in any repo (skills and agents are read at startup), then type `/grill-docs <a plan you are unsure about>`. Details, flags and the `repo-scrub` / kanban extras: [Install](#install).
+Then (in a new session if it isn't listed yet) type `/krish:grill-docs <a plan you are unsure about>`. Prefer plain `/grill-docs` names, or no plugin? Use the install script instead (pick one, not both): [Install](#install), which also covers flags and the `repo-scrub` / kanban extras.
 
 ## Three ways to run work
 
@@ -142,6 +143,23 @@ Plans and specs live in docs/; this folder records how they were decided and car
 
 ## Install
 
+Pick **one** of the two. Both at once loads every skill and agent twice (once as `/<skill>`, once as `/krish:<skill>`) and runs the `guard-git` hook twice.
+
+### As a plugin (recommended)
+
+In Claude Code:
+
+```
+/plugin marketplace add KrishP147/skills
+/plugin install krish@krish
+```
+
+Skills are namespaced: `/krish:pair`, `/krish:grill-docs`, and so on. Agents are `krish:manager`, `krish:implementer`, `krish:planner` and `krish:verifier`; the skills that spawn them accept either form. The `guard-git` hook comes with the plugin as a plugin-level hook: it guards only the `implementer` and `manager` agents, so your own session can still push. The optional hooks in [`hooks/`](hooks/README.md) are not part of the plugin; install those by hand. On Windows the hook needs Git Bash, as below; without it the hook blocks nothing. Update with `/plugin marketplace update krish`. Versions and changes: [`CHANGELOG.md`](CHANGELOG.md).
+
+### With the install script
+
+Plain names (`/pair`, `manager`) and files you can edit in place:
+
 ```bash
 git clone https://github.com/KrishP147/skills.git
 cd skills
@@ -159,6 +177,8 @@ The lint step needs a real Python 3 on `PATH` (`python`, `python3`, or — on Wi
 If a directory with the same name as one of this repo's skills already exists under `~/.claude/skills/` but has no `.from-krishp147-skills` marker (i.e. you didn't get it from here), the install leaves it untouched, warns, and exits non-zero at the end so you notice. Pass `--force` (sh) / `-Force` (ps1) to replace it anyway. Upgrading from an install made before the marker existed? Every old skill dir looks foreign, so run once with `--force` / `-Force`.
 
 ## Update
+
+Plugin: `/plugin marketplace update krish`, then restart Claude Code. Install script:
 
 ```bash
 cd skills

@@ -126,5 +126,51 @@ class BlockScalarFrontmatter(unittest.TestCase):
         self.assertNotIn(">", d["description"])
 
 
+class ChangelogVersion(unittest.TestCase):
+    def _run(self, plugin_version, changelog):
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, ".claude-plugin"))
+            with open(os.path.join(root, ".claude-plugin", "plugin.json"), "w", encoding="utf-8") as f:
+                f.write('{"name": "x", "version": "%s"}' % plugin_version)
+            if changelog is not None:
+                with open(os.path.join(root, "CHANGELOG.md"), "w", encoding="utf-8") as f:
+                    f.write(changelog)
+            failures = []
+            lint.check_changelog_version(root, failures)
+            return failures
+
+    def test_top_version_forms(self):
+        for heading in ("## [0.2.0] - 2026-01-01", "## 0.2.0", "## v0.2.0", "## [0.2.0]"):
+            self.assertEqual(lint.changelog_top_version("# Changelog\n\n" + heading + "\n- x\n"), "0.2.0", heading)
+
+    def test_first_heading_wins(self):
+        self.assertEqual(lint.changelog_top_version("## [0.3.0]\n## [0.2.0]\n"), "0.3.0")
+
+    def test_unversioned_top_heading(self):
+        self.assertIsNone(lint.changelog_top_version("## Unreleased\n## [0.2.0]\n"))
+
+    def test_match_passes(self):
+        self.assertEqual(self._run("0.2.0", "# Changelog\n\n## [0.2.0] - 2026-01-01\n- x\n"), [])
+
+    def test_mismatch_fails(self):
+        failures = self._run("0.3.0", "## [0.2.0]\n- x\n")
+        self.assertEqual(len(failures), 1)
+        self.assertIn("0.3.0", failures[0])
+
+    def test_missing_changelog_fails(self):
+        self.assertEqual(len(self._run("0.2.0", None)), 1)
+
+    def test_no_manifest_skips(self):
+        with tempfile.TemporaryDirectory() as root:
+            failures = []
+            lint.check_changelog_version(root, failures)
+            self.assertEqual(failures, [])
+
+    def test_repo_changelog_matches(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        failures = []
+        lint.check_changelog_version(root, failures)
+        self.assertEqual(failures, [])
+
 if __name__ == "__main__":
     unittest.main()

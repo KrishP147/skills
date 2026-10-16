@@ -25,11 +25,11 @@ git worktree add ../_worktrees/<repo>-<slug> -b <prefix>/<slug> <default>
 
 Deps (`node_modules`, `.venv`): link from the main checkout. Windows `cmd //c mklink /J <wt>\node_modules <main>\node_modules`; mac/linux `ln -s <main>/node_modules <wt>/node_modules`.
 
-Issue number on a board, worktree/branch not reused → move it to In Progress and comment "Started on branch `<branch>`" (`~/.claude/skills/next/BOARD.md`). Board errors never block the task.
+Issue number on a board, worktree/branch not reused → move it to In Progress and comment "Started on branch `<branch>`" (the `next` skill's `BOARD.md`: `~/.claude/skills/next/` or, as the plugin, `kanban/next/`). Board errors never block the task.
 
 ## 3. Delegate
 
-One blocking call, `subagent_type="manager"` (never `fork`: it ignores the model and can't nest):
+One blocking call, `subagent_type="manager"` (or `"krish:manager"` when installed as the plugin; never `fork`: it ignores the model and can't nest):
 
 ```
 working directory: <absolute worktree path>

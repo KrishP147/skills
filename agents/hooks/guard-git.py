@@ -14,6 +14,11 @@ Pair it with GitHub branch protection.
 
 Protected branches: env GUARD_PROTECTED_BRANCHES (comma list), default
 "main,master".
+
+`--plugin`: set by the plugin-level hook (.claude-plugin/plugin.json), which
+fires for every session, not just agents. Only enforces when stdin
+`agent_type` is a guarded agent (implementer/manager, bare or
+`<plugin>:`-namespaced); anything else, including the main session, exits 0.
 """
 import base64
 import json
@@ -39,6 +44,17 @@ CURRENT_BRANCH_IDIOMS = (
     re.compile(r"^\s*git\s+rev-parse\s+--abbrev-ref\s+(HEAD|@)\s*$"),
     re.compile(r"^\s*git\s+symbolic-ref\s+(--short\s+HEAD|HEAD\s+--short)\s*$"),
 )
+
+
+# Keep in sync with the no-Python grep in .claude-plugin/plugin.json.
+GUARDED_AGENTS = ("implementer", "manager")
+
+
+def guarded_agent(agent_type):
+    """True when a plugin-hook payload's agent_type is one guard-git guards."""
+    if not isinstance(agent_type, str):
+        return False
+    return agent_type in GUARDED_AGENTS or any(agent_type.endswith(":" + a) for a in GUARDED_AGENTS)
 
 
 class Block(Exception):
@@ -796,6 +812,8 @@ def main():
         data = json.loads(sys.stdin.read())
         if data.get("tool_name") not in ("Bash", "PowerShell"):
             sys.exit(0)
+        if "--plugin" in sys.argv and not guarded_agent(data.get("agent_type")):
+            sys.exit(0)  # plugin hook: main session and other agents may push
         command = (data.get("tool_input") or {}).get("command")
         cwd = data.get("cwd")
     except Exception:
@@ -1039,6 +1057,23 @@ def run_self_test():
         passed += ok
         failed += not ok
         print("%s: stdin %-53s rc=%s" % ("PASS" if ok else "FAIL", raw[:53], rc))
+
+    # --plugin: enforce only for implementer/manager (bare or namespaced)
+    push_main = {"tool_name": "Bash", "tool_input": {"command": "git push origin main"}}
+    for agent_type, expect_rc in (
+        (None, 0), ("", 0), ("verifier", 0), ("krish:verifier", 0), ("general-purpose", 0),
+        ("implementer", 2), ("manager", 2), ("krish:implementer", 2), ("krish:manager", 2),
+        ("xmanager", 0), ("manager:other", 0),
+    ):
+        payload = dict(push_main)
+        if agent_type is not None:
+            payload["agent_type"] = agent_type
+        rc = subprocess.run([sys.executable, os.path.abspath(__file__), "--plugin"], input=json.dumps(payload),
+                            text=True, capture_output=True, env=env).returncode
+        ok = rc == expect_rc
+        passed += ok
+        failed += not ok
+        print("%s: --plugin agent_type=%-30r rc=%s" % ("PASS" if ok else "FAIL", agent_type, rc))
 
     print("\n%d passed, %d failed" % (passed, failed))
     if failed:

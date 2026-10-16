@@ -23,6 +23,8 @@ Every `key` below is a field of that contract. Respect the repo's `skilleddocs/`
 | Implement (`execution: flat`) | `implementer` | brief verbatim + prefix + protected branch | handoff path as its last line |
 | Verify | `verifier` | handoff or manager-report path + `interview` + `review-done=<yes in pair / no in flat>` | verified-by, fixes, decided-for-you, manual steps, next |
 
+Each agent is `<name>` (e.g. `manager`), or `krish:<name>` (e.g. `krish:manager`) when installed as the plugin; pass that as `subagent_type`.
+
 Models: `review_model` for planner/manager/verifier; `implementer_model` for the implementer (default: the planner's recommendation). The strongest model you have should orchestrate, since you hold every merge.
 
 ## 2. Loop

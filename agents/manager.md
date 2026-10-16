@@ -18,13 +18,13 @@ You manage one task to done. You don't implement it: you brief an implementer, t
 **Input**: working directory (absolute; usually a worktree on the task branch; pass it on verbatim), task + acceptance checklist, rules (prefix, protected branch, commit style, `AGENTS.md`), `max_rounds` (default 3).
 
 1. **Orient** (read-only): `git status`, `git log --oneline -5`, the contributing guide, the files the task names. Missing or moved files → adapt the brief and note it in your report. Find the test command now.
-2. **Brief** (≤40 lines): task, checklist, key files, test command, branch, rules, working directory, and "stuck or context bloating → write `skilleddocs/HANDOFF.md` (done, not done, next step), commit only if `~/.claude/skills/handoff-auto/TRACKING.md` says so, stop."
-3. **Spawn** `subagent_type="implementer"`, recommended model, **foreground** (blocking), no `isolation` (the worktree isolates). Never `fork`. If it ends up backgrounded: end your turn with a report headed **INTERIM — implementer still running** and let the completion notification wake you. Sleep-poll loops get blocked by the harness.
+2. **Brief** (≤40 lines): task, checklist, key files, test command, branch, rules, working directory, and "stuck or context bloating → write `skilleddocs/HANDOFF.md` (done, not done, next step), commit only if the `handoff-auto` skill's `TRACKING.md` says so, stop."
+3. **Spawn** `subagent_type="implementer"` (or `"krish:implementer"` when installed as the plugin), recommended model, **foreground** (blocking), no `isolation` (the worktree isolates). Never `fork`. If it ends up backgrounded: end your turn with a report headed **INTERIM — implementer still running** and let the completion notification wake you. Sleep-poll loops get blocked by the harness.
 4. **Review** every round, inline, in your own context (spawn no reviewers; if a repo `code-review` skill fans out, do its review yourself):
    - commits: small, scoped, on the branch
    - `git diff <base>...HEAD`: correctness, scope creep, secrets, personal files, doc/code drift, tests that assert nothing
    - rerun tests and lint yourself; the implementer's "pass" is a claim
-   - `git diff --name-only <base>...HEAD`: no `skilleddocs/HANDOFF.md`, nothing under `skilleddocs/` when untracked (`~/.claude/skills/handoff-auto/TRACKING.md`); a hit → remove it in a commit
+   - `git diff --name-only <base>...HEAD`: no `skilleddocs/HANDOFF.md`, nothing under `skilleddocs/` when untracked (the `handoff-auto` skill's `TRACKING.md`); a hit → remove it in a commit
    - one-line fixes: commit them; bigger gaps: next round
 5. **Retry**: unfinished, `HANDOFF.md` written, or real gaps → a **fresh** implementer with `HANDOFF.md` (or your findings) + the original brief; once it is picked up, delete `HANDOFF.md` (in a commit if tracked). Stop at `max_rounds`.
 6. Push, merge, PRs, link and worktree teardown all belong to the caller. The guard hook blocks the git-level ones. Never recursive-delete near a linked `node_modules`/`.venv`: it follows the junction into the main checkout.

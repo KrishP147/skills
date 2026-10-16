@@ -1,0 +1,32 @@
+{
+  "name": "krish",
+  "version": "0.1.0",
+  "description": "Skills, subagents and a git guard hook for planning, pairing and unattended orchestration in Claude Code.",
+  "author": {
+    "name": "KrishP147",
+    "url": "https://github.com/KrishP147"
+  },
+  "homepage": "https://krishpunjabi.com/skills",
+  "repository": "https://github.com/KrishP147/skills",
+  "license": "MIT",
+  "skills": ["./", "./kanban/"],
+  "agents": [
+    "./agents/implementer.md",
+    "./agents/manager.md",
+    "./agents/planner.md",
+    "./agents/verifier.md"
+  ],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "for p in python3 python py; do \"$p\" -c \"import sys; sys.exit(sys.version_info < (3, 8))\" </dev/null >/dev/null 2>&1 && exec \"$p\" \"${CLAUDE_PLUGIN_ROOT}/agents/hooks/guard-git.py\" --plugin; done; grep -Eq '\"agent_type\"[[:space:]]*:[[:space:]]*\"([^\"]*:)?(implementer|manager)\"' && { echo \"guard-git blocked - no Python 3.8+ (python3/python/py) on PATH\" >&2; exit 2; }; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -6,7 +6,8 @@ Checks: frontmatter present; name matches parent dir (skills) or file stem
 (agents); description present and <=1024 chars; body non-empty; every skill
 an agent preloads exists as a skill dir in the repo; no agent preloads a
 skill marked disable-model-invocation: true; no configured forbidden word
-(case-insensitive) appears in any tracked file in the repo.
+(case-insensitive) appears in any tracked file in the repo; CHANGELOG.md's
+top "## " heading names the version in .claude-plugin/plugin.json.
 
 Forbidden words are never hard-coded here (this file is public). Configure
 them locally via an untracked repo-root file `.lint-forbidden.txt` (one
@@ -23,6 +24,7 @@ Exit 0 + "OK: N skills, M agents" on success (last stdout line). Exit 1
 with one line per failure otherwise. WARN lines never affect exit code.
 """
 import glob
+import json
 import os
 import re
 import subprocess
@@ -323,6 +325,41 @@ def check_relative_links(path, failures):
             failures.append("%s: broken relative link '%s'" % (path, target))
 
 
+CHANGELOG_HEADING_RE = re.compile(r"^##\s+\[?v?([0-9][^\]\s]*)\]?")
+
+
+def changelog_top_version(text):
+    """Version named by the first '## ' heading, or None if that heading names none."""
+    for line in text.splitlines():
+        if line.startswith("## "):
+            m = CHANGELOG_HEADING_RE.match(line)
+            return m.group(1) if m else None
+    return None
+
+
+def check_changelog_version(root, failures):
+    manifest = os.path.join(root, ".claude-plugin", "plugin.json")
+    if not os.path.isfile(manifest):
+        return
+    try:
+        with open(manifest, "r", encoding="utf-8") as f:
+            version = json.load(f).get("version")
+    except (OSError, ValueError) as e:
+        failures.append("%s: unreadable (%s)" % (manifest, e))
+        return
+    changelog = os.path.join(root, "CHANGELOG.md")
+    try:
+        with open(changelog, "r", encoding="utf-8") as f:
+            top = changelog_top_version(f.read())
+    except OSError:
+        failures.append("CHANGELOG.md: missing (plugin.json has version %s)" % version)
+        return
+    if top != version:
+        failures.append(
+            "CHANGELOG.md: top heading version %s != plugin.json version %s" % (top, version)
+        )
+
+
 def prompt_files(skill_files):
     """SKILL.md plus every sibling .md except the human README."""
     out = []
@@ -338,6 +375,7 @@ def main():
     failures = []
 
     check_forbidden_words(root, failures)
+    check_changelog_version(root, failures)
 
     skill_files = find_skill_files(root)
     agent_files = find_agent_files(root)

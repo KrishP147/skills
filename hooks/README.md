@@ -3,7 +3,8 @@
 Not installed by `install-skills`; copy what you want into a repo's
 `.claude/hooks/` and wire it in that repo's `.claude/settings.json`.
 (The agents' own `guard-git.py` lives in [`../agents/hooks/`](../agents/hooks/)
-and *is* installed, into `~/.claude/agents/hooks/`.)
+and *is* installed, into `~/.claude/agents/hooks/`, or wired by the plugin.)
+None of these ship with the plugin either.
 
 Each `hooks/*.py` gets a page on the [skills site](https://www.krishpunjabi.com/skills/),
 built from its ``## `<file>.py` — tagline`` section below (the tagline is the
