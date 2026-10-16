@@ -12,7 +12,7 @@ A document the user reads in two minutes.
 - **Ledger**: `skilleddocs/orchestrator/ledger.md` (older runs: `ledger.md` in the folder). None → reconstruct from `git log`, merged PRs, issues, and this conversation, and say so in the report.
 - **Watermark**: `.last-reported` in the folder, one line `<NNN> <report filename>` (e.g. `007 002-2026-10-16-x.md`): NNN = last ledger entry reported (no ledger → last reported commit SHA). The report number is that filename's number + 1. No file → report 001, covers everything.
 
-**No overlap**: cover entries `watermark+1 … latest` (no ledger: commits after the SHA). Ledger present → also scan `git log` and merged PRs since the watermark entry's timestamp; work with no ledger entry goes in the report marked "not in ledger". Something already reported that later changed (revert, reversed decision, broken "done") goes under *Revisions*, citing the earlier report. `full` → ignore the watermark; title it "Full report".
+**No overlap**: cover entries `watermark+1 … latest` (no ledger: commits after the SHA). Ledger present → also scan `git log` and merged PRs since the watermark entry's timestamp; work with no ledger entry goes in the report marked "not in ledger" (skip commits touching only the reports folder, `.last-reported` or the ledger). Something already reported that later changed (revert, reversed decision, broken "done") goes under *Revisions*, citing the earlier report. `full` → ignore the watermark; title it "Full report".
 
 ## 2. Sections (this order; an empty one says "none")
 
@@ -33,9 +33,9 @@ Bullets, one idea each, numbers in the table, 1–2 pages. Times in the user's l
 
 Resolve the repo URL once: `gh repo view <o>/<r> --json url -q .url`, `<o>/<r>` per the `next` skill's `BOARD.md`, Target repo section (on a fork, the repo the run wrote issues and PRs to). Link every reference in every section with **one left-to-right pass** over each paragraph and cell, one combined regex, alternatives tried in this order at each position:
 
-1. existing markdown link `[..](..)` or `<url>` → copy unchanged
+1. existing markdown link `[..](..)`, `<url>` or bare `https?://\S+` → copy unchanged
 2. inline code span → copy unchanged
-3. `PR #n` → link "PR #n" to `<repo>/pull/n`
+3. `PR #n` or `PR#n` → link that text to `<repo>/pull/n`
 4. `#n` (not preceded by a letter, digit or `&`) → link "#n" to `<repo>/issues/n`
 5. hex sha, 7–40 chars of `[0-9a-f]` with at least one digit and one a–f letter, word-bounded → link "<first 7>" to `<repo>/commit/<full>`
 6. `D<k>`/`A-<k>`/ADR id, word-bounded → link to the decisions file (its heading anchor for that id, if it has one); no decisions file → leave as text
@@ -48,4 +48,4 @@ Never link: heading lines (`#`–`######` then a space, incl. the report header)
 
 ## 5. Advance
 
-Write `.last-reported` (`<NNN> <filename>`; no ledger → last reported SHA), append a ledger `report` entry with the range (no ledger → skip it and say so), and print the report path + range.
+Write `.last-reported` (`<NNN> <filename>`; no ledger → last reported SHA), append a ledger `report` entry with the range (no ledger → skip it and say so), and print the report path + range. Commit the report, `.last-reported` and ledger entry only in commit mode per [TRACKING.md](../handoff-auto/TRACKING.md) and only on `<default>` (defined there); else leave them on disk.

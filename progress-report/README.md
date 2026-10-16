@@ -25,11 +25,11 @@ Model-invocable, so asking for "an update doc" works too.
 ## How it works
 
 1. **Find the source.** Reports folder (default the repo's `skilleddocs/reports/`); ledger at `skilleddocs/orchestrator/ledger.md`. No ledger → reconstructs one from `git log`, merged PRs, issues and the conversation, and says so.
-2. **Watermark.** `.last-reported` holds `<NNN> <report filename>`, NNN = last reported ledger entry. The new report covers `watermark + 1 … latest`. Earlier items only reappear under "Revisions to earlier reports" if they changed (revert, reversed decision, broken "done").
+2. **Watermark.** `.last-reported` holds `<NNN> <report filename>`, NNN = last reported ledger entry. The new report covers `watermark + 1 … latest`, plus any commits or merged PRs since the watermark with no ledger entry, marked "not in ledger" (the reporting commits themselves are skipped). Earlier items only reappear under "Revisions to earlier reports" if they changed (revert, reversed decision, broken "done").
 3. **Fixed sections:** header (report number, date, time range in your local zone, ledger range), Summary, Done (table), What worked, What didn't, Concerns (ranked, blocking flagged), Decided for you, Assumed decisions open (`A-n` still unconfirmed), Manual steps for you, Revisions to earlier reports, Next up. Empty → "none".
-4. **Link everything.** Resolves the repo URL once; `#n`, `PR #n`, commit hashes and decision ids (if the repo has a decisions doc/ADRs) become links in every section. Checks the link count afterwards.
+4. **Link everything.** Resolves the repo URL once; `#n`, `PR #n`/`PR#n`, commit hashes and decision ids (if the repo has a decisions doc/ADRs) become links in every section. Existing links, bare URLs, code spans, headings and decimal CI run ids are left as they are. Checks the link count afterwards.
 5. **Write** `NNN-YYYY-MM-DD-<slug>.md` (or `.docx`) in the reports folder; never overwrites an earlier report; reads it back to check.
-6. **Advance the watermark:** updates `.last-reported`, appends a `report` entry to the ledger. Prints the path and entry range.
+6. **Advance the watermark:** updates `.last-reported`, appends a `report` entry to the ledger. Commits them with the report only in commit mode on the default branch ([`TRACKING.md`](../handoff-auto/TRACKING.md)). Prints the path and entry range.
 
 Reads: `skilleddocs/orchestrator/ledger.md`, `.last-reported`, git/gh. Writes: the report, `.last-reported`, a ledger entry.
 
