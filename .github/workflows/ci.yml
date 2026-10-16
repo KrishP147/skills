@@ -34,3 +34,76 @@ jobs:
           python3 hooks/smartzone.py --self-test
       - name: Node tests
         run: node --test site/test/filter.test.mjs
+      - name: Install script (bash)
+        shell: bash
+        run: |
+          export CLAUDE_SKILLS_DIR="$RUNNER_TEMP/install-sh/skills"
+          export CLAUDE_AGENTS_DIR="$RUNNER_TEMP/install-sh/agents"
+          mkdir -p "$CLAUDE_SKILLS_DIR" "$CLAUDE_AGENTS_DIR"
+          rc=0
+          bash scripts/install-skills.sh || rc=$?
+          [ "$rc" -eq 0 ] || { echo "::error::install-skills.sh exited $rc"; exit 1; }
+          want_skills=$(find . -mindepth 2 -maxdepth 3 -name SKILL.md -not -path "./templates/*" | wc -l)
+          got_skills=$(find "$CLAUDE_SKILLS_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)
+          want_agents=$(find agents -maxdepth 1 -name "*.md" ! -name README.md | wc -l)
+          got_agents=$(find "$CLAUDE_AGENTS_DIR" -maxdepth 1 -type f -name "*.md" ! -name README.md | wc -l)
+          fail=0
+          [ "$got_skills" -eq "$want_skills" ] || { echo "::error::skill dirs: installed $got_skills, repo has $want_skills"; fail=1; }
+          [ "$got_agents" -eq "$want_agents" ] || { echo "::error::agent files: installed $got_agents, repo has $want_agents"; fail=1; }
+          for d in "$CLAUDE_SKILLS_DIR"/*/; do
+            [ -f "${d}.from-krishp147-skills" ] || { echo "::error::missing marker in $d"; fail=1; }
+          done
+          echo "skills $got_skills/$want_skills, agents $got_agents/$want_agents"
+          exit $fail
+      - name: Install script (pwsh)
+        shell: pwsh
+        run: |
+          $env:CLAUDE_SKILLS_DIR = Join-Path $env:RUNNER_TEMP 'install-ps/skills'
+          $env:CLAUDE_AGENTS_DIR = Join-Path $env:RUNNER_TEMP 'install-ps/agents'
+          New-Item -ItemType Directory -Force $env:CLAUDE_SKILLS_DIR, $env:CLAUDE_AGENTS_DIR | Out-Null
+          & ./scripts/install-skills.ps1
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::install-skills.ps1 exited $LASTEXITCODE"; exit 1 }
+          $repo = (Get-Location).Path
+          $wantSkills = @(Get-ChildItem -Path $repo -Recurse -Depth 2 -Filter SKILL.md -File |
+            Where-Object { $_.FullName -notlike (Join-Path $repo 'templates*') -and $_.Directory.FullName -ne $repo }).Count
+          $skillDirs = @(Get-ChildItem $env:CLAUDE_SKILLS_DIR -Directory)
+          $wantAgents = @(Get-ChildItem (Join-Path $repo 'agents') -Filter *.md -File | Where-Object Name -ne 'README.md').Count
+          $gotAgents = @(Get-ChildItem $env:CLAUDE_AGENTS_DIR -Filter *.md -File | Where-Object Name -ne 'README.md').Count
+          $fail = $false
+          if ($skillDirs.Count -ne $wantSkills) { Write-Host "::error::skill dirs: installed $($skillDirs.Count), repo has $wantSkills"; $fail = $true }
+          if ($gotAgents -ne $wantAgents) { Write-Host "::error::agent files: installed $gotAgents, repo has $wantAgents"; $fail = $true }
+          foreach ($d in $skillDirs) {
+            if (-not (Test-Path (Join-Path $d.FullName '.from-krishp147-skills'))) { Write-Host "::error::missing marker in $($d.FullName)"; $fail = $true }
+          }
+          Write-Host "skills $($skillDirs.Count)/$wantSkills, agents $gotAgents/$wantAgents"
+          if ($fail) { exit 1 }
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install script (pwsh, Windows)
+        shell: pwsh
+        run: |
+          $env:CLAUDE_SKILLS_DIR = Join-Path $env:RUNNER_TEMP 'install-win/skills'
+          $env:CLAUDE_AGENTS_DIR = Join-Path $env:RUNNER_TEMP 'install-win/agents'
+          New-Item -ItemType Directory -Force $env:CLAUDE_SKILLS_DIR, $env:CLAUDE_AGENTS_DIR | Out-Null
+          & ./scripts/install-skills.ps1
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::install-skills.ps1 exited $LASTEXITCODE"; exit 1 }
+          $repo = (Get-Location).Path
+          $wantSkills = @(Get-ChildItem -Path $repo -Recurse -Depth 2 -Filter SKILL.md -File |
+            Where-Object { $_.FullName -notlike (Join-Path $repo 'templates*') -and $_.Directory.FullName -ne $repo }).Count
+          $skillDirs = @(Get-ChildItem $env:CLAUDE_SKILLS_DIR -Directory)
+          $wantAgents = @(Get-ChildItem (Join-Path $repo 'agents') -Filter *.md -File | Where-Object Name -ne 'README.md').Count
+          $gotAgents = @(Get-ChildItem $env:CLAUDE_AGENTS_DIR -Filter *.md -File | Where-Object Name -ne 'README.md').Count
+          $fail = $false
+          if ($skillDirs.Count -ne $wantSkills) { Write-Host "::error::skill dirs: installed $($skillDirs.Count), repo has $wantSkills"; $fail = $true }
+          if ($gotAgents -ne $wantAgents) { Write-Host "::error::agent files: installed $gotAgents, repo has $wantAgents"; $fail = $true }
+          foreach ($d in $skillDirs) {
+            if (-not (Test-Path (Join-Path $d.FullName '.from-krishp147-skills'))) { Write-Host "::error::missing marker in $($d.FullName)"; $fail = $true }
+          }
+          Write-Host "skills $($skillDirs.Count)/$wantSkills, agents $gotAgents/$wantAgents"
+          if ($fail) { exit 1 }

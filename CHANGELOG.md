@@ -7,6 +7,8 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 ## [0.1.0] - 2026-10-15
 
 - `upstream-sync`: when the PR can't be opened, files an issue linking the `upstream-sync/verbatim` branch; a failed step no longer skips the modified-file issues, and the run fails only after trying every step.
+- CI runs `install-skills.sh` and `install-skills.ps1` into fresh temp dirs (ubuntu, plus `.ps1` on windows-latest) and checks skill, agent and marker counts.
+- Plugin `homepage` and README site link point at https://www.krishpunjabi.com/skills (canonical host; the apex form redirects).
 - `spend-guard` also blocks `runpodctl serverless|sls run`, the `sls` alias for create/update, `pod update` with `--volume-in-gb`/`--container-disk-in-gb`, `model add`, global flags before the noun (`--profile x pod create`), and MCP `update-pod` with `volumeInGb`/`containerDiskInGb`.
 - Install scripts warn (never delete) on installed skill dirs with the marker that are no longer in the repo ("stale skill(s)"); exit code unchanged.
 - `session-bridge` snapshot: LAST USER ASK skips reminders, tool results and agent relays (slash commands shown as `/name args`); Agent/Skill/WebFetch actions labelled; secrets redacted before truncation.

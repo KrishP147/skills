@@ -121,10 +121,13 @@ Both install scripts read `CLAUDE_SKILLS_DIR` / `CLAUDE_AGENTS_DIR` and fall
 back to the real `~/.claude/skills` and `~/.claude/agents` only when those
 are unset. Delete the temp directory when you're done.
 
+CI runs both scripts this way (fresh temp dirs on ubuntu, plus the `.ps1` on
+windows-latest) and checks skill, agent and marker counts.
+
 ## 6. The site
 
 Every skill's `README.md` becomes a page on the
-skills site at `krishpunjabi.com/skills/<name>`, built from the headings above. There's no
+skills site at `www.krishpunjabi.com/skills/<name>`, built from the headings above. There's no
 separate docs step — write the README once, well. Community tips, corrections,
 and "here's how I use this" notes belong in that page's comments (GitHub
 Discussions), not in the README itself.
