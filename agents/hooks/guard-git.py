@@ -27,11 +27,13 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 
 MAX_DEPTH = 6
 SUBST = "__GUARD_SUBST_%d__"
 SUBST_RE = re.compile(r"__GUARD_SUBST_(\d+)__")
 DYNAMIC = "__GUARD_DYNAMIC__"
+UNKNOWN_BRANCH = "__GUARD_UNKNOWN_BRANCH__"  # current branch can't be read -> protected
 RISKY_WORDS = re.compile(r"push|send-pack|merge|delete|gh\s+api|refs/heads", re.I)
 ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 REDIRECT_RE = re.compile(r"^\d*(>>?|<<<?|<<-?|<|>&|<&|&>>?|>\|)(.*)$")
@@ -61,6 +63,28 @@ class Block(Exception):
     pass
 
 
+# git config keys whose value can silently redirect a push to another branch.
+_REMOTE_PUSH_RE = re.compile(r"^remote\.[^.]+\.push$", re.I)
+_REMOTE_MIRROR_RE = re.compile(r"^remote\.[^.]+\.mirror$", re.I)
+_BRANCH_UPSTREAM_RE = re.compile(r"^branch\.[^.]+\.(merge|remote|pushremote)$", re.I)
+_PUSH_DEFAULT_REDIRECTS = ("matching", "upstream", "tracking")
+_TRUTHY = ("true", "yes", "on", "1", "")
+
+
+def redirecting_config(key, value):
+    """True if this git config key+value could push somewhere other than the
+    branch named on the command line (so the refspec can't be trusted).
+    `value` None means the value is unknown (from an env var) -> assume worst."""
+    k = key.strip().lower()
+    if k == "push.default":
+        return value is None or value.strip().lower() in _PUSH_DEFAULT_REDIRECTS
+    if _REMOTE_PUSH_RE.match(k) or _BRANCH_UPSTREAM_RE.match(k):
+        return True
+    if _REMOTE_MIRROR_RE.match(k):
+        return value is None or value.strip().lower() in _TRUTHY
+    return False
+
+
 def protected_branches():
     raw = os.environ.get("GUARD_PROTECTED_BRANCHES", "main,master")
     return [b.strip() for b in raw.split(",") if b.strip()]
@@ -85,11 +109,18 @@ def _git_out(cwd, args):
 
 
 class Ctx:
-    def __init__(self, protected, cwd=None, branch_lookup=git_current_branch, alias_lookup=git_alias):
+    def __init__(self, protected, cwd=None, branch_lookup=git_current_branch, alias_lookup=git_alias,
+                 powershell=False):
         self.protected = [p.lower() for p in protected]
         self.cwd = cwd
         self.branch_lookup = branch_lookup
         self.alias_lookup = alias_lookup
+        self.powershell = powershell
+        # current branch after an in-command `git checkout/switch <name>`; a
+        # protected name (or UNKNOWN_BRANCH) makes a later bare push fail closed.
+        self.branch_override = None
+        # an in-command `git config`/`-c`/env set a push-redirecting key.
+        self.push_config_tainted = False
 
     def is_protected(self, name):
         return name.lower() in self.protected
@@ -169,12 +200,14 @@ def _extract(cmd, i, closer):
     return cmd[i:], n
 
 
-def split_commands(cmd):
+def split_commands(cmd, ps=False):
     """Quote-aware split on newline ; & | && || ( ). Command and process
     substitutions are pulled out into `subs` and replaced by a placeholder.
     Unquoted `# ...` comments are dropped. Here-doc bodies are data, kept
     in `docs` keyed by segment index (a shell reading stdin runs them).
-    Returns (segments, subs, docs)."""
+    Returns (segments, subs, docs). With `ps=True` the PowerShell escape rules
+    apply: backtick (not backslash) is the escape/line-continuation char, and a
+    bare backslash is a literal path separator, not an escape."""
     segs, subs, buf, docs, pending = [], [], [], {}, []
     q, i, n = None, 0, len(cmd)
 
@@ -198,7 +231,18 @@ def split_commands(cmd):
                 q = None
             i += 1
             continue
-        if c == "\\" and i + 1 < n:
+        if ps and c == "`":  # PowerShell escape: `<newline> continues, `x -> x
+            if i + 1 < n:
+                if cmd[i + 1] == "\n":
+                    i += 2
+                    continue
+                buf.append(cmd[i + 1])
+                i += 2
+                continue
+            buf.append(c)
+            i += 1
+            continue
+        if not ps and c == "\\" and i + 1 < n:
             if cmd[i + 1] == "\n":
                 i += 2
                 continue
@@ -208,7 +252,7 @@ def split_commands(cmd):
         if c == "$" and cmd.startswith("$(", i):
             i = subst(i + 2, ")")
             continue
-        if c == "`":
+        if not ps and c == "`":
             i = subst(i + 1, "`")
             continue
         if q == '"':
@@ -257,8 +301,12 @@ def split_commands(cmd):
     return segs, subs, docs
 
 
-def tokenize(seg):
-    """shlex(posix) tokens with redirections dropped. None on parse failure."""
+def tokenize(seg, ps=False):
+    """shlex(posix) tokens with redirections dropped. None on parse failure.
+    With `ps=True`, backslashes are doubled first so POSIX shlex preserves
+    Windows paths (`C:\\x\\repo`) instead of eating the separators."""
+    if ps:
+        seg = seg.replace("\\", "\\\\")
     try:
         raw = shlex.split(seg, posix=True)
     except ValueError:
@@ -359,12 +407,13 @@ def analyze(cmd, ctx, depth=0):
         if RISKY_WORDS.search(cmd):
             ctx.block("command nested too deeply to analyse.")
         return
-    segs, subs, docs = split_commands(cmd)
+    ps = ctx.powershell
+    segs, subs, docs = split_commands(cmd, ps=ps)
     for s in subs:
         analyze(s, ctx, depth + 1)
     stdin_shell = False
     for idx, seg in enumerate(segs):
-        toks = tokenize(seg)
+        toks = tokenize(seg, ps=ps)
         if toks is None:
             fallback_check(seg, ctx)
             toks = seg.split()
@@ -373,11 +422,14 @@ def analyze(cmd, ctx, depth=0):
             for body in docs.get(idx, []):  # `bash <<EOF ... EOF`
                 analyze(body, ctx, depth + 1)
     if stdin_shell:
-        # `echo "git push origin main" | sh`: the echoed text is the script.
+        # `echo "git push origin main" | sh` (or `'...' | iex`): the piped text
+        # is the script a stdin-reading shell runs.
         for seg in segs:
-            toks = tokenize(seg) or seg.split()
+            toks = tokenize(seg, ps=ps) or seg.split()
             if toks and base(toks[0]) in ("echo", "printf"):
                 analyze(" ".join(toks[1:]), ctx, depth + 1)
+            elif len(toks) == 1 and not toks[0].startswith("-"):
+                analyze(toks[0], ctx, depth + 1)
 
 
 def fallback_check(seg, ctx):
@@ -396,20 +448,106 @@ def fallback_check(seg, ctx):
         ctx.block("unparseable push command with a force/delete marker.")
 
 
+CD_WORDS = {"cd", "chdir", "set-location", "sl", "pushd", "push-location"}
+
+
+def scan_config_env(toks, ctx):
+    """Leading `VAR=value` assignments can inject git config that redirects a
+    push: GIT_CONFIG_PARAMETERS, or GIT_CONFIG_COUNT + GIT_CONFIG_KEY_n/VALUE_n.
+    Taint the context if any such key is push-redirecting."""
+    keys, vals = {}, {}
+    for t in toks:
+        if not ASSIGN_RE.match(t):
+            break
+        name, _, value = t.partition("=")
+        up = name.upper()
+        if up == "GIT_CONFIG_PARAMETERS":
+            for item in shlex.split(value) if value else []:
+                k, eq, v = item.partition("=")
+                if eq and redirecting_config(k, v):
+                    ctx.push_config_tainted = True
+        elif up.startswith("GIT_CONFIG_KEY_"):
+            keys[up[len("GIT_CONFIG_KEY_"):]] = value
+        elif up.startswith("GIT_CONFIG_VALUE_"):
+            vals[up[len("GIT_CONFIG_VALUE_"):]] = value
+    for idx, k in keys.items():
+        if redirecting_config(k, vals.get(idx)):
+            ctx.push_config_tainted = True
+
+
+def pwsh_path_arg(rest):
+    """First positional (or -Path/-LiteralPath value) of a PowerShell cmdlet."""
+    i = 0
+    while i < len(rest):
+        t = rest[i]
+        lt = t.lower()
+        if lt in ("-path", "-literalpath", "-lp") and i + 1 < len(rest):
+            return rest[i + 1]
+        if t.startswith("-"):
+            i += 1
+            continue
+        return t
+    return None
+
+
+def start_process_cmd(rest):
+    """Reconstruct the command a PowerShell `Start-Process git -ArgumentList
+    'push','origin','main'` would run, as a string to re-analyse."""
+    program, args = None, []
+    i = 0
+    while i < len(rest):
+        t = rest[i]
+        lt = t.lower()
+        if (lt in ("-argumentlist", "-args") or (len(lt) > 4 and "-argumentlist".startswith(lt))):
+            j = i + 1
+            while j < len(rest) and not rest[j].startswith("-"):
+                args.extend(x for x in rest[j].split(",") if x)
+                j += 1
+            i = j
+            continue
+        if lt in ("-filepath", "-path") and i + 1 < len(rest):
+            program = rest[i + 1]
+            i += 2
+            continue
+        if t.startswith("-"):
+            i += 1
+            continue
+        if program is None:
+            program = t
+        i += 1
+    return " ".join(([program] if program else []) + args)
+
+
 def run_segment(toks, ctx, subs, depth):
     """Analyse one simple command. Returns True if it is a shell that reads
     its script from stdin."""
+    scan_config_env(toks, ctx)
     toks = strip_prefixes(list(toks), ctx, depth)
     if not toks:
         return False
     head = base(toks[0])
     rest = toks[1:]
 
-    if head == "cd" and rest and not is_dynamic(rest[0]):
-        ctx.cwd = os.path.join(ctx.cwd or os.getcwd(), rest[0])
+    if head in CD_WORDS and rest:
+        target = pwsh_path_arg(rest) if head != "cd" else rest[0]
+        if target and not is_dynamic(target):
+            ctx.cwd = os.path.join(ctx.cwd or os.getcwd(), target)
         return False
-    if head == "eval":
-        analyze(" ".join(rest), ctx, depth + 1)
+    if head in ("eval", "iex", "invoke-expression"):
+        args = [t for t in rest if t.lower() not in ("-command", "-c")]
+        if not args:
+            return True  # reads the script from a pipe: `'git push ...' | iex`
+        for a in args:
+            analyze(a, ctx, depth + 1)
+        return False
+    if head in (".", "source"):
+        analyze(" ".join(rest), ctx, depth + 1)  # dot-source: `. { git push ... }`
+        return False
+    if head == "invoke-command":  # -ScriptBlock { ... }
+        analyze(" ".join(t for t in rest if not t.startswith("-")), ctx, depth + 1)
+        return False
+    if head in ("start-process", "saps", "start"):
+        analyze(start_process_cmd(rest), ctx, depth + 1)
         return False
     if head in SHELLS:
         return shell_c(rest, ctx, depth)
@@ -577,13 +715,26 @@ def check_git(args, ctx, subs, depth, alias_depth=0):
     i, inline_aliases = 0, {}
     while i < len(args) and args[i].startswith("-"):
         t = args[i]
+        if t.startswith("--config-env="):  # --config-env=key=ENVVAR (value unseen)
+            k = t[len("--config-env="):].split("=", 1)[0]
+            if redirecting_config(k, None):
+                ctx.push_config_tainted = True
+            i += 1
+            continue
         if t in GIT_ARG_OPTS and i + 1 < len(args):
             v = args[i + 1]
             if t == "-C" and not is_dynamic(v):
                 cwd = os.path.join(cwd or os.getcwd(), v)
-            if t == "-c" and v.lower().startswith("alias.") and "=" in v:
+            if t == "-c" and "=" in v:
                 k, val = v.split("=", 1)
-                inline_aliases[k[6:]] = val
+                if k.lower().startswith("alias."):
+                    inline_aliases[k[6:]] = val
+                elif redirecting_config(k, val):
+                    ctx.push_config_tainted = True
+            if t == "--config-env":  # --config-env key=ENVVAR (value unseen)
+                k = v.split("=", 1)[0]
+                if redirecting_config(k, None):
+                    ctx.push_config_tainted = True
             i += 2
         else:
             i += 1
@@ -605,6 +756,51 @@ def check_git(args, ctx, subs, depth, alias_depth=0):
         check_send_pack(rest, ctx, subs, cwd, sub)
     elif sub == "branch":
         check_branch_delete(rest, ctx)
+    elif sub in ("checkout", "switch"):
+        track_checkout(rest, ctx)
+    elif sub == "config":
+        check_config(rest, ctx)
+
+
+CHECKOUT_CREATE = {"-b", "-B", "-c", "-C", "--orphan"}
+CONFIG_READ_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--get-color",
+                     "--get-colorbool", "-l", "--list", "-e", "--edit", "--default"}
+
+
+def track_checkout(args, ctx):
+    """`git checkout/switch <name>` changes the current branch for a later bare
+    push. A protected target, an unreadable one, or a detach -> fail closed."""
+    if "--" in args:
+        return  # `git checkout <tree> -- <paths>` restores files, no branch change
+    name, i = None, 0
+    while i < len(args):
+        t = args[i]
+        if t in ("--detach", "-d"):
+            ctx.branch_override = UNKNOWN_BRANCH
+            return
+        if t in CHECKOUT_CREATE and i + 1 < len(args):
+            name = args[i + 1]
+            break
+        if t == "-" or not t.startswith("-"):  # `git switch -` = previous branch
+            name = t
+            break
+        i += 1
+    if name is None:
+        return
+    ctx.branch_override = UNKNOWN_BRANCH if (is_dynamic(name) or name == "-") else strip_ref(name)
+
+
+def check_config(args, ctx):
+    """`git config push.default matching` / `git config remote.o.push ...`:
+    a persisted push-redirecting setting taints later pushes in the command."""
+    positional = []
+    for t in args:
+        if t in CONFIG_READ_FLAGS:
+            return  # a read, not a write
+        if not t.startswith("-"):
+            positional.append(t)
+    if len(positional) >= 2 and redirecting_config(positional[0], positional[1]):
+        ctx.push_config_tainted = True
 
 
 def strip_ref(ref):
@@ -627,6 +823,9 @@ def is_current_branch_subst(tok, subs):
 
 
 def check_push(args, ctx, subs, cwd):
+    if ctx.push_config_tainted:
+        ctx.block("git push with a config override (push.default/remote.*.push/"
+                  "mirror) that can redirect the push; not allowed.")
     positional, i, end_opts = [], 0, False
     while i < len(args):
         t = args[i]
@@ -693,8 +892,16 @@ def check_refspecs(refspecs, ctx, subs, cwd):
         if dst in ("HEAD", "@"):
             needs_current = True
     if needs_current:
-        branch = ctx.branch_lookup(cwd)
-        if branch and ctx.is_protected(branch):
+        if ctx.branch_override is not None:
+            branch = ctx.branch_override
+        else:
+            branch = ctx.branch_lookup(cwd)
+        if branch is UNKNOWN_BRANCH or branch == UNKNOWN_BRANCH:
+            ctx.block("push of the current branch, which can't be determined; failing closed.")
+        if not branch:
+            # current branch unreadable (no repo, detached, bogus cwd) -> fail closed
+            ctx.block("push of the current branch, which can't be determined; failing closed.")
+        if ctx.is_protected(branch):
             ctx.block("push of current branch '%s' (protected) is not allowed." % branch)
 
 
@@ -741,8 +948,15 @@ def unreadable_ref(ref):
     return "%" in ref or ".." in ref.split("/")
 
 
+def _field_kv(spec, fields):
+    k, eq, v = spec.partition("=")
+    if eq:
+        fields[k.strip().lower()] = v
+
+
 def check_gh_api(args, ctx):
     method, has_fields, endpoint, i = None, False, None, 0
+    fields, input_file = {}, False
     while i < len(args):
         t = args[i]
         opt, eq, val = t.partition("=")
@@ -752,10 +966,17 @@ def check_gh_api(args, ctx):
                 i += 1
             if opt in ("-X", "--method"):
                 method = val.upper()
-            if opt in ("-f", "--raw-field", "-F", "--field", "--input"):
+            if opt in ("-f", "--raw-field", "-F", "--field"):
                 has_fields = True
+                _field_kv(val, fields)
+            if opt == "--input":
+                has_fields = True
+                input_file = True
         elif t.startswith("-X") and len(t) > 2:
             method = t[2:].upper()
+        elif (t.startswith("-f") or t.startswith("-F")) and len(t) > 2 and "=" in t:
+            has_fields = True  # attached form: -fbranch=main / -Fbranch=@f
+            _field_kv(t[2:], fields)
         elif not t.startswith("-") and endpoint is None:
             endpoint = t
         i += 1
@@ -781,6 +1002,17 @@ def check_gh_api(args, ctx):
     ref = strip_ref(m.group(2)) if m else None
     if m and write and (ctx.is_protected(ref) or is_dynamic(ref) or unreadable_ref(ref)):
         ctx.block("gh api %s on branch protection is not allowed." % method)
+    if re.search(r"(^|/)repos/[^/]+/[^/]+/contents/", ep) and write:
+        branch = fields.get("branch")
+        if input_file:
+            ctx.block("gh api %s to repo contents from --input (branch unreadable) "
+                      "is not allowed." % method)
+        if branch is None:
+            ctx.block("gh api %s to repo contents with no branch= commits to the "
+                      "default branch (protected); name a feature branch." % method)
+        if is_dynamic(branch) or ctx.is_protected(strip_ref(branch)) or unreadable_ref(branch):
+            ctx.block("gh api %s to repo contents on protected branch '%s' is not allowed."
+                      % (method, branch))
     if re.fullmatch(r"repos/[^/]+/[^/]+", ep) and method == "DELETE":
         ctx.block("gh api DELETE on a repo is not allowed.")
     if ep == "graphql" and any(GRAPHQL_MUTATIONS.search(a) for a in args):
@@ -810,7 +1042,8 @@ def main():
         return
     try:
         data = json.loads(sys.stdin.read())
-        if data.get("tool_name") not in ("Bash", "PowerShell"):
+        tool = data.get("tool_name")
+        if tool not in ("Bash", "PowerShell"):
             sys.exit(0)
         if "--plugin" in sys.argv and not guarded_agent(data.get("agent_type")):
             sys.exit(0)  # plugin hook: main session and other agents may push
@@ -820,7 +1053,7 @@ def main():
         sys.exit(0)  # not hook JSON: nothing to guard
     if not isinstance(command, str) or not command:
         sys.exit(0)
-    reason = decide(command, Ctx(protected_branches(), cwd))
+    reason = decide(command, Ctx(protected_branches(), cwd, powershell=(tool == "PowerShell")))
     if reason:
         sys.stderr.write(reason + "\n")
         sys.exit(2)
@@ -1074,6 +1307,102 @@ def run_self_test():
         passed += ok
         failed += not ok
         print("%s: --plugin agent_type=%-30r rc=%s" % ("PASS" if ok else "FAIL", agent_type, rc))
+
+    # --- issue #140: config overrides, checkout chains, PS wrappers, gh contents
+    feat = lambda cwd: "feat"
+    none_lookup = lambda cwd: None
+    cd_lookup = lambda cwd: "feat" if cwd == "/repo" else None  # bogus cwd -> unreadable
+
+    extra = [  # (command, expect_block, powershell, branch_lookup)
+        # 1. git -c / --config-env / env config that can redirect the push
+        ("git -c push.default=matching push origin", B, False, feat),
+        ("git -c remote.origin.push=refs/heads/x:refs/heads/main push", B, False, feat),
+        ("git -c remote.origin.mirror=true push origin", B, False, feat),
+        ("git --config-env=push.default=MYVAR push origin", B, False, feat),
+        ("git --config-env push.default=MYVAR push", B, False, feat),
+        ("GIT_CONFIG_PARAMETERS=\"'push.default=matching'\" git push origin", B, False, feat),
+        ("GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=push.default GIT_CONFIG_VALUE_0=matching git push origin", B, False, feat),
+        ("git config push.default matching && git push", B, False, feat),
+        ("git config remote.origin.push refs/heads/x:refs/heads/main && git push origin krish/x", B, False, feat),
+        ("git -c push.default=current push origin krish/x", A, False, feat),
+        ("git -c push.default=simple push origin krish/x", A, False, feat),
+        ("git -c user.name=x push origin krish/x", A, False, feat),
+        ("git config core.editor vim && git push origin krish/x", A, False, feat),
+        # 2. checkout/switch of a protected name earlier in the chain
+        ("git checkout main && git push", B, False, feat),
+        ("git switch main; git push origin HEAD", B, False, feat),
+        ("git checkout -B master && git push origin", B, False, feat),
+        ("git checkout $DYN && git push", B, False, feat),
+        ("git switch --detach && git push", B, False, feat),
+        ("git checkout - && git push", B, False, feat),
+        ("git switch -c krish/y && git push -u origin HEAD", A, False, feat),
+        ("git checkout main && git push origin krish/x", A, False, feat),
+        ("git checkout main -- file.txt && git push origin krish/x", A, False, feat),
+        # 3. current branch undeterminable for a bare/implicit push -> fail closed
+        ("git push", B, False, none_lookup),
+        ("git push origin", B, False, none_lookup),
+        ("git push -u origin HEAD", B, False, none_lookup),
+        ("git push origin krish/x", A, False, none_lookup),
+        # 5. gh api repo contents (write to the default/protected branch)
+        ("gh api -X PUT repos/o/r/contents/README.md -f branch=main -f message=x", B, False, feat),
+        ("gh api -X PUT repos/o/r/contents/README.md -f message=x", B, False, feat),
+        ("gh api --method PATCH repos/o/r/contents/x -F branch=master", B, False, feat),
+        ("gh api -X PUT repos/o/r/contents/x -fbranch=main", B, False, feat),
+        ("gh api -X PUT repos/o/r/contents/x --field=branch=main", B, False, feat),
+        ("gh api -X PUT repos/o/r/contents/x --raw-field branch=main", B, False, feat),
+        ("gh api -X PUT repos/o/r/contents/x --input body.json", B, False, feat),
+        ("gh api repos/o/r/contents/x -f branch=main -f message=y", B, False, feat),  # fields -> POST
+        ("gh api -X DELETE repos/o/r/contents/old.txt -f branch=main -f message=x", B, False, feat),
+        ("gh api -X PUT repos/o/r/contents/x -f branch=$B -f message=y", B, False, feat),
+        ("gh api -X PUT repos/o/r/contents/x -f branch=krish/../main", B, False, feat),
+        ("gh api -X PUT repos/o/r/contents/x -f branch=krish/x -f message=y", A, False, feat),
+        ("gh api repos/o/r/contents/README.md", A, False, feat),
+        ("gh api repos/o/r/contents/x --jq .sha", A, False, feat),
+        # 4. PowerShell iex / Invoke-Expression / Start-Process / scriptblocks
+        ("Invoke-Expression 'git push origin main'", B, True, feat),
+        ("iex 'git push origin main'", B, True, feat),
+        ("'git push origin main' | iex", B, True, feat),
+        ("iex -Command 'git push origin main'", B, True, feat),
+        ("Start-Process git -ArgumentList 'push','origin','main'", B, True, feat),
+        ("saps git -ArgumentList 'push','origin','main'", B, True, feat),
+        ("Start-Process -FilePath git -ArgumentList push,origin,main", B, True, feat),
+        ("& { git push origin main }", B, True, feat),
+        (". { git push origin main }", B, True, feat),
+        ("Invoke-Command -ScriptBlock { git push origin main }", B, True, feat),
+        ("& git push origin main", B, True, feat),
+        ("& 'git' push origin main", B, True, feat),
+        ("Get-ChildItem", A, True, feat),
+        ("git status", A, True, feat),
+        # 3/PS. unquoted Windows backslash paths -> unreadable cwd -> fail closed
+        ("cd C:\\Users\\x\\repo; git push", B, True, cd_lookup),
+        ("Set-Location C:\\x\\repo; git push", B, True, cd_lookup),
+        ("pushd workmain; git push", B, True, cd_lookup),
+        ("git -C C:\\x\\repo push", B, True, cd_lookup),
+        ("cd C:\\Users\\x\\repo; git push origin krish/x", A, True, cd_lookup),
+        ("Set-Location workmain; git push origin krish/x", A, True, cd_lookup),
+        # 6. false positive guard: PS backtick line continuation on a feature push
+        ("git push origin krish/feat `\n-u", A, True, feat),
+        ("git push origin krish/feat `\n--verbose", A, True, feat),
+    ]
+    for cmd, expect, ps, lookup in extra:
+        ctx = Ctx(["main", "master"], "/repo", branch_lookup=lookup,
+                  alias_lookup=lambda cwd, name: None, powershell=ps)
+        reason = decide(cmd, ctx)
+        ok = (reason is not None) == expect
+        passed += ok
+        failed += not ok
+        print("%s: %-62s block=%-5s %s" % (
+            "PASS" if ok else "FAIL", cmd.replace("\n", "\\n")[:62], reason is not None, reason or ""))
+
+    # timing: a ~2000-token command analyses well under 1s (no ReDoS / blow-up)
+    big = "git push origin " + " ".join("krish/b%d" % k for k in range(2000))
+    t0 = time.perf_counter()
+    decide(big, Ctx(["main", "master"], "/repo", branch_lookup=feat, alias_lookup=lambda c, n: None))
+    dt = time.perf_counter() - t0
+    ok = dt < 1.0
+    passed += ok
+    failed += not ok
+    print("%s: timing ~2000-token push analysed in %.3fs" % ("PASS" if ok else "FAIL", dt))
 
     print("\n%d passed, %d failed" % (passed, failed))
     if failed:
