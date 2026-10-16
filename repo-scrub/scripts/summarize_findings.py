@@ -131,6 +131,23 @@ def human_size(n: int) -> str:
     return f"{n:.0f}TB"
 
 
+def table_row(fid: str, entry: dict) -> str:
+    """One report-table row. Large blobs have no commit list: Commits is `-`."""
+    if entry["type"] == "secret":
+        detail = entry["rule"]
+        locations = entry.get("paths", [])
+        path = locations[0]["path"] if locations else "unknown"
+        if len(locations) > 1:
+            path += f" (+{len(locations) - 1} more)"
+        commits = str(len(entry.get("commits", [])))
+    else:
+        detail = f"{human_size(entry['accumulated_bytes'])} accum. (all versions)"
+        path = entry["path"]
+        commits = "-"
+    path = path[:38]
+    return f"{fid:<5}{entry['type']:<8}{path:<40}{detail:<45}{commits}"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--gitleaks", type=Path, required=True)
@@ -153,18 +170,7 @@ def main() -> int:
     # human-readable table - never print secret values, only the fingerprint
     print(f"{'ID':<5}{'Type':<8}{'Path(s)':<40}{'Detail (rule / accum. size, all versions)':<45}Commits")
     for fid, entry in findings.items():
-        if entry["type"] == "secret":
-            detail = entry["rule"]
-            locations = entry.get("paths", [])
-            path = locations[0]["path"] if locations else "unknown"
-            if len(locations) > 1:
-                path += f" (+{len(locations) - 1} more)"
-        else:
-            detail = f"{human_size(entry['accumulated_bytes'])} accum. (all versions)"
-            path = entry["path"]
-        commits = len(entry.get("commits", []))
-        path = path[:38]
-        print(f"{fid:<5}{entry['type']:<8}{path:<40}{detail:<45}{commits}")
+        print(table_row(fid, entry))
 
     n_secrets = len(secrets)
     n_large = len(large)
