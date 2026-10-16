@@ -28,9 +28,57 @@ def blocks(entry):
     return content if isinstance(content, list) else []
 
 
+INJECTED = re.compile(
+    r"<(system-reminder|local-command-stdout|local-command-stderr"
+    r"|local-command-caveat|command-message|agent-message)\b[^>]*>.*?</\1>"
+    r"|<(?:system-reminder|agent-message)\b[^>]*>.*\Z", re.S)
+CMD_NAME = re.compile(r"<command-name>\s*(.*?)\s*</command-name>", re.S)
+CMD_ARGS = re.compile(r"<command-args>\s*(.*?)\s*</command-args>", re.S)
+
+
 def user_text(entry):
-    return " ".join(b.get("text", "") for b in blocks(entry)
-                    if isinstance(b, dict) and b.get("type") == "text")
+    """Real prompt text of a user entry, or "" (meta, relays, injected, tool results)."""
+    if entry.get("isMeta"):
+        return ""
+    parts = []
+    for b in blocks(entry):
+        if not (isinstance(b, dict) and b.get("type") == "text"):
+            continue
+        text = b.get("text")
+        if not isinstance(text, str):
+            continue
+        m = CMD_NAME.search(text)
+        if m:
+            args = CMD_ARGS.search(text)
+            name = m.group(1)
+            name = name if name.startswith("/") else "/" + name
+            parts.append((name + " " + (args.group(1) if args else "")).strip())
+            continue
+        text = INJECTED.sub("", text).strip()
+        if text:
+            parts.append(text)
+    return " ".join(parts)
+
+
+def action_text(name, i):
+    if not isinstance(i, dict):
+        return ""
+    keys = ("command", "file_path", "pattern", "url", "query")
+    if name == "Agent":
+        keys = ("description", "subagent_type", "prompt")
+    elif name == "Skill":
+        skill = i.get("skill")
+        if isinstance(skill, str) and skill:
+            args = i.get("args")
+            return skill + (" " + args if isinstance(args, str) and args else "")
+        keys = ()
+    for k in keys:
+        if isinstance(i.get(k), str) and i[k]:
+            return i[k]
+    for v in i.values():
+        if isinstance(v, str) and v:
+            return v
+    return ""
 
 
 def main(argv):
@@ -47,18 +95,17 @@ def main(argv):
                 continue
 
     asks = [t for e in entries if e.get("type") == "user" for t in [user_text(e)] if t]
-    print("LAST USER ASK:", red(asks[-1][:500]) if asks else "(none found)")
+    print("LAST USER ASK:", red(asks[-1])[:500] if asks else "(none found)")
 
     actions = []
     for e in entries:
         for b in blocks(e):
             if isinstance(b, dict) and b.get("type") == "tool_use":
-                i = b.get("input") or {}
-                what = i.get("command") or i.get("file_path") or i.get("pattern") or ""
-                actions.append((e.get("timestamp", "?"), b.get("name"), str(what)[:160]))
+                what = action_text(b.get("name"), b.get("input"))
+                actions.append((e.get("timestamp", "?"), b.get("name"), red(str(what))[:160]))
     print(f"LAST {n} ACTIONS:")
     for ts, name, what in actions[-n:]:
-        print("-", ts, name, red(what))
+        print("-", ts, name, what)
     return 0
 
 
