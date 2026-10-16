@@ -94,7 +94,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 
 **Known limits.** The hook reads the command text the agent runs, nothing more. It doesn't see what a script file does (`./push.sh`, `python deploy.py`), shell aliases or functions defined in the user's shell profile, or direct HTTP calls to the GitHub API (`curl`, `Invoke-RestMethod`, a Python `requests` call). GitHub branch protection is the backstop for all of these.
 
-Protected branches: `GUARD_PROTECTED_BRANCHES` (comma list), default `main,master`. A block is working as intended, not something for the agent to route around. Self-test (every case above, current branch injected, plus stdin end-to-end runs): `python agents/hooks/guard-git.py --self-test`.
+Protected branches: `GUARD_PROTECTED_BRANCHES` (comma list), default `main,master`. A block is working as intended, not something for the agent to route around. Self-test (every case above, current branch injected, plus stdin end-to-end runs and the `--plugin` agent filter): `python agents/hooks/guard-git.py --self-test`.
 
 ## Example
 
