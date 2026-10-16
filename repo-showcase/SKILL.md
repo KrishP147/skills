@@ -32,7 +32,7 @@ Draft only; the file changes at §7.
 
 ## 5. Secrets and private names
 
-Tracked files: key/token/connection-string patterns (`gitleaks dir .` if installed), un-ignored `.env`. Personal names: grep for email addresses, then read comments and docs for person names; flag any that aren't authors (`git shortlog -sne`) or already public. Report `file:line`; redact per item on yes.
+Tracked files: key/token/connection-string patterns (`gitleaks dir .` if installed), un-ignored `.env`. Personal names: grep for email addresses, then read comments and docs for person names; flag any that aren't authors (`git shortlog -sne`) or already public. Report `file:line`; redact per item on yes. Keep each redacted personal string (name, email) for §8: the tree edit leaves it in every old commit. Secrets go by `file:line` only, never the value.
 
 ## 6. Metadata
 
@@ -44,4 +44,4 @@ Show the full README diff plus one line per doc change and redaction. Commit on 
 
 ## 8. Hand off and record
 
-Next step: `/repo-scrub` for the history scan and the visibility flip, kept separate on purpose. Save inventory, claims, findings, and what was done to `skilleddocs/showcase/<local-date>.md`, uncommitted unless asked (and not counted among the files you commit in §7). Untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md) (it also covers the `pip install .` hazard).
+Next step: `/repo-scrub` for the history scan and the visibility flip, kept separate on purpose. Hand it each redacted personal string from §5; gitleaks has no rule for names or emails, so repo-scrub checks each with `git log -S` and scrubs it with a `literal:` rule. Save inventory, claims, findings, and what was done to `skilleddocs/showcase/<local-date>.md`, uncommitted unless asked (and not counted among the files you commit in §7). Untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md) (it also covers the `pip install .` hazard).

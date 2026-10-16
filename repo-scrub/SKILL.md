@@ -42,6 +42,7 @@ python <skill-dir>/scripts/summarize_findings.py --gitleaks <tmp>/scrub-work/git
 - Run the LFS history check from step 2 here, in `scan-clone`, before trusting the scan.
 - gitleaks exit 1 = findings, not failure.
 - `summarize_findings.py` merges gitleaks + `.git/filter-repo/analysis/` into `findings.json`: secrets `S1…` (deduped by rule + value, or by location when the value is empty; fingerprint `secret_sha256` only), large blobs `L1…` (bytes accumulated across every version). Use it; the analysis tables are easy to misread.
+- **Personal strings** (names, emails) from `/repo-showcase` or the user: gitleaks has no rule for them. Per string, `git log --all -S'<string>' --oneline` (blob hits) and `git log --all -F -i --grep='<string>' --oneline` (commit-message hits). Each hit is a finding `P1…` (Detail: `personal string`, plus the commit count); refer to it by ID from here on.
 - `--analyze` spends this clone (filter-repo refuses a second run). Delete `scan-clone` once `findings.json` exists; keep `gitleaks-report.json` until step 12 (step 7 recovers values from it).
 
 ## 4. Report
@@ -52,6 +53,7 @@ python <skill-dir>/scripts/summarize_findings.py --gitleaks <tmp>/scrub-work/git
 ID | Type   | Path(s)                  | Detail                 | Commits
 S1 | secret | config/dev.env (+1 more) | AWS Access Key         | 3
 L1 | large  | assets/demo.mov          | 340 MB (all versions)  | -
+P1 | personal | src/cli.js             | personal string        | 2
 ```
 
 Raw secret values stay out of the table. Reveal one only on request, looked up by fingerprint in `gitleaks-report.json`.
@@ -80,7 +82,7 @@ python <skill-dir>/scripts/build_replace_text.py --gitleaks <tmp>/scrub-work/git
   --findings <tmp>/scrub-work/findings.json --ids S1 S3 --out <tmp>/scrub-work/expressions.txt
 ```
 
-The script writes `--replace-text` expressions without printing a value. Location-only findings (`secret_sha256: null`) have no value to replace; it skips them, so scrub those by `--path` or by hand. Large blobs, per finding: strip entirely, or strip history but keep the current file (re-add it in a commit after the rewrite: path/size stripping removes HEAD's copy too).
+The script writes `--replace-text` expressions without printing a value. Each selected `P` finding adds one line, `literal:<string>==>REDACTED`, appended to `expressions.txt` by a file edit (no `echo` of the string); a commit-message hit also needs `--replace-message <tmp>/scrub-work/expressions.txt` in the call below. Location-only findings (`secret_sha256: null`) have no value to replace; it skips them, so scrub those by `--path` or by hand. Large blobs, per finding: strip entirely, or strip history but keep the current file (re-add it in a commit after the rewrite: path/size stripping removes HEAD's copy too).
 
 One combined call, only the flags for what was selected:
 
@@ -92,7 +94,7 @@ git filter-repo --replace-text <tmp>/scrub-work/expressions.txt --path <paths> -
 
 ## 8. Verify (still reversible)
 
-`git log --oneline -10`, `gitleaks git . --no-banner`, `git count-objects -vH`. Spot-check stripped paths are gone. Show before/after commit count and size. **Gate**.
+`git log --oneline -10`, `gitleaks git . --no-banner`, `git count-objects -vH`. Spot-check stripped paths are gone. Per scrubbed `P` finding, `git log --all -S'<string>' --oneline` (and the `--grep` form for message hits) prints nothing. Show before/after commit count and size. **Gate**.
 
 ## 9. Force-push
 
