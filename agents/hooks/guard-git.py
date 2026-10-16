@@ -544,10 +544,16 @@ def analyze(cmd, ctx, depth=0):
             toks = seg.split()
         mode = run_segment(toks, ctx, subs, depth)
         ctx.powershell = ps  # a nested shell must not leak its mode
+        if mode == "code":  # `python - <<EOF`, `node <<< '...'`: stdin is code
+            for body in docs.get(idx, []) + herestrings(seg, ps):
+                check_code(body, ctx)
+            continue
         if mode:
             stdin_modes.append(mode)
             for body in docs.get(idx, []) + herestrings(seg, ps):  # `bash <<EOF`, `bash <<< '...'`
                 analyze_in(body, ctx, depth + 1, mode == "ps")
+    if stdin_modes and ctx.decoder_seen:
+        ctx.block("decoded base64/hex text piped into a shell; failing closed.")
     for mode in stdin_modes:
         # `echo "git push origin main" | sh` (or `'...' | iex`): the piped text
         # is the script a stdin-reading shell runs.
@@ -573,6 +579,25 @@ def ps_literal_concat(expr):
             return None
         vals.append(m.group(1)[1:-1])
     return "".join(vals)
+
+
+INTERPRETER_RE = re.compile(r"^(python[0-9.]*w?|py|pypy[0-9.]*|node|nodejs|bun|deno|perl|ruby|php)$")
+CODE_GIT_RE = re.compile(r"\bgit\b\W{0,8}(push|send-pack|http-push)\b|\bgh\b\W{0,8}pr\b\W{0,8}merge\b"
+                         r"|\bgh\b\W{0,8}api\b[^\n]{0,200}merge", re.I)
+CODE_RISK_RE = re.compile(r"push|merge|send-pack", re.I)
+CODE_SPAWN_RE = re.compile(r"system|subprocess|popen|exec|spawn|child_process|`|shell|process", re.I)
+
+
+def check_code(text, ctx):
+    """Inline interpreter code (`python -c`, `node -e`, `perl -e`, stdin
+    script): it can't be parsed, so block when it names a push/merge, or
+    mentions push/merge next to a process-spawning call, or writes to the
+    GitHub API."""
+    if CODE_GIT_RE.search(text) or (CODE_RISK_RE.search(text) and CODE_SPAWN_RE.search(text)):
+        ctx.block("inline interpreter code mentions git push / merge; failing closed.")
+    if (re.search(r"api\.github\.com", text, re.I) and re.search(r"\b(put|post|patch|delete)\b", text, re.I)
+            and re.search(r"merge|refs|contents|pulls", text, re.I)):
+        ctx.block("inline interpreter code writes to the GitHub API; failing closed.")
 
 
 def analyze_in(cmd, ctx, depth, ps):
@@ -819,6 +844,9 @@ def _run_segment(toks, ctx, subs, depth):
     if head == "cmd":
         cmd_c(rest, ctx, depth)
         return False
+    if INTERPRETER_RE.match(head):  # python -c / node -e / perl -e / ruby -e
+        check_code(" ".join(rest), ctx)
+        return "code"
     if head == "git":
         check_git(rest, ctx, subs, depth)
     elif head == "gh":
