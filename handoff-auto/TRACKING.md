@@ -42,4 +42,4 @@ A dated handoff in the handoff folder (AGENTS.md/CLAUDE.md's, else `skilleddocs/
 
 `skilleddocs/HANDOFF.md` is gone from a branch before it is handed back or pushed. Untracked: nothing to do; it stays on disk for the next round. Committed: delete it in a commit (`git rm`) and name the last SHA that held it.
 
-Before handing back or pushing, check `git diff --name-only <base>...HEAD`: no `skilleddocs/HANDOFF.md`, in commit mode nothing in the handoff folder, and in untracked mode nothing under `skilleddocs/` or the handoff folder. A hit → remove it in a commit, then recheck.
+Before handing back or pushing, check `git diff --name-only <base>...HEAD`: no `skilleddocs/HANDOFF.md`, in commit mode nothing in the handoff folder (except on `update-progress`'s docs branch, which is headed for `<default>`), and in untracked mode nothing under `skilleddocs/` or the handoff folder. A hit → remove it in a commit, then recheck.
