@@ -98,7 +98,7 @@ Full explainer (inputs, outputs, procedure, guard hook): [`agents/README.md`](ag
 
 ### [`hooks/`](hooks/) — optional per-repo hooks
 
-Not auto-installed. [`smartzone.py`](hooks/smartzone.py) is a `UserPromptSubmit` hook that warns in-conversation when the transcript suggests context has left the smart zone (~100k tokens), so a session wraps up instead of degrading. [`spend-guard.py`](hooks/spend-guard.py) is a `PreToolUse` hook that blocks known billable commands/MCP calls (GPU pod creation, paid deploys, ...) unless an approval token from the [`spend-gate`](spend-gate/README.md) skill already exists. Copy + settings snippets in [`hooks/README.md`](hooks/README.md).
+Not auto-installed. [`smartzone.py`](hooks/smartzone.py) is a `UserPromptSubmit` hook that warns in-conversation when the transcript suggests context has left the smart zone (~75k tokens, `SMARTZONE_TOKENS`), so a session wraps up instead of degrading. [`spend-guard.py`](hooks/spend-guard.py) is a `PreToolUse` hook that blocks known billable commands/MCP calls (GPU pod creation, paid deploys, ...) unless an approval token from the [`spend-gate`](spend-gate/README.md) skill already exists. Copy + settings snippets in [`hooks/README.md`](hooks/README.md).
 
 ### [`site/`](site/) — static skills site
 
