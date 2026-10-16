@@ -42,7 +42,7 @@ Use the AskUserQuestion tool when available (≤4 questions per call, recommende
 | `scope` | all open issues · label filter `<label>` · explicit list `#a #b` | what the planner may pick |
 | `exclude` | gated / people / external-input issues · custom labels | planner drops these; `wayfinder:*` issues are always excluded (planning tickets, worked only via `/wayfinder`) |
 | `order` | priority label → board order → oldest · roadmap order · explicit | planner's ordering |
-| `stop` | queue empty · after N merges · after a time box | when SKILL.md §7 "done" applies |
+| `stop` | queue empty · after N merges (per run, not reset on resume) · after a time box | when SKILL.md §7 "done" applies |
 | `execution` | `pair` · `flat` | manager per issue, or implementer directly |
 | `parallel` | 1 · the count [`lanes`](../lanes/SKILL.md) proposes (file-disjoint groups of the queue) | concurrent issues, one worktree per lane; `lanes:` maps each named lane to its issues |
 | `merge` | `auto` when the gate is green · `ask` before each merge · `pr-only` (open PRs, user merges) | SKILL.md §3 step 3 |

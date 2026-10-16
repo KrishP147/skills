@@ -27,10 +27,10 @@ Model-invocable, so "pair on issue 12" also works.
 ## How it works
 
 1. **Resolve the task.** Issue number → `gh issue view`; text → Claude writes a 3–6 item acceptance checklist. Collects default branch, branch prefix (from your `CLAUDE.md`, else `feat`), test command, `CONTRIBUTING.md`/`AGENTS.md`. On a fork (`upstream` remote): fetches upstream, fast-forwards the default branch, and checks every file/symbol the issue cites still exists.
-2. **Isolate.** `git worktree add ../_worktrees/<repo>-<slug> -b <prefix>/<slug> <default>` (slug = `issue-<n>-<kebab-title>`). Reuses an existing worktree/branch if present. Deps (`node_modules`/`.venv`) are linked from the main checkout (`mklink /J` on Windows, `ln -s` elsewhere), not reinstalled. For an issue, your session then marks it started (card → In Progress, or `status:todo` → `status:in-progress`, creating that label first if missing; skipped with no board) and comments "Started on branch …"; a board error is reported, never blocking.
+2. **Isolate.** `git worktree add ../_worktrees/<repo>-<slug> -b <prefix>/<slug> <default>` (slug = `issue-<n>-<kebab-title>`). Reuses an existing worktree/branch if present. Deps (`node_modules`/`.venv`) are linked from the main checkout (a `mklink /J` junction on Windows, run with `MSYS_NO_PATHCONV=1` from Git Bash; `ln -s` elsewhere), not reinstalled. For an issue, your session then marks it started (card → In Progress, or `status:todo` → `status:in-progress`, creating that label first if missing; skipped with no board) and comments "Started on branch …"; a board error is reported, never blocking.
 3. **Delegate.** One `Agent(subagent_type="manager")` call with working dir, task + checklist, verified/missing files, rules, implementer model, `max_rounds: 3`, "never push, merge, or open a PR". Not `fork`.
 4. **On return.** Ignores a report titled **INTERIM** (implementer still running) and waits for the manager's next handback. Then shows the manager's report verbatim; reruns tests if the report is thin or risky; if `skilleddocs/HANDOFF.md` exists (unfinished), offers another round. Before pushing, checks `git diff --name-only <default>...HEAD` carries no `skilleddocs/HANDOFF.md` (nothing under `skilleddocs/` at all when handoffs are untracked, always the case on a fork; see [`TRACKING.md`](../handoff-auto/TRACKING.md)) and removes any hit in a commit. Pushes + `gh pr create … Closes #<n>` on `--push` or your go. Never merges. PR review feedback later → step 3 again in the same worktree.
-5. **Print.** Branch, worktree path, PR URL (or "not pushed"), test result, rounds used, `skilleddocs/HANDOFF.md` path. Doesn't clean up the worktree until the PR merges — and then links-first (never a recursive delete through a linked `node_modules`/`.venv`), before `git worktree remove`.
+5. **Print.** Branch, worktree path, PR URL (or "not pushed"), test result, rounds used, `skilleddocs/HANDOFF.md` path. Doesn't clean up the worktree until the PR merges. Then it unlinks `node_modules`/`.venv` (link only, never a recursive delete) and runs `git worktree remove` only after a check confirms neither path is left, dangling links included.
 
 Writes: a worktree + branch; commits (via agents); `skilleddocs/HANDOFF.md` in the worktree if unfinished (untracked unless the repo tracks `skilleddocs/`; never pushed).
 
@@ -65,7 +65,7 @@ flowchart TD
 - Set your branch prefix in your `CLAUDE.md`; otherwise branches start with `feat/`.
 - An **INTERIM** report means the implementer is still running; wait for the real one.
 - Leave the worktree alone while the manager runs.
-- Tear down only after the PR merges, and remove the `node_modules`/`.venv` link before `git worktree remove`: a recursive delete through the link wipes the main checkout's copy.
+- Tear down only after the PR merges, with the exact commands in `SKILL.md` §5: unlink, check that `<wt>/node_modules` and `<wt>/.venv` are gone, then `git worktree remove`. Never remove the worktree while a link exists: `git worktree remove` or a recursive delete follows it and empties the main checkout's copy.
 - Unfinished after 3 rounds? Accept the offer of another round; it restarts from `skilleddocs/HANDOFF.md`.
 
 ## Example

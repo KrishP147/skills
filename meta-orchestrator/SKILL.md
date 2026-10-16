@@ -36,7 +36,7 @@ planner → manager | implementer → merge gate (you) → verifier → repeat
 
 - Each arrow is a **fresh** Agent call. In pair mode save the manager's report to `skilleddocs/orchestrator/reports/`; that report or the handoff is the only bridge to the verifier.
 - `parallel > 1` → one worktree per manager (`../_worktrees/<repo>-<slug>`, set up as `pair` §2 does). Never two managers on one checkout.
-- Lanes: each lane in scope.md `lanes:` works its issues in order. [`/lanes`](../lanes/SKILL.md) changes them; apply at your next loop. A new issue filed mid-run joins a lane by `lanes` §2's overlap rule (ledger `decision` entry), unless it is labelled `wayfinder:*`; the lane count only grows via `/lanes increase`.
+- Lanes: each lane in scope.md `lanes:` works its issues in order. [`/lanes`](../lanes/SKILL.md) changes them; apply at your next loop. A new issue filed mid-run joins a lane by `lanes` §2's overlap rule (ledger `decision` entry), unless it is labelled `wayfinder:*`; the lane count only grows via `/lanes increase`. A `serial` lane starts an issue only when no other lane has one in flight.
 - **Nested fan-out stalls.** Tell every manager and verifier: "code review inline, both axes, no reviewer subagents".
 - A handback titled **INTERIM** isn't a result; wait for that agent's next one.
 
@@ -48,7 +48,7 @@ planner → manager | implementer → merge gate (you) → verifier → repeat
    - `auto`: merge in `merge_style`, delete branch, fast-forward default.
    - `ask`: show PR + test result, merge on yes.
    - `pr-only`: leave it for the user; count it as done for the loop. Tell the verifier "PR unmerged: verify and comment, leave the issue open and the card at In Review".
-4. Tear down the issue's worktree: unlink linked deps first, then `git worktree remove` (`pair` §5).
+4. Tear down the issue's worktree with `pair` §5's commands: unlink linked deps, then the hard check that `<wt>/.venv` and `<wt>/node_modules` are gone (dangling links included), and `git worktree remove` only when it passes. Check fails → leave the worktree, note it in the ledger.
 5. Ledger entry (§5). Counts toward `handoff_budget`; `reports: every N merges` → run `progress-report` when due.
 
 Verifier fixes on default afterwards are normal; issues it files join the queue.
@@ -66,7 +66,7 @@ Verifier fixes on default afterwards are normal; issues it files join the queue.
 
 ## 5. Ledger
 
-`skilleddocs/orchestrator/ledger.md`, append-only, zone named once at the top. Commit and push each entry on default (`docs(skilleddocs): ledger NNN`) unless `docs_commit: uncommitted`.
+`skilleddocs/orchestrator/ledger.md`, append-only, zone named once at the top. Commit and push each entry on default (`docs(skilleddocs): ledger NNN`) unless `docs_commit: uncommitted` (then exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md)).
 
 ```
 ### <NNN> · <local YYYY-MM-DD HH:MM ZZZ> · <plan|implement|merge|verify|decision|assumption|problem|manual|handoff|report>
@@ -77,7 +77,7 @@ Verifier fixes on default afterwards are normal; issues it files join the queue.
 - manual step for user: <only if one exists>
 ```
 
-`ledger_detail: terse` → the header line + `what` only; `verbose` → add the commands run. Detect the zone once (`python -c "import datetime as d; print(d.datetime.now().astimezone().tzname())"`). Times come from `date`, `git log --date=format-local`, or API UTC timestamps via `datetime.fromisoformat(s).astimezone()`; never estimated or offset by hand. Write `#n` / `PR #n` so `progress-report` can link them. Other `docs` entries: decisions → `skilleddocs/decisions.md`; per-issue handoffs → keep the implementer's; CHANGELOG → one line per merge.
+`ledger_detail: terse` → the header line + `what` only; `verbose` → add the commands run. Zone: scope `timezone` if set, else run `python -c "import datetime as d; n=d.datetime.now().astimezone(); z=n.tzname(); print(z if ' ' not in z else n.strftime('UTC%z'))"` once (abbreviation on Unix, UTC offset on Windows); name it at the top of the ledger. Times come from `date`, `git log --date=format-local`, or API UTC timestamps via `datetime.fromisoformat(s).astimezone()`; never estimated or offset by hand. Write `#n` / `PR #n` so `progress-report` can link them. Other `docs` entries: decisions → `skilleddocs/decisions.md`; per-issue handoffs → keep the implementer's; CHANGELOG → one line per merge.
 
 ## 6. Rotation
 

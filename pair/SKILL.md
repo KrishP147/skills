@@ -23,7 +23,10 @@ git worktree add ../_worktrees/<repo>-<slug> -b <prefix>/<slug> <default>
 
 `--no-worktree`: `git switch -c <prefix>/<slug> <default>`. Existing worktree or branch → reuse it and say so.
 
-Deps (`node_modules`, `.venv`): link from the main checkout. Windows `cmd //c mklink /J <wt>\node_modules <main>\node_modules`; mac/linux `ln -s <main>/node_modules <wt>/node_modules`.
+Deps (`node_modules`, `.venv`): link each from the main checkout, paths quoted (shown for `.venv`).
+- Windows, Git Bash: `MSYS_NO_PATHCONV=1 cmd /c mklink /J "<wt>\.venv" "<main>\.venv"` (without the variable MSYS rewrites `/J` into a path).
+- Windows, PowerShell: `cmd /c mklink /J "<wt>\.venv" "<main>\.venv"`.
+- mac/linux: `ln -s "<main>/.venv" "<wt>/.venv"`.
 
 Issue number on a board, worktree/branch not reused → move it to In Progress and comment "Started on branch `<branch>`" (the `next` skill's `BOARD.md`: `~/.claude/skills/next/` or, as the plugin, `kanban/next/`). Board errors never block the task.
 
@@ -62,4 +65,11 @@ Leave the worktree alone while it runs.
 
 Print: branch, worktree, PR URL or "not pushed", test result, rounds, HANDOFF.md path if any.
 
-Teardown only after the PR merges, **links first**: Windows `cmd //c rmdir <wt>\node_modules` (removes the junction only); mac/linux `rm <wt>/node_modules`. Then `git worktree remove <path>`. A recursive delete (`rm -rf`, `Remove-Item -Recurse`) through a link follows it and wipes the main checkout's copy.
+Teardown only after the PR merges. `git worktree remove` and any recursive delete (`rm -rf`, `Remove-Item -Recurse`) follow a link and empty the main checkout's copy: never run them while a link exists.
+
+1. Unlink each dep (removes the link only): Git Bash or mac/linux `rm "<wt>/.venv"` (no `-r`); PowerShell `cmd /c rmdir "<wt>\.venv"` (not `Remove-Item`).
+2. Hard check; remove only when it passes (`-L` catches a dangling link):
+   - Git Bash or mac/linux: `if [ -e "<wt>/.venv" ] || [ -L "<wt>/.venv" ] || [ -e "<wt>/node_modules" ] || [ -L "<wt>/node_modules" ]; then echo "STOP: dep link in <wt>"; else git worktree remove "<wt>"; fi`
+   - PowerShell: `if (Get-ChildItem -Force "<wt>" | Where-Object Name -in '.venv','node_modules') { "STOP: dep link in <wt>" } else { git worktree remove "<wt>" }`
+
+   STOP → leave the worktree and report which link is left.

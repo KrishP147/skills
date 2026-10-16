@@ -49,15 +49,18 @@ Also model-invocable, so Claude can pick it up from the trigger phrases above. I
 
 - Use `lite` when you want to choose between the full and the smaller option yourself.
 - Use `ultra` when you suspect the request itself is bigger than the need.
+- Scope also covers the docs: if your change makes a README line, usage note or comment wrong, expect it to be updated too (the one line, not a rewrite).
+- `ultra` pushes back and then keeps going: the SKILL does not say to wait, so in practice it states what it will skip and why, and builds the part the need justifies in the same reply. Want to decide before anything is built? Use `lite`, or answer the pushback and ask again.
 - It reads its own rules as session-wide, so say "normal mode" before a task where you do want the extras.
 
 ## Example
 
 ```
 /ponytail ultra
+> add --json to the CLI, make the output format configurable via a YAML config file, add a formatter plugin registry so CSV can come later, and a progress bar for big files
 ```
 
-Claude questions any part of your next request the stated need does not justify before building, builds the smallest complete version, and closes with what it skipped and any risk.
+Claude pushes back on the YAML config (a new dependency where one flag does it), the plugin registry ("later" is not a need) and the progress bar (counting is instant). It builds `--json` only, with the standard library `json` and one small test, and closes with what it skipped and any risk, for example: "skipped: config, plugins, progress bar; risk: a file literally named `--json` can't be counted".
 
 ## Related
 

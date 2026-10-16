@@ -25,4 +25,4 @@ One Markdown file for a human reader, in plain language: "run this command", not
 
 ## 3. Draft, then write
 
-Show the full draft. On yes: `skilleddocs/briefs/<name-slug>-<local-date>.md`.
+Show the full draft. On yes: `skilleddocs/briefs/<name-slug>-<local-date>.md`. Untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md) (it also covers the `pip install .` hazard).

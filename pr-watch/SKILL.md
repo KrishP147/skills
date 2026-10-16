@@ -52,6 +52,6 @@ Until merged/closed or told to stop: `gh pr view <n> --repo <o/r> --json state,m
 
 ## 7. Log and end
 
-Each pass → `skilleddocs/pr-watch/<local-date>-<repo>.md`: local time, PR, threads seen/fixed/replied/resolved (URLs), CI, every gate and the user's answer.
+Each pass → `skilleddocs/pr-watch/<local-date>-<repo>.md`: local time, PR, threads seen/fixed/replied/resolved (URLs), CI, every gate and the user's answer. Untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md) (it also covers the `pip install .` hazard).
 
 End with one line per PR, linked: **merged** (merge commit) / **waiting-on-maintainer** (approval, review, or a bot that won't run) / **needs-you** (open gate, a thread awaiting your answer, failing check).
