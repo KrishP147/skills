@@ -18,6 +18,6 @@ Read-only. Board lookup and status labels: [BOARD.md](BOARD.md).
 
    Skip any issue labelled `wayfinder:*` (planning tickets, worked only via `/wayfinder`).
 
-   Labels used: `priority:*` (ordering), `size:*` (size). Order by priority label, else roadmap order, else oldest first. A repo's `CLAUDE.md`/`AGENTS.md` overrides any of this.
+   Labels used: `priority:*` (ordering), `size:*` (size). Groups stay in that order (In Review, then Todo); within each, order by priority label (`p0` > `p1` > …, `critical` > `high` > `medium` > `low`), else roadmap order, else oldest first. A repo's `CLAUDE.md`/`AGENTS.md` overrides any of this.
 
 4. **Present** the top 1–3: number, title, size label (or "unestimated"), suggested model (fast for narrow, well-specified work; strong for ambiguous or design-heavy). "go" picks the top one. Picking doesn't claim the card; whoever creates the branch moves it.

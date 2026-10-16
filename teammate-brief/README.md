@@ -37,7 +37,7 @@ Model-invocable, so the trigger phrases above work without the slash.
    it (dashboard, teammate, secrets manager); names only, never values,
    never read from an actual `.env`/secrets file.
 4. **Numbered tasks** — each with a concrete "done when", pulled from open
-   issues where the repo has them (skipping `wayfinder:*` planning tickets and issues already in progress).
+   issues where the repo has them (skipping `wayfinder:*` planning tickets and issues In Progress or In Review on the board).
 5. **Ownership map** — area/path -> who to ask.
 6. **Don't-touch list** — what to leave alone and why, per item.
 7. **Draft, then write** — shows the full draft before writing; saves to
