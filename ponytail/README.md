@@ -10,7 +10,6 @@ Puts Claude in "lazy senior developer" mode for the whole session: it solves the
 
 - Any coding task: writing, fixing, refactoring, reviewing, choosing dependencies.
 - You say "ponytail", "be lazy", "simplest solution" or "yagni", or you complain about over-engineering or bloat.
-- Not for switching off: say "stop ponytail" or "normal mode" to end it.
 
 ## How to invoke
 
