@@ -62,6 +62,13 @@ Follow Matt Pocock's [`writing-for-agents`](https://github.com/mattpocock/skills
   [`upstream.json`](upstream.json) (`verbatim` if byte-identical, else
   `modified`) so the weekly `upstream-sync` workflow flags upstream
   changes; see [`scripts/upstream_sync.py`](scripts/upstream_sync.py).
+- **Plugin version and CHANGELOG.** The repo is also the `krish` plugin
+  ([`.claude-plugin/plugin.json`](.claude-plugin/plugin.json)); a new skill
+  directory at the root or under `kanban/` ships in it automatically.
+  Plugin users only get changes when `version` there changes, so add a line
+  to [`CHANGELOG.md`](CHANGELOG.md) for each user-visible change, and on a
+  release bump `version` and the top `## ` heading together
+  (`scripts/lint.py` fails when they differ).
 - **Docs written by skills go under `skilleddocs/`.** If your skill produces
   documents (handoffs, reports, decisions, ...), write them into a repo's
   `skilleddocs/` convention rather than inventing a new location — see the
