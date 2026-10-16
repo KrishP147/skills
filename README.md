@@ -103,7 +103,7 @@ Not auto-installed. [`smartzone.py`](hooks/smartzone.py) is a `UserPromptSubmit`
 
 ### [`site/`](site/) — static skills site
 
-Claude-Code-style terminal home (free-typing slash search: ranked matches, aliases, did-you-mean on typos) plus a plain list of every skill, agent and hook, a `/<name>` page per entry whose README `## Example` renders as a Claude Code session, a `/workflows` page of sample workflows, a `/map` page of how everything connects, light or dark with the OS theme, generated from this repo by [`scripts/build_site.py`](scripts/build_site.py) (stdlib only). Served at krishpunjabi.com/skills. Build, test and deploy steps in [`site/README.md`](site/README.md).
+Claude-Code-style terminal home (free-typing slash search: ranked matches, aliases, did-you-mean on typos) plus a plain list of every skill, agent and hook, a `/<name>` page per entry whose README `## Example` renders as a Claude Code session, a `/workflows` page of sample workflows, a `/map` page of how everything connects, light or dark with the OS theme, generated from this repo by [`scripts/build_site.py`](scripts/build_site.py) (stdlib only). Served at [www.krishpunjabi.com/skills](https://www.krishpunjabi.com/skills). Build, test and deploy steps in [`site/README.md`](site/README.md).
 
 Attribution and divergences: [Third-party skills](#third-party-skills). Licence: [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
 

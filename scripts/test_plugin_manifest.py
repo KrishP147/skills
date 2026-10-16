@@ -43,6 +43,11 @@ class PluginManifest(unittest.TestCase):
         self.assertRegex(self.plugin.get("version", ""), SEMVER_RE)
         self.assertIsInstance(self.plugin.get("description"), str)
 
+    def test_homepage_is_live_site(self):
+        self.assertTrue(
+            self.plugin["homepage"].startswith("https://www.krishpunjabi.com/skills")
+        )
+
     def test_paths_relative_and_exist(self):
         for key in ("skills", "agents"):
             for rel in as_list(self.plugin[key]):
