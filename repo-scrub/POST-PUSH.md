@@ -2,7 +2,7 @@
 
 Step 10's in-place path, for a clone the user keeps instead of re-cloning. Run it in that clone. Nothing is deleted until its copy is saved and checked, and every delete waits for a yes.
 
-`<save>` = a new `mktemp -d` **outside the repo and outside `<tmp>`** (step 12 deletes `<tmp>`), echoed to the user. It holds old content (the secret, if a stash or branch touched it); this file's step 11 offers to delete it.
+`<save>` = a new `mktemp -d` **outside the repo and outside `<tmp>`** (step 12 deletes `<tmp>`), echoed to the user. It holds old content (the secret, if a stash, branch or tag touched it); this file's step 11 offers to delete it.
 
 ## 1. Park the WIP, record everything
 
@@ -41,11 +41,13 @@ Save each one, then list them all for the user with their commits:
 
 ```
 echo "<branch> <old base SHA> <base branch>" >> <save>/bases.txt    # base branch: <default>, or <b> for a <b>-local copy
-git bundle create <save>/branches.bundle <branch>...
+git bundle create <save>/branches.bundle <branch>... <tag>...      # annotated tags keep their message
 git format-patch -o <save>/<branch> <old base>..<branch>
+echo "<tag> $(git cat-file -t <tag>) $(git log -1 --format='%at %s' <tag>)" >> <save>/tags.txt   # tag|commit, author time, subject
+git tag -l --format='%(contents)' <tag> > <save>/tag-<tag>.msg     # annotated only
 ```
 
-Per branch, ask: **rebase** onto the new history (step 5), **delete** (it stays in `<save>`), or **keep as is** (it keeps the old history and the secret alive in this clone, `gc` can't drop them, and it must never be pushed). Same for each local-only tag: delete or keep. No answer = keep as is.
+Per branch, ask: **rebase** onto the new history (step 5), **delete** (it stays in `<save>`), or **keep as is** (it keeps the old history and the secret alive in this clone, `gc` can't drop them, and it must never be pushed). Per local-only tag: **re-point** to its rewritten commit (step 5), **delete**, or **keep as is** (same warning). No answer = keep as is.
 
 ## 4. Reset the pushed branches
 
@@ -63,6 +65,14 @@ git rebase --onto origin/<base branch> <old base SHA> <branch>    # from bases.t
 ```
 
 A conflict means a commit touched scrubbed content: stop that rebase (`git rebase --abort`) and hand the branch to the user; its saved copy is in `<save>`.
+
+Then per tag to re-point, find its rewritten commit by author time and subject from `tags.txt`:
+
+```
+git log --branches --remotes --not <tag> --format='%H %at %s' | grep -F '<at> <subject>'   # exactly one SHA, else warn and keep the tag as is
+git tag -f -a <tag> <new sha> -F <save>/tag-<tag>.msg             # annotated
+git tag -f <tag> <new sha>                                         # lightweight
+```
 
 ## 6. Re-create the stash entries on the new history
 
@@ -94,11 +104,11 @@ git tag -d <tag>                      # likewise
 ## 8. Expire and collect
 
 ```
-git reflog expire --expire=now HEAD $(git for-each-ref --format='%(refname)' refs/heads refs/remotes refs/tags)
+git reflog expire --expire=now HEAD $(git for-each-ref --format='%(refname)' refs/heads refs/remotes)
 git gc --prune=now
 ```
 
-Not `--all`: that also clears the stash list, while `refs/stash` itself survives and would pin the old history. The old stash entries are gone after step 7, so the stash reflog holds only new-history entries.
+No `refs/tags`: tags have no reflog, and naming one exits 255. Not `--all`: that also clears the stash list, while `refs/stash` itself survives and would pin the old history. The old stash entries are gone after step 7, so the stash reflog holds only new-history entries.
 
 ## 9. Restore the WIP and verify
 
@@ -106,15 +116,17 @@ Not `--all`: that also clears the stash list, while `refs/stash` itself survives
 git checkout <noted branch> && git stash pop     # the WIP entry; a conflicting pop keeps it: resolve, then git stash drop
 git status --short
 git stash list                                   # every non-WIP entry, re-created
-git cat-file -e <old SHA from refs-before.txt>   # must fail, unless a branch was kept as is
-git log --all -S'<string>' --oneline             # each scrubbed personal string: no output, unless a branch was kept as is
+git cat-file -e <old SHA from refs-before.txt>   # must fail, unless a branch or tag was kept as is
+git log --all -S'<string>' --oneline             # each scrubbed personal string: no output, unless a branch or tag was kept as is
+git log --all --format='%an %ae %cn %ce %B' | grep -F -i '<string>'   # same, for messages and identities
+git rev-parse "<tag>^{commit}"                   # each re-pointed tag: the new SHA from step 5
 ```
 
 Report all of it.
 
 ## 10. Warn about what was kept
 
-Per branch or tag kept as is in step 3 (including any left unanswered), print:
+Per branch or tag kept as is in step 3 or 5 (including any left unanswered), print:
 
 ```
 WARNING: <branch|tag> <name> was kept as is. It still holds the pre-rewrite history, including the scrubbed secret. Never push it.
@@ -126,4 +138,4 @@ WARNING: <branch|tag> <name> was kept as is. It still holds the pre-rewrite hist
 du -sh <save>
 ```
 
-Show the path and size. **Gate**: `rm -rf <save>` only on an explicit yes. Anything else → say `<save>` is kept at that path and still holds the old content, including the secret if a stash or branch touched it.
+Show the path and size. **Gate**: `rm -rf <save>` only on an explicit yes. Anything else → say `<save>` is kept at that path and still holds the old content, including the secret if a stash, branch or tag touched it.
