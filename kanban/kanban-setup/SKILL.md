@@ -9,13 +9,13 @@ Creates a real board and real, public GitHub issues. Steps 1-3 are read-only; sh
 
 ## 1. Scope
 
-`gh repo view` fails → stop and say why: `origin` isn't a GitHub remote (this skill needs one), or `gh` isn't authenticated (`gh auth status`). `gh auth status` must list `project`. Missing → user runs `gh auth refresh -s project -s read:project` (opens a browser); stop until done.
+**Target repo** per [BOARD.md](../next/BOARD.md#target-repo): resolve `origin` (this skill needs it on GitHub), `-R <owner>/<repo>` on every `gh` call, and on a fork ask which repo to write to before step 4 creates anything; `<owner>`/`<repo>` below are that repo. `gh auth status` must list `project`. Missing → user runs `gh auth refresh -s project -s read:project` (opens a browser); stop until done.
 
 ## 2. Board (read-only)
 
 Look for this repo's board per [BOARD.md](../next/BOARD.md); another board on the account doesn't count. Note whether one exists; create nothing yet.
 
-The Status field needs an **In Review** option (`session-handoff` moves cards there; the default field has only Todo / In Progress / Done). If a board exists, check `gh project field-list` and note whether the option is missing (fix: [IN-REVIEW-OPTION.md](IN-REVIEW-OPTION.md)).
+The Status field needs an **In Review** option (`session-handoff` moves cards there; the default field has only Todo / In Progress / Done). If a board exists, check `gh project field-list <n> --owner <owner>` and note whether the option is missing (fix: [IN-REVIEW-OPTION.md](IN-REVIEW-OPTION.md)).
 
 **Label mode** (four `status:*` labels instead of a board, colors in BOARD.md) when the user asks for it, the `project` scope isn't granted and the user declines to refresh it, or the owner can't create projects.
 
@@ -31,4 +31,4 @@ Scan whatever exists: README roadmap/TODO sections, `TODO`/`FIXME` comments, `CH
 
 Preview first the **board actions** that will run: create the board (`gh project create --owner <owner> --title "<repo> Board"`), link it (`gh project link <n> --owner <owner> --repo <owner>/<repo>`), add the In Review option, or in label mode create the four labels. Then every item: title, mode, target column.
 
-On yes, do the board actions first, then per item: `gh issue create`, close it if retroactive, `item-add`, then `item-edit` Status to Todo or Done (BOARD.md).
+On yes, do the board actions first, then per item: `gh issue create -R <owner>/<repo>`, close it if retroactive, `item-add`, then `item-edit` Status to Todo or Done (BOARD.md).

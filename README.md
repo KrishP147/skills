@@ -17,7 +17,7 @@ New to the repo? Check the prereqs, install, then try one skill.
 | Need | Why | Check |
 |---|---|---|
 | [Claude Code](https://claude.com/claude-code) | runs every skill and agent here | `claude --version` |
-| `gh` CLI, authenticated, `origin` on GitHub | `pair`, `meta-orchestrator`, `pr-watch`, `gap-scan` and everything under `kanban/` read and write GitHub; `kanban/`, `wayfinder` and `pr-watch` stop with a message on a non-GitHub remote (kanban Projects boards also need `gh auth refresh -s project -s read:project` once) | `gh auth status` |
+| `gh` CLI, authenticated, `origin` on GitHub | `pair`, `meta-orchestrator`, `pr-watch`, `gap-scan` and everything under `kanban/` read and write GitHub; `kanban/`, `wayfinder` and `pr-watch` stop with a message on a non-GitHub remote (kanban Projects boards also need `gh auth refresh -s project -s read:project` once). Every `gh` call names `origin`'s repo (`-R`); on a fork clone, where bare `gh` defaults to the parent, skills ask which repo to write to and never write to the parent without a yes naming it ([Target repo](kanban/next/BOARD.md#target-repo)) | `gh auth status` |
 | Python 3.8+ | the lint step of the install, `scripts/build_site.py`, and the `guard-git` hook that stops agents pushing to `main` or merging | `python --version` |
 | Git Bash (Windows only) | the `guard-git` hook is a POSIX `sh` command; without it the hook fails open, so the installer refuses | `sh --version` |
 
