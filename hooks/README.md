@@ -36,7 +36,7 @@ default. Set it in the hook `command` or your shell env.
 Related: [`divide`](../kanban/divide/), [`session-handoff`](../kanban/session-handoff/),
 [`meta-orchestrator`](../meta-orchestrator/) (rotates early on this warning).
 
-Example output once the context crosses the threshold:
+Example output once a long session crosses the threshold:
 
 ```
 [smart-zone] Session transcript context is ~82k tokens - context has likely left the smart zone (~100-120k tokens; this is a heuristic, verify with /context). Wrap up: run /divide on the remaining work, then /session-handoff, and continue in a fresh session.
