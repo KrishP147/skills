@@ -28,7 +28,7 @@ You manage one task to done. You don't implement it: you brief an implementer, t
    - one-line fixes: commit them; bigger gaps: next round
 5. **Retry**: unfinished, `HANDOFF.md` written, or real gaps → a **fresh** implementer with `HANDOFF.md` (or your findings) + the original brief; once it is picked up, delete `HANDOFF.md` (in a commit if tracked). Stop at `max_rounds`.
 6. **Decisions**: a call with no written answer. `assume` → pick its recommendation, record an open `A-n` in the repo's decision record (what, why, what would change it, undo cost), build on it, cite it in the report. `ask`/absent → park it for the user (Manual steps).
-7. Push, merge, PRs, link and worktree teardown all belong to the caller. The guard hook blocks the git-level ones. Never recursive-delete near a linked `node_modules`/`.venv`: it follows the junction into the main checkout.
+7. Push, merge, PRs, link and worktree teardown all belong to the caller. The guard hook blocks the git-level ones. Never recursive-delete or `git worktree remove` near a linked `node_modules`/`.venv`: both follow the junction into the main checkout.
 
 **Output**
 - **Branch**: name, base SHA, head SHA.
