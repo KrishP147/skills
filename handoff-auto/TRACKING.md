@@ -19,16 +19,18 @@ ex=$(git rev-parse --git-path info/exclude); mkdir -p "$(dirname "$ex")"
 grep -qxF 'skilleddocs/' "$ex" 2>/dev/null || echo 'skilleddocs/' >> "$ex"
 ```
 
+A handoff folder set by `AGENTS.md`/`CLAUDE.md` outside `skilleddocs/` gets the same exclude line, with its path.
+
 **Packaging hazard.** Excluding keeps `git status` clean but not the build: in a flat-layout Python project (no `src/`, no explicit `packages`), setuptools auto-discovery scans the folder, so an untracked `skilleddocs/` fails `pip install .` with "Multiple top-level packages discovered in a flat-layout: ['pkg', 'skilleddocs']". Two remedies, both checked to work: install from a clean clone (`git clone . "$(mktemp -d)/x"`, then `pip install` that path), or, with the user's yes since it edits the project, list the real package: `[tool.setuptools.packages.find]` with `include = ["<pkg>*"]` in `pyproject.toml`. Any quickstart or install check a skill runs uses the clean clone.
 
 `meta-orchestrator`'s `docs_commit` picks this for its own files; it defaults to the rule above and is always `uncommitted` on a fork.
 
 ## Dated handoffs never ship in a task PR
 
-A dated handoff under `skilleddocs/handoffs/` is not part of the task's change. Commit mode: commit it only when the current branch is `<default>`. On any other branch leave it uncommitted on disk; `update-progress` runs on `<default>` and commits it there after verifying. Untracked mode: nothing to do.
+A dated handoff in the handoff folder (AGENTS.md/CLAUDE.md's, else `skilleddocs/handoffs/`) is not part of the task's change. Commit mode: commit it only when the current branch is `<default>`. On any other branch leave it uncommitted on disk; `update-progress` runs on `<default>` and commits it there after verifying. Untracked mode: nothing to do.
 
 ## `HANDOFF.md` never ships
 
 `skilleddocs/HANDOFF.md` is gone from a branch before it is handed back or pushed. Untracked: nothing to do; it stays on disk for the next round. Committed: delete it in a commit (`git rm`) and name the last SHA that held it.
 
-Before handing back or pushing, check `git diff --name-only <base>...HEAD`: no `skilleddocs/HANDOFF.md`, in commit mode nothing under `skilleddocs/handoffs/`, and in untracked mode nothing under `skilleddocs/`. A hit → remove it in a commit, then recheck.
+Before handing back or pushing, check `git diff --name-only <base>...HEAD`: no `skilleddocs/HANDOFF.md`, in commit mode nothing in the handoff folder, and in untracked mode nothing under `skilleddocs/` or the handoff folder. A hit → remove it in a commit, then recheck.
