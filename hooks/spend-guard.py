@@ -836,8 +836,12 @@ def _rest_hits(text, gql_readable):
 
 # --- SDK one-liners ---------------------------------------------------------
 _SDK_GATE_RE = re.compile(
-    r"(?<![\w.-])(?:i?python[\d.]*w?|py|pypy3?)(?:\.exe)?(?![\w.-])|\bimport\b", re.I)
+    r"(?<![\w.-])(?:i?python[\d.]*w?|py|pypy3?|node|nodejs|bun|deno|npx)(?:\.exe)?(?![\w.-])"
+    r"|\bimport\b|\brequire\s*\(", re.I)
 _SDK_RULES = [
+    # #178: JS SDK `runpod-sdk` -> `.endpoint(id).run/runSync/runAsync(` runs a billed job
+    ("Runpod JS SDK", re.compile(r"runpod-sdk"), re.compile(
+        r"\.\s*(?:run|runSync|runAsync)\s*\(")),
     ("Runpod SDK", re.compile(r"\brunpod\b"), re.compile(
         r"\b(?:create_pod|create_endpoint|resume_pod|create_network_volume|create_cluster"
         r"|update_endpoint\w*|run_sync|run_async)\s*\("
@@ -1825,6 +1829,27 @@ def run_self_test():
          "python -c \"import boto3; boto3.client('ec2').describe_instances()\""),
         (S, "python -c \"import boto3; boto3.client('ec2').request_spot_instances()\"",
          "grep -rn 'request_spot_instances(' src/"),
+        # #178: Node/Bun/Deno runpod-sdk one-liners (endpoint run/runSync/runAsync bill)
+        (S, "node -e \"const s=require('runpod-sdk').default('k'); s.endpoint('e').run({input:{}})\"",
+         "node -e \"const s=require('runpod-sdk').default('k'); s.endpoint('e').status('j')\""),
+        (S, "node --eval \"import('runpod-sdk').then(m=>m.default('k').endpoint('e').runSync({}))\"",
+         "node --eval \"import('runpod-sdk').then(m=>m.default('k').endpoint('e').health())\""),
+        (S, "node -p \"require('runpod-sdk').default('k').endpoint('e').runAsync({})\"",
+         "node -p \"require('runpod-sdk')\""),
+        (S, "cat > r.mjs <<'EOF'\nimport runpodSdk from 'runpod-sdk'\n"
+            "await runpodSdk('k').endpoint('e').runSync({input:{}})\nEOF\nnode r.mjs",
+         "cat > r.mjs <<'EOF'\nimport runpodSdk from 'runpod-sdk'\n"
+         "console.log(await runpodSdk('k').endpoint('e').health())\nEOF\nnode r.mjs"),
+        (S, "node --input-type=module <<'EOF'\nimport r from 'runpod-sdk'\nr('k').endpoint('e').run({})\nEOF",
+         "node --input-type=module <<'EOF'\nimport r from 'runpod-sdk'\nconsole.log(typeof r)\nEOF"),
+        (S, "npx -y -p runpod-sdk node -e \"require('runpod-sdk').default('k').endpoint('e').run({})\"",
+         "npx -y -p runpod-sdk node -e \"require('runpod-sdk').default('k').endpoint('e').status('j')\""),
+        (S, "bun -e \"(await import('runpod-sdk')).default('k').endpoint('e').runSync({})\"",
+         "bun -e \"(await import('runpod-sdk')).default('k').endpoint('e').health()\""),
+        (S, "deno eval \"import('npm:runpod-sdk').then(m=>m.default('k').endpoint('e').run({}))\"",
+         "deno eval \"import('npm:runpod-sdk').then(m=>console.log(typeof m))\""),
+        (P, "node -e \"require('runpod-sdk').default('k').endpoint('e').runSync({})\"",
+         "node -e \"console.log('runpod-sdk')\""),
         # spot / interruptible
         (S, "runpodctl create pod --communityCloud --bid 0.2", "runpodctl get pod --communityCloud"),
         (S, "aws ec2 request-spot-instances --spot-price 0.1", "aws ec2 describe-spot-price-history"),
