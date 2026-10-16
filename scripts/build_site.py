@@ -10,6 +10,8 @@ exactly what lint counts. Output (wiped + recreated every run):
   site/dist/<name>/index.html   detail page per skill/agent/hook (site_detail.py)
   site/dist/workflows/index.html  sample workflows from site/data/workflows.json
                                 (site_workflows.py; validated, every skill covered)
+  site/dist/map/index.html      skills map: groups from meta.json "map_groups",
+                                edges generated from the docs (site_map.py)
   site/dist/404.html
   site/dist/*.css|*.js|*.svg    copied as text from site/src/
   site/dist/*.webp|*.png|*.jpg  copied byte for byte (rocky.webp, favicon-32.png, apple-touch-icon.png)
@@ -29,6 +31,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lint  # noqa: E402
 import site_detail  # noqa: E402
+import site_map  # noqa: E402
 import site_workflows  # noqa: E402
 
 GROUPS = ("core", "kanban", "agents", "hooks")
@@ -227,9 +230,14 @@ def nav_entry(e, aliases):
     return d
 
 
+# Site pages the slash prompt can open besides entries: /<name> -> <base>/<name>.
+PAGES = ({"name": site_map.SLUG, "kind": "page", "group": "pages",
+          "summary": "Map of every skill, agent and hook, grouped by purpose, and how they connect."},)
+
+
 def nav_data(entries, meta=None):
     aliases = aliases_of(meta, entries)
-    return embed_json([nav_entry(e, aliases) for e in entries])
+    return embed_json([nav_entry(e, aliases) for e in entries] + [dict(p) for p in PAGES])
 
 
 def render_index(template, entries, base="", meta=None):
@@ -254,12 +262,13 @@ def build(root, out, base=""):
         raise SystemExit("duplicate skill/agent/hook names: %s" % sorted(n for n in names if names.count(n) > 1))
     site_workflows.check_slug(entries)
     workflows = site_workflows.validate(site_workflows.load(root), entries)
+    meta = site_detail.load_meta(root)
+    map_groups, map_edges = site_map.build(root, entries, meta, workflows)
 
     if os.path.isdir(out):
         shutil.rmtree(out)
     os.makedirs(out)
 
-    meta = site_detail.load_meta(root)
     write(os.path.join(out, "index.html"),
           render_index(read_text(os.path.join(src, "index.html")), entries, base, meta))
     data = nav_data(entries, meta)
@@ -269,6 +278,8 @@ def build(root, out, base=""):
         write(os.path.join(out, e["name"], "index.html"), pages[e["name"]])
     write(os.path.join(out, site_workflows.SLUG, "index.html"),
           site_workflows.render_index(read_text(os.path.join(src, "workflows.html")), workflows, base, data))
+    write(os.path.join(out, site_map.SLUG, "index.html"),
+          site_map.render_index(read_text(os.path.join(src, "map.html")), map_groups, map_edges, entries, base, data))
     write(os.path.join(out, "404.html"),
           read_text(os.path.join(src, "404.html")).replace("{{BASE}}", esc(base)))
     write(os.path.join(out, "skills.json"),
