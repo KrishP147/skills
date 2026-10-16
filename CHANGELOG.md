@@ -8,7 +8,7 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 
 - CI runs `install-skills.sh` and `install-skills.ps1` into fresh temp dirs (ubuntu, plus `.ps1` on windows-latest) and checks skill, agent and marker counts.
 - Plugin `homepage` and README site link point at https://www.krishpunjabi.com/skills (canonical host; the apex form redirects).
-- `spend-guard` also blocks `runpodctl serverless|sls run`, the `sls` alias for create/update, `pod update` with `--volume-in-gb`/`--container-disk-in-gb`, `model add`, global flags before the noun (`--profile x pod create`), and MCP `update-pod` with `volumeInGb`/`containerDiskInGb`.
+- `spend-guard` also blocks `runpodctl serverless|sls run`, the `sls` alias for create/update, `pod update` with `--volume-in-gb`/`--container-disk-in-gb`, `model add`, global flags before the noun (`--profile x pod create`), and MCP `update-pod` with storage keys (v2 `disk`, `mounts.persistent`, `templateId`; v1 `volumeInGb`/`containerDiskInGb`). Global-flag prefix parses linearly (a long flag run no longer backtracks exponentially) and also matches `--x=-1`, quoted values, `--`, and hyphenated profile names like `serverless-prod`.
 - Install scripts warn (never delete) on installed skill dirs with the marker that are no longer in the repo ("stale skill(s)"); exit code unchanged.
 - `session-bridge` snapshot: LAST USER ASK skips reminders, tool results and agent relays (slash commands shown as `/name args`); Agent/Skill/WebFetch actions labelled; secrets redacted before truncation.
 - `spend-guard` default patterns also match `.exe`/`.cmd`, quoted and full-path CLI forms (e.g. `& "C:\...\runpodctl.exe" create`).

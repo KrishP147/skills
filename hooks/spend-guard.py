@@ -50,12 +50,18 @@ import re
 import sys
 
 # runpodctl prefix: binary (optionally .exe/.cmd/quoted) plus any global
-# flags before the noun (`--profile x`, `--output=json`, `-o json`). A flag
-# value may not be a noun/verb word, so it cannot swallow the real noun.
-_RP = r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:-{1,2}[\w-]+(?:[= ](?!(?:pods?|serverless|sls|network-volume|nv|model|template|registry|hub|create|start)\b)[^\s-]\S*)?\s+)*"""
+# flags before the noun (`--profile x`, `--output=json`, `-o json`, `--`). A
+# space-separated flag value may not be a noun/verb word, so it cannot
+# swallow the real noun. Each token has exactly one parse (no overlapping
+# dash runs, values never start with "-"), so a long non-matching flag run
+# fails in linear time instead of backtracking exponentially.
+_RP_NOUN = r"""(?:pods?|serverless|sls|network-volume|nv|model|template|registry|hub|create|start)(?![\w-])"""
+_RP = (r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:(?:--?\w[\w-]*(?:=\S*|\s+(?!-)(?!"""
+       + _RP_NOUN
+       + r""")(?:"[^"]*"|'[^']*'|[^\s"'-]\S*))?|--)\s+)*""")
 
 DEFAULT_BASH_PATTERNS = [
-    _RP + r"""(?:(?:pods?|serverless|sls|network-volume|nv)\s+)?(?:create|start)\b""",
+    _RP + r"""(?:(?:pods?|serverless|sls|network-volume|nv)\s+)?(?:create|start)(?![\w-])""",
     _RP + r"""(?:network-volume|nv)\s+update\b[^\n]*--size\b""",
     _RP + r"""(?:serverless|sls)\s+update\b""",
     _RP + r"""(?:serverless|sls)\s+run\b""",
@@ -93,9 +99,13 @@ POD_BILLABLE_ACTIONS = ("start", "resume")
 # it only takes a name, nothing billable to change.
 NETVOL_UPDATE_GLOB = "mcp__*runpod*__update-network-volume"
 
-# update-pod body: only storage size keys bill (name/imageName do not).
+# update-pod body: only storage keys bill. The live v2 UpdatePodRequest
+# sizes storage via "disk" (container disk GB) and "mounts.persistent.size",
+# and "templateId" applies a template's disk; "volumeInGb"/
+# "containerDiskInGb" are the v1 names, kept in case an older server is
+# wired up. name/image/env/ports and network/global mounts do not bill.
 POD_UPDATE_GLOB = "mcp__*runpod*__update-pod"
-POD_UPDATE_BILLABLE_KEYS = ("volumeInGb", "containerDiskInGb")
+POD_UPDATE_BILLABLE_KEYS = ("disk", "templateId", "volumeInGb", "containerDiskInGb")
 
 PATTERNS_FILE_REL = os.path.join(".claude", "spend-guard-patterns.txt")
 APPROVALS_DIR_REL = os.path.join("skilleddocs", "spend-approvals")
@@ -263,13 +273,17 @@ def netvol_update_billable(tool_name, tool_input):
 
 def pod_update_billable(tool_name, tool_input):
     """Return a block reason if this is a runpod update-pod whose body is a
-    dict containing "volumeInGb" or "containerDiskInGb" (storage resize
-    bills), else None. Fails open."""
+    dict containing a POD_UPDATE_BILLABLE_KEYS key or a "mounts" object with
+    a "persistent" entry (storage resize bills), else None. Fails open."""
     try:
         if not tool_name or not fnmatch.fnmatch(tool_name.lower(), POD_UPDATE_GLOB):
             return None
         body = (tool_input or {}).get("body")
-        if isinstance(body, dict) and any(k in body for k in POD_UPDATE_BILLABLE_KEYS):
+        if not isinstance(body, dict):
+            return None
+        mounts = body.get("mounts")
+        if any(k in body for k in POD_UPDATE_BILLABLE_KEYS) or (
+                isinstance(mounts, dict) and "persistent" in mounts):
             return "tool '%s' sets pod storage size (resize bills)" % tool_name
     except Exception:
         pass
@@ -682,6 +696,34 @@ def run_self_test():
     record("pod update missing/string body allowed",
            check(up, {"id": "p"}, None, env=iso) is None
            and check(up, {"body": "volumeInGb"}, None, env=iso) is None)
+    record("pod update v2 disk blocks",
+           check(up, {"id": "p", "body": {"disk": 80}}, None, env=iso) is not None)
+    record("pod update v2 mounts.persistent blocks",
+           check(up, {"id": "p", "body": {"mounts": {"persistent":
+                 {"size": 50, "path": "/workspace"}}}}, None, env=iso) is not None)
+    record("pod update templateId blocks (applies template disk)",
+           check(up, {"id": "p", "body": {"templateId": "t"}}, None, env=iso) is not None)
+    record("pod update network mount path / env / ports allowed",
+           check(up, {"id": "p", "body": {"mounts": {"network": [{"volumeId": "v",
+                 "path": "/d"}]}, "env": {"A": "1"}, "ports": ["22/tcp"],
+                 "image": "i", "locked": True}}, None, env=iso) is None)
+    # #130 verifier: regex edge forms + backtracking bound
+    for cmd in ["runpodctl --profile serverless-prod pod create",
+                "runpodctl --x=-1 pod create", 'runpodctl --profile "my prof" pod create',
+                "runpodctl -- pod create", "runpodctl -o json	sls run ep",
+                "runpodctl --profile=pod pod create"]:
+        record("#130v blocks: %s" % cmd,
+               check("Bash", {"command": cmd}, None, env=iso) is not None)
+    for cmd in ["runpodctl update", "runpodctl --profile start-x pod list",
+                "runpodctl help pod create", "runpodctl ---a pod create"]:
+        record("#130v allowed: %s" % cmd,
+               check("Bash", {"command": cmd}, None, env=iso) is None)
+    import time
+    t0 = time.time()
+    long_cmd = "runpodctl " + " ".join(["--a-b c"] * 400 + ["-x"] * 400) + " pod list"
+    record("400+400 flag run allows fast (no backtracking blowup)",
+           check("Bash", {"command": long_cmd}, None, env=iso) is None
+           and time.time() - t0 < 2.0)
     record("pod update volumeInGb allowed with approval",
            check(up, {"body": {"volumeInGb": 5}}, None,
                  env=dict(iso, SPEND_GATE_APPROVED="yes")) is None)
