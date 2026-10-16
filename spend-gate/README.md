@@ -13,7 +13,7 @@ your explicit yes for that one action.
 
 - Anything that provisions cloud compute: `runpodctl create`, `vultr-cli
   instance create`, `aws ec2 run-instances`, `gcloud compute instances
-  create`, `az vm create`, and equivalent MCP `create-*`/`deploy-*` tools.
+  create`, `az vm create`, and equivalent MCP create/deploy/run/start/update tools.
 - Paid deploys (`modal deploy`) and per-token/per-request paid API calls.
 - Not for read-only checks (listing pods, checking a balance, viewing
   pricing) - those are how the skill informs its own estimate, not what it

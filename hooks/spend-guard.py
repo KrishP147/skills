@@ -3,7 +3,7 @@
 approval already exists. Stdlib only, Python 3.8+.
 
 Reads PreToolUse hook JSON from stdin (tool_name, tool_input.command for
-Bash, cwd). Exits 2 with a one-line reason on stderr to block; exits 0 to
+Bash and PowerShell, cwd). Exits 2 with a one-line reason on stderr to block; exits 0 to
 allow. Never raises into a block of unrelated work - any error while
 matching or loading config fails OPEN (allow), since the cost of a hook bug
 blocking unrelated commands is worse than the cost of missing one billable
@@ -27,6 +27,9 @@ Approval (either one allows the single matched action):
      audit trail - contents are ignored. The hook consumes (deletes) the
      first one it finds (sorted by name) and allows that single call.
   2. SPEND_GATE_APPROVED=<label>, two ways to set it:
+       - PowerShell only: start the command with
+         `$env:SPEND_GATE_APPROVED='<label>'; <cmd>` (leading only, `;`
+         required, non-empty value). Bash-style prefixes are not honoured.
        - Bash only: prefix the single command, e.g.
          `SPEND_GATE_APPROVED=yes runpodctl create pod ...` - this is a
          shell per-command env assignment, so it is read out of the command
@@ -62,7 +65,17 @@ DEFAULT_BASH_PATTERNS = [
 DEFAULT_MCP_GLOBS = [
     "mcp__*runpod*__create-*",
     "mcp__*runpod*__deploy-*",
+    "mcp__*runpod*__run-endpoint",
+    "mcp__*runpod*__runsync-endpoint",
+    "mcp__*runpod*__retry-job",
+    "mcp__*runpod*__update-endpoint",
+    "mcp__*runpod*__set-endpoint-gpus",
 ]
+
+# pod-action carries the verb in its input: only starting/resuming a pod
+# bills, so it is a small special case rather than a plain glob.
+POD_ACTION_GLOB = "mcp__*runpod*__pod-action"
+POD_BILLABLE_ACTIONS = ("start", "resume")
 
 PATTERNS_FILE_REL = os.path.join(".claude", "spend-guard-patterns.txt")
 APPROVALS_DIR_REL = os.path.join("skilleddocs", "spend-approvals")
@@ -129,7 +142,7 @@ def match_billable(tool_name, command, bash_patterns, mcp_globs):
     """Return a (reason, matched) tuple, or (None, None) if nothing matches.
     Never raises - any matching error fails open."""
     try:
-        if tool_name == "Bash":
+        if tool_name in ("Bash", "PowerShell"):
             if not command:
                 return None, None
             for pat in bash_patterns:
@@ -173,6 +186,47 @@ def inline_env_approved(command):
     return False
 
 
+_PS_INLINE_RE = re.compile(
+    r"""^\s*\$env:SPEND_GATE_APPROVED\s*=\s*(?:'[^']+'|"[^"$]+"|[^\s;'"$]+)\s*;""",
+    re.IGNORECASE,
+)
+
+
+def powershell_inline_approved(command):
+    """True if the PowerShell command string starts with
+    `$env:SPEND_GATE_APPROVED='<label>';` (single, double or no quotes,
+    non-empty literal value, `;` required). A `$` in an unquoted or
+    double-quoted value is rejected: `$null`/`"$x"` may expand to empty.
+    Only a leading assignment counts, never one mid-string. Bash-style `VAR=val cmd` is not valid PowerShell, so it
+    is deliberately not honoured here."""
+    if not command:
+        return False
+    try:
+        return bool(_PS_INLINE_RE.match(command))
+    except Exception:
+        return False
+
+
+def pod_action_billable(tool_name, tool_input):
+    """Return a block reason if this is a runpod pod-action that starts or
+    resumes a pod, else None. Action is tool_input["body"]["action"], with
+    tool_input["action"] as fallback. Unknown/missing shape fails open."""
+    try:
+        if not tool_name or not fnmatch.fnmatch(tool_name.lower(), POD_ACTION_GLOB):
+            return None
+        ti = tool_input or {}
+        body = ti.get("body")
+        action = body.get("action") if isinstance(body, dict) else None
+        if action is None:
+            action = ti.get("action")
+        if isinstance(action, str) and action.strip().lower() in POD_BILLABLE_ACTIONS:
+            return "tool '%s' action '%s' starts a billable pod" % (
+                tool_name, action.strip().lower())
+    except Exception:
+        pass
+    return None
+
+
 def env_approved(env):
     return bool(env.get("SPEND_GATE_APPROVED"))
 
@@ -200,7 +254,8 @@ def approval_hint():
         "Approve with ONE of: (1) drop a file into "
         "skilleddocs/spend-approvals/ (one-shot, consumed on use); "
         "(2) prefix the Bash command with SPEND_GATE_APPROVED=<label> "
-        "(covers just that command). MCP tool calls: use the file. "
+        "(covers just that command), or start a PowerShell command with "
+        "$env:SPEND_GATE_APPROVED='<label>'; <cmd>. MCP tool calls: use the file. "
         "See the spend-gate skill: estimate, check balance, get an "
         "explicit yes for this action, log it, before approving."
     )
@@ -212,7 +267,7 @@ def check(tool_name, tool_input, cwd, env=None):
     where a test is specifically about env or file approval."""
     env = os.environ if env is None else env
     command = None
-    if tool_name == "Bash":
+    if tool_name in ("Bash", "PowerShell"):
         command = (tool_input or {}).get("command")
 
     try:
@@ -224,11 +279,18 @@ def check(tool_name, tool_input, cwd, env=None):
     mcp_globs = DEFAULT_MCP_GLOBS + extra_mcp
 
     reason, _matched = match_billable(tool_name, command, bash_patterns, mcp_globs)
+    if tool_name and fnmatch.fnmatch(tool_name.lower(), POD_ACTION_GLOB):
+        # Verb-dependent: only start/resume blocks; anything else allows.
+        reason = pod_action_billable(tool_name, tool_input)
     if reason is None:
         return None  # not billable (or unrecognized) - allow
 
-    if command and inline_env_approved(command):
-        return None
+    if command:
+        if tool_name == "PowerShell":
+            if powershell_inline_approved(command):
+                return None
+        elif inline_env_approved(command):
+            return None
     if env_approved(env):
         return None
 
@@ -380,6 +442,69 @@ def run_self_test():
         timeout=10,
     )
     record("Bash tool_input missing 'command' fails open", proc.returncode == 0)
+
+    # 11. PowerShell tool (same regexes as Bash)
+    ps_cmd = "runpodctl create pod --gpuType RTX4090"
+    record("PowerShell billable blocks",
+           check("PowerShell", {"command": ps_cmd}, None, env=iso) is not None)
+    record("PowerShell non-billable allowed",
+           check("PowerShell", {"command": "Get-ChildItem"}, None, env=iso) is None)
+    for form in ("'x'", '"x"', "x", " 'x' "):
+        cmd = "$env:SPEND_GATE_APPROVED=%s; %s" % (form, ps_cmd)
+        record("PowerShell $env approval allows: %s" % form,
+               check("PowerShell", {"command": cmd}, None, env=iso) is None)
+    record("PowerShell approval not leading still blocks",
+           check("PowerShell", {"command": ps_cmd + "; $env:SPEND_GATE_APPROVED='x'"},
+                 None, env=iso) is not None)
+    record("PowerShell empty approval value blocks",
+           check("PowerShell", {"command": "$env:SPEND_GATE_APPROVED=''; " + ps_cmd},
+                 None, env=iso) is not None)
+    for form in ("$null", "$false", '"$x"'):
+        record("PowerShell variable approval value blocks: %s" % form,
+               check("PowerShell", {"command": "$env:SPEND_GATE_APPROVED=%s; %s"
+                                    % (form, ps_cmd)}, None, env=iso) is not None)
+    record("PowerShell approval case-insensitive allows",
+           check("PowerShell", {"command": "  $ENV:spend_gate_approved = 'x' ; " + ps_cmd},
+                 None, env=iso) is None)
+    record("PowerShell comment before approval blocks",
+           check("PowerShell", {"command": "<# c #> $env:SPEND_GATE_APPROVED='x'; " + ps_cmd},
+                 None, env=iso) is not None)
+    record("PowerShell without ; blocks",
+           check("PowerShell", {"command": "$env:SPEND_GATE_APPROVED='x' " + ps_cmd},
+                 None, env=iso) is not None)
+    record("Bash-style prefix not approval in PowerShell",
+           check("PowerShell", {"command": "SPEND_GATE_APPROVED=yes " + ps_cmd},
+                 None, env=iso) is not None)
+    record("PowerShell $env form not approval in Bash",
+           check("Bash", {"command": "$env:SPEND_GATE_APPROVED='x'; " + ps_cmd},
+                 None, env=iso) is not None)
+
+    # 12. new runpod MCP globs
+    for tool in ("run-endpoint", "runsync-endpoint", "retry-job",
+                 "update-endpoint", "set-endpoint-gpus"):
+        record("MCP runpod %s blocks" % tool,
+               check("mcp__runpod__%s" % tool, {}, None, env=iso) is not None)
+    record("MCP runpod get-job-status allowed",
+           check("mcp__runpod__get-job-status", {}, None, env=iso) is None)
+
+    # 13. pod-action: only start/resume bills
+    pa = "mcp__plugin_runpod_runpod__pod-action"
+    record("pod-action start blocks",
+           check(pa, {"id": "p", "body": {"action": "start"}}, None, env=iso) is not None)
+    record("pod-action resume blocks",
+           check(pa, {"id": "p", "body": {"action": "resume"}}, None, env=iso) is not None)
+    record("pod-action top-level action start blocks",
+           check(pa, {"id": "p", "action": "start"}, None, env=iso) is not None)
+    for act in ("stop", "restart", "terminate"):
+        record("pod-action %s allowed" % act,
+               check(pa, {"id": "p", "body": {"action": act}}, None, env=iso) is None)
+    record("pod-action missing body allowed",
+           check(pa, {"id": "p"}, None, env=iso) is None)
+    record("pod-action odd shape allowed",
+           check(pa, {"body": "start"}, None, env=iso) is None)
+    record("pod-action start allowed with process-env approval",
+           check(pa, {"body": {"action": "start"}}, None,
+                 env=dict(iso, SPEND_GATE_APPROVED="yes")) is None)
 
     print("\n%d passed, %d failed" % (passed, failed))
     if failed:
