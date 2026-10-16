@@ -83,8 +83,8 @@ human-in-the-loop points: nothing continues without you.
 2. /wayfinder (skill, opus · high): Grills you to a destination, then charts a wayfinder:map issue whose sub-issues are decision tickets, with blocking wired through GitHub's issue dependencies.
 3. /grill-docs (skill, opus · high): Resolves a grilling ticket: runs the grilling interview, writing the transcript to skilleddocs/grills/ and each decision to skilleddocs/decisions.md as each round settles.
 4. you: Answer each round yourself, one ticket per session, until no tickets or fog remain.
-5. /divide (skill, opus · medium): Proposes 2+ session-sized issues from the map, each with a done-when; on yes, creates them and puts them on the board at Todo.
-6. you: Approve the split; the map gets a Handed off list and closes.
+5. /divide (skill, opus · medium): Proposes 2+ session-sized issues from the map, each with a done-when; creates nothing yet.
+6. you: Say yes to the split: the issues go on the board at Todo, the map gets a Handed off list and closes.
 7. /meta-orchestrator (skill, opus · high): Loops planner, manager or implementer, its own merge gate and verifier per issue, logging each step to the ledger.
 
 ### pitch-an-idea: Pitch an idea against the plan
