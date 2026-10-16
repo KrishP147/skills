@@ -50,8 +50,9 @@ import re
 import sys
 
 DEFAULT_BASH_PATTERNS = [
-    r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+create\b""",
-    r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:pod|serverless|network-volume)\s+create\b""",
+    r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:(?:pods?|serverless|network-volume|nv)\s+)?(?:create|start)\b""",
+    r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:network-volume|nv)\s+update\b[^\n]*--size\b""",
+    r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+serverless\s+update\b""",
     r"""\bvultr-cli(?:\.exe|\.cmd)?["']?\s+instance\s+create\b""",
     r"""\baws(?:\.exe|\.cmd)?["']?\s+ec2\s+run-instances\b""",
     r"""\bgcloud(?:\.exe|\.cmd)?["']?\s+compute\s+instances\s+create\b""",
@@ -77,6 +78,12 @@ DEFAULT_MCP_GLOBS = [
 # bills, so it is a small special case rather than a plain glob.
 POD_ACTION_GLOB = "mcp__*runpod*__pod-action"
 POD_BILLABLE_ACTIONS = ("start", "resume")
+
+# update-network-volume body {name?, size?}: a resize bills more storage, a
+# rename does not. Blocks whenever body has a "size" key (even equal to the
+# current size: the hook cannot know it). update-global-volume is NOT gated:
+# it only takes a name, nothing billable to change.
+NETVOL_UPDATE_GLOB = "mcp__*runpod*__update-network-volume"
 
 PATTERNS_FILE_REL = os.path.join(".claude", "spend-guard-patterns.txt")
 APPROVALS_DIR_REL = os.path.join("skilleddocs", "spend-approvals")
@@ -228,6 +235,20 @@ def pod_action_billable(tool_name, tool_input):
     return None
 
 
+def netvol_update_billable(tool_name, tool_input):
+    """Return a block reason if this is a runpod update-network-volume whose
+    body is a dict containing "size" (resize), else None. Fails open."""
+    try:
+        if not tool_name or not fnmatch.fnmatch(tool_name.lower(), NETVOL_UPDATE_GLOB):
+            return None
+        body = (tool_input or {}).get("body")
+        if isinstance(body, dict) and "size" in body:
+            return "tool '%s' sets a size (volume resize bills)" % tool_name
+    except Exception:
+        pass
+    return None
+
+
 def env_approved(env):
     return bool(env.get("SPEND_GATE_APPROVED"))
 
@@ -283,6 +304,9 @@ def check(tool_name, tool_input, cwd, env=None):
     if tool_name and fnmatch.fnmatch(tool_name.lower(), POD_ACTION_GLOB):
         # Verb-dependent: only start/resume blocks; anything else allows.
         reason = pod_action_billable(tool_name, tool_input)
+    if tool_name and fnmatch.fnmatch(tool_name.lower(), NETVOL_UPDATE_GLOB):
+        # Only a body containing "size" blocks; rename-only allows.
+        reason = netvol_update_billable(tool_name, tool_input)
     if reason is None:
         return None  # not billable (or unrecognized) - allow
 
@@ -368,6 +392,33 @@ def run_self_test():
         reason = check("Bash", {"command": cmd}, None, env=iso)
         record("default pattern blocks: %s" % cmd, reason is not None)
 
+    # 2a. runpodctl v2 noun-verb, start, resize, serverless update
+    rp_block = [
+        "runpodctl start pod x", "runpodctl pod start x", "runpodctl pods start x",
+        "runpodctl pod create --image y", "runpodctl serverless create --name z",
+        "runpodctl network-volume create --size 10", "runpodctl nv create",
+        "runpodctl network-volume update id --size 200",
+        "runpodctl nv update id --name a --size 2",
+        "runpodctl serverless update id --workers-max 3",
+        "runpodctl.exe pod start x", "'C:/x/runpodctl.exe' pod start x",
+        "/usr/local/bin/runpodctl pod start x",
+        r'& "C:\Program Files\runpod\runpodctl.exe" pod start x',
+    ]
+    for cmd in rp_block:
+        tool = "PowerShell" if cmd.startswith("&") else "Bash"
+        record("runpodctl blocks: %s" % cmd,
+               check(tool, {"command": cmd}, None, env=iso) is not None)
+    rp_allow = [
+        "runpodctl pod list", "runpodctl pod logs x", "runpodctl pod stop x",
+        "runpodctl pod get x", "runpodctl get pod",
+        "runpodctl template create --name t", "runpodctl registry create",
+        "runpodctl network-volume update id --name x",
+        "myrunpodctl pod start x", "runpodctl pod delete x",
+    ]
+    for cmd in rp_allow:
+        record("runpodctl allowed: %s" % cmd,
+               check("Bash", {"command": cmd}, None, env=iso) is None)
+
     # 2b. Windows .exe/.cmd, quoted and path forms block
     win_cases = [
         ("Bash", "runpodctl.exe create pod x"),
@@ -397,8 +448,7 @@ def run_self_test():
         record("win form blocks: %s %s" % (tool, cmd), reason is not None)
 
     # 2c. near-miss forms stay allowed
-    for cmd in ["runpodctl.exe get pod", "myrunpodctl create pod x",
-                "runpodctl pod list", "runpodctl template create --name t"]:
+    for cmd in ["runpodctl.exe get pod", "myrunpodctl create pod x"]:
         reason = check("Bash", {"command": cmd}, None, env=iso)
         record("near-miss allowed: %s" % cmd, reason is None)
 
@@ -544,6 +594,25 @@ def run_self_test():
     record("pod-action start allowed with process-env approval",
            check(pa, {"body": {"action": "start"}}, None,
                  env=dict(iso, SPEND_GATE_APPROVED="yes")) is None)
+
+    # 14. update-network-volume: only a body with "size" bills
+    nv = "mcp__plugin_runpod_runpod__update-network-volume"
+    record("netvol update size blocks",
+           check(nv, {"id": "v", "body": {"size": 200}}, None, env=iso) is not None)
+    record("netvol update name+size blocks",
+           check(nv, {"id": "v", "body": {"name": "a", "size": 10}}, None, env=iso) is not None)
+    record("netvol update name-only allowed",
+           check(nv, {"id": "v", "body": {"name": "a"}}, None, env=iso) is None)
+    record("netvol update missing body allowed",
+           check(nv, {"id": "v"}, None, env=iso) is None)
+    record("netvol update string body allowed",
+           check(nv, {"id": "v", "body": "size"}, None, env=iso) is None)
+    record("netvol update size allowed with process-env approval",
+           check(nv, {"body": {"size": 5}}, None,
+                 env=dict(iso, SPEND_GATE_APPROVED="yes")) is None)
+    record("global-volume update name allowed",
+           check("mcp__plugin_runpod_runpod__update-global-volume",
+                 {"body": {"name": "a"}}, None, env=iso) is None)
 
     print("\n%d passed, %d failed" % (passed, failed))
     if failed:

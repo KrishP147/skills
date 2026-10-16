@@ -119,14 +119,14 @@ How it works: reads the hook JSON on stdin (`tool_name`,
 `tool_input.command` for `Bash` and `PowerShell`, `cwd`). A `Bash` or `PowerShell` command is checked against
 a list of regexes; any other tool name is checked against a list of
 `fnmatch` globs (for MCP tool names like `mcp__runpod__create-pod`).
-Default billable patterns: `runpodctl create` (and `runpodctl pod|serverless|network-volume create`), `vultr-cli instance create`,
+Default billable patterns: `runpodctl` `create`/`start` (legacy `create pod`/`start pod` and v2 `pod|serverless|network-volume|nv create|start`; `template`/`registry create` are free and stay ungated), `runpodctl network-volume|nv update ... --size` (resize; rename-only is allowed), `runpodctl serverless update`, `vultr-cli instance create`,
 `aws ec2 run-instances`, `gcloud compute instances create`, `az vm create`,
 `modal deploy` (also as `.exe`/`.cmd`, quoted, or full-path forms), and MCP tools matching `mcp__*runpod*__create-*` /
 `mcp__*runpod*__deploy-*` / `__run-endpoint` / `__runsync-endpoint` /
 `__retry-job` / `__update-endpoint` / `__set-endpoint-gpus`, plus
 `__pod-action` only when its action is `start` or `resume` (read from
 `tool_input.body.action`, else `tool_input.action`; `stop`, `restart`,
-`terminate` and an unrecognised shape are allowed). Trade-off: more approval
+`terminate` and an unrecognised shape are allowed). `__update-network-volume` only when `tool_input.body` is an object with a `size` key (resize bills; name-only allowed; blocks even if the size equals the current one, since the hook can't know it). `update-global-volume` is not gated: it only takes a name, nothing billable. Trade-off: more approval
 prompts, since every job submit and endpoint update now needs approval. Deliberately **not** defaulted: `fly deploy` and
 similar commands with a real free tier — add them yourself if your usage is
 always billable. No match → exits 0 (allow) immediately. Any error while
@@ -179,7 +179,7 @@ the hook exits 2 and prints this one line on stderr.
 
 ```transcript
 ⏺ Bash(runpodctl create pod --gpuType RTX4090)
-  ⎿ Blocked: command matches billable pattern '\brunpodctl(?:\.exe|\.cmd)?["']?\s+create\b'. Approve with ONE of: (1) drop a file into skilleddocs/spend-approvals/ (one-shot, consumed on use); (2) prefix the Bash command with SPEND_GATE_APPROVED=<label> (covers just that command), or start a PowerShell command with $env:SPEND_GATE_APPROVED='<label>'; <cmd>. MCP tool calls: use the file. See the spend-gate skill: estimate, check balance, get an explicit yes for this action, log it, before approving.
+  ⎿ Blocked: command matches billable pattern '\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:(?:pods?|serverless|network-volume|nv)\s+)?(?:create|start)\b'. Approve with ONE of: (1) drop a file into skilleddocs/spend-approvals/ (one-shot, consumed on use); (2) prefix the Bash command with SPEND_GATE_APPROVED=<label> (covers just that command), or start a PowerShell command with $env:SPEND_GATE_APPROVED='<label>'; <cmd>. MCP tool calls: use the file. See the spend-gate skill: estimate, check balance, get an explicit yes for this action, log it, before approving.
 ```
 
 After an explicit yes, `SPEND_GATE_APPROVED=yes runpodctl create pod --gpuType RTX4090`
