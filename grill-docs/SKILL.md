@@ -1,6 +1,6 @@
 ---
 name: grill-docs
-description: Grill the user about a plan (same interview as grilling) and record it — Q→A transcript and each decision in the repo's decisions doc (skilleddocs/ by default). Use for "grill me and document it", "grill with docs".
+description: Grill the user about a plan (same interview as grilling) and record it — Q→A transcript in grills/, each decision appended to the repo's decisions doc (both under skilleddocs/ by default). Use for "grill me and document it", "grill with docs".
 argument-hint: "plan, decision, or doc path [slug]"
 ---
 
