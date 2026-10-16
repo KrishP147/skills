@@ -185,7 +185,7 @@ deterministic.
 ## Deploy
 
 The site is built inside the portfolio site's Vercel build into `public/skills`
-and served at <https://krishpunjabi.com/skills>. From the portfolio root:
+and served at <https://www.krishpunjabi.com/skills>. From the portfolio root:
 
 ```sh
 git clone --depth 1 https://github.com/KrishP147/skills /tmp/skills && \
