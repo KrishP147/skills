@@ -14,7 +14,7 @@ You brief the next unit of work. Read-only: no file edits, no issue creation.
 **Input**: repo path + scope contract (`scope`, `exclude`, `order`, `lanes`), issues in flight, optional `decisions`.
 
 1. Run `next`. Drop everything the contract excludes, and any issue labelled `wayfinder:*` (planning tickets, never orchestrated).
-2. Pick one issue; `lanes:` set → one per lane whose head (its first issue not merged or parked) isn't in flight, a ≤40-line brief each.
+2. Pick one issue; `lanes:` set → one per lane whose head (its first issue not merged or parked) isn't in flight, a ≤40-line brief each. A `serial` lane follows `lanes` §2: its issue may start once no other lane has one in flight, and once every issue queued ahead of it has started the other lanes start nothing new; it does not wait for every lane to drain. Say which applies in its brief.
 3. Looks multi-session or too broad for one pass → run `divide` to design the split; propose it, create nothing.
 4. Nothing left → say so and stop.
 
