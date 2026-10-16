@@ -13,7 +13,7 @@ You brief the next unit of work. Read-only: no file edits, no issue creation.
 
 **Input**: repo path + scope contract (`scope`, `exclude`, `order`).
 
-1. Run `next`. Drop everything the contract excludes.
+1. Run `next`. Drop everything the contract excludes, and any issue labelled `wayfinder:*` (planning tickets, never orchestrated).
 2. Pick exactly one issue.
 3. Looks multi-session or too broad for one pass → run `divide` to design the split; propose it, create nothing.
 4. Nothing left → say so and stop.
