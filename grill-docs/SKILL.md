@@ -15,7 +15,7 @@ Untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.
 
 ## Before round 1
 
-**Resume first.** A transcript for this slug (`grills/*-<slug>.md`, any date; newest wins) with `Status: in progress` or `abandoned after Q<n>` → reopen it, never rewrite its header: pass its Q blocks to grilling as settled context (don't re-ask them), re-ask the questions it lists as unanswered, continue `Q<n>` and `D<k>`, set Status back to `in progress`. Otherwise write the header (today's file for this slug already exists, settled → add `-2`, `-3`… to the slug, never overwrite):
+**Resume first.** A transcript for this slug (`grills/<date>-<slug>.md` or its `-2`, `-3`… form below, any date; newest wins, by date then suffix) with `Status: in progress` or `abandoned after Q<n>` → reopen it, never rewrite its header: pass its Q blocks to grilling as settled context (don't re-ask them), re-ask the questions it lists as unanswered, continue `Q<n>` and `D<k>`, set Status back to `in progress`. Otherwise write the header (today's file for this slug already exists, settled → add `-2`, `-3`… to the slug, never overwrite):
 
 ```markdown
 # Grill: <topic>
