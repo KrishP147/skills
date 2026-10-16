@@ -16,8 +16,8 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 ## planner
 
 - **Role:** picks the next single unit of work from the board and writes the kickoff brief. Read-only: `disallowedTools: Edit, Write, NotebookEdit`; never creates issues. `maxTurns: 40`.
-- **You pass:** repo path + scope contract (exclusions such as gated issues / people tasks / labels, ordering rule), optional `decisions` (`ask`|`assume`).
-- **How it works:** runs `next` → drops excluded items and `wayfinder:*` issues → picks exactly one task → uses `divide` to *propose* a split if it looks multi-session → if nothing is left, says so and stops.
+- **You pass:** repo path + scope contract (exclusions such as gated issues / people tasks / labels, ordering rule, `lanes`), issues in flight, optional `decisions` (`ask`|`assume`).
+- **How it works:** runs `next` → drops excluded items and `wayfinder:*` issues → picks exactly one task (with `lanes:`, one per lane whose head isn't in flight) → uses `divide` to *propose* a split if it looks multi-session → if nothing is left, says so and stops.
 - **You get back (≤40 lines):** issue + acceptance checklist, key files, decisions/ADRs to respect, branch name `<prefix>/issue-<n>-<slug>`, gotchas, recommended model (and why), divide yes/no + proposed split, **Assumptions needed** (when `decisions=assume`).
 - **Design principles:** read-only by construction (`disallowedTools`), so it can only propose, never change the board; exactly one task per brief; the ≤40-line cap keeps the brief cheap to pass verbatim to the next agent.
 - **Use cases:** briefing the next issue for a `meta-orchestrator` loop; asking on your own "use the planner agent to brief the next issue" before starting work by hand.
@@ -56,7 +56,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 ## verifier
 
 - **Role:** verifies an implementation session and closes the loop. `maxTurns: 120`. No guard hook.
-- **You pass:** handoff path (or saved manager report path), whether it may answer interview-style questions on your behalf, `review-done=yes|no` (default no; `yes` = a manager already reviewed and reran tests), `decisions` (`ask`|`assume`, default `ask`).
+- **You pass:** handoff path (or saved manager report path), whether it may answer interview-style questions on your behalf, `review-done=yes|no` (default no; `yes` = a manager already reviewed and reran tests), `decisions` (`ask`|`assume`, default `ask`), user-answered `D<k>` (settled; never re-decided).
 - **How it works:**
   1. Runs `update-progress` end to end: claims vs `git log`, tests, CI, code review (skipped if `review-done=yes`), docs/board/issue updates. Code review is inline, two axes (standards + spec), no reviewer subagents.
   2. Deviations: if authorized, answers `consult-plan` itself from the written plan and lists every Q → A; if not, records the deviation and leaves the plan untouched.
