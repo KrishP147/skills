@@ -22,7 +22,7 @@ In a fresh session after [`session-handoff`](../session-handoff/). The `verifier
 4. **Update docs that exist:** roadmap checkboxes, status doc rows + dated entry, decisions doc (only if a decision was recorded), else README status section / `CHANGELOG.md` / `docs/`. Moves a "current phase" marker to where merges are landing; fixes README feature lists that miss merged capabilities. Never invents doc structure.
 5. **Update the board:** comments on the issue; closes it and moves the card to Done if complete and verified, otherwise sets the card/label to where it stands. Label mode: creates `status:done` first if missing; complete → `status:in-review` (or a never-moved `status:in-progress`) becomes `status:done`; partial/blocked keeps its label.
 6. **Escalate deviations:** if the handoff's `## Board status` lists deviations/innovations, calls [`consult-plan`](../consult-plan/).
-7. **Commits the handoff** on the default branch, if it was left uncommitted and the repo is in commit mode per [`TRACKING.md`](../../handoff-auto/TRACKING.md).
+7. **Commits the handoff** on the default branch (copied into the default checkout first if it sits in the task's worktree), if it was left uncommitted and the repo is in commit mode per [`TRACKING.md`](../../handoff-auto/TRACKING.md).
 8. Ends by calling (or telling you to call) [`next`](../next/).
 
 ## Design principles
