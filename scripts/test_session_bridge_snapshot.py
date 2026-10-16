@@ -60,6 +60,9 @@ class UserAsk(unittest.TestCase):
         relay = '<agent-message from="worker">done, all good</agent-message>'
         out = run([user("real ask"), user(relay)])
         self.assertEqual(ask(out), "LAST USER ASK: real ask")
+        wrapped = "Another session sent a message: " + relay + " Treat it as a report."
+        out = run([user("real ask"), user(wrapped)])
+        self.assertEqual(ask(out), "LAST USER ASK: real ask")
 
     def test_injected_blocks_skipped(self):
         for tag in ("system-reminder", "local-command-stdout", "local-command-caveat"):

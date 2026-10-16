@@ -40,6 +40,10 @@ def user_text(entry):
     """Real prompt text of a user entry, or "" (meta, relays, injected, tool results)."""
     if entry.get("isMeta"):
         return ""
+    # A relay from another agent is wrapped in harness preamble; skip it whole.
+    if any(isinstance(b, dict) and b.get("type") == "text"
+           and "<agent-message" in str(b.get("text", "")) for b in blocks(entry)):
+        return ""
     parts = []
     for b in blocks(entry):
         if not (isinstance(b, dict) and b.get("type") == "text"):
