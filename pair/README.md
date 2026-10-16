@@ -57,11 +57,36 @@ Writes: a worktree + branch; commits (via agents); `skilleddocs/HANDOFF.md` in t
 
 ## Example
 
-```
-/pair 42 --push
-```
+Issue #42 in a repo whose default branch is `main` and with no branch prefix
+in `CLAUDE.md` (so `feat`). `--push` means no question before the push:
 
-Reads issue #42, creates `../_worktrees/myrepo-issue-42-fix-date-parsing` on `feat/issue-42-fix-date-parsing`, the manager's implementer fixes it in 1 round, the manager reruns tests (`pytest 118/118`), you see the report, then the branch is pushed and a PR opened with `Closes #42`.
+```transcript
+> /pair 42 --push
+⏺ Bash(gh issue view 42)
+  ⎿ title:  Fix date parsing
+    state:  OPEN
+    Dates with a UTC offset ("2026-09-26T10:00:00+02:00") fail to parse.
+⏺ Bash(git worktree add ../_worktrees/myrepo-issue-42-fix-date-parsing -b feat/issue-42-fix-date-parsing main)
+  ⎿ Preparing worktree (new branch 'feat/issue-42-fix-date-parsing')
+⏺ #42 is on the board: moved to In Progress, commented "Started on branch `feat/issue-42-fix-date-parsing`".
+⏺ Agent(subagent_type="manager", prompt="working directory: /home/you/code/_worktrees/myrepo-issue-42-fix-date-parsing; task: #42 Fix date parsing + checklist; rules: prefix=feat, protected=main, test cmd=pytest; implementer model: your call; max_rounds: 3; never push, merge, or open a PR.")
+  ⎿ Branch: feat/issue-42-fix-date-parsing, base 1a2b3c4, head 9f8e7d6
+    Commits: 9f8e7d6 fix: parse dates with a UTC offset (#42)
+    Tests: pytest, 118 passed; lint: none configured (run by me)
+    Findings: none
+    Rounds: 1 of 3
+    Unfinished: none
+    Manual steps for caller: push, open the PR
+⏺ Bash(git -C ../_worktrees/myrepo-issue-42-fix-date-parsing diff --name-only main...HEAD)
+  ⎿ src/dates.py
+    tests/test_dates.py
+⏺ Bash(git -C ../_worktrees/myrepo-issue-42-fix-date-parsing push -u origin feat/issue-42-fix-date-parsing)
+⏺ Bash(gh pr create --head feat/issue-42-fix-date-parsing --title "Fix date parsing" --body "Parse dates with a UTC offset. Closes #42")
+  ⎿ https://github.com/you/myrepo/pull/57
+⏺ Branch feat/issue-42-fix-date-parsing, worktree ../_worktrees/myrepo-issue-42-fix-date-parsing,
+  PR https://github.com/you/myrepo/pull/57, tests pytest 118/118, rounds 1/3, no HANDOFF.md.
+  The worktree stays until the PR merges.
+```
 
 ## Related
 
