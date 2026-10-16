@@ -154,8 +154,8 @@ def parse_frontmatter(text):
                 if val == "":
                     data[key] = []
                     current_key = key
-                elif BLOCK_SCALAR_RE.match(val):
-                    header = BLOCK_SCALAR_RE.match(val).group(1)
+                elif (m := BLOCK_SCALAR_RE.match(val)):
+                    header = m.group(1)
                     block = []
                     while i < len(fm_lines):
                         nxt = fm_lines[i]
