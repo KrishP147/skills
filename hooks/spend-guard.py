@@ -51,6 +51,7 @@ import sys
 
 DEFAULT_BASH_PATTERNS = [
     r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+create\b""",
+    r"""\brunpodctl(?:\.exe|\.cmd)?["']?\s+(?:pod|serverless|network-volume)\s+create\b""",
     r"""\bvultr-cli(?:\.exe|\.cmd)?["']?\s+instance\s+create\b""",
     r"""\baws(?:\.exe|\.cmd)?["']?\s+ec2\s+run-instances\b""",
     r"""\bgcloud(?:\.exe|\.cmd)?["']?\s+compute\s+instances\s+create\b""",
@@ -353,6 +354,10 @@ def run_self_test():
     # 2. each default bash pattern blocks
     default_cases = [
         "runpodctl create pod --gpuType RTX4090",
+        "runpodctl pod create --gpu-id RTX4090",
+        "runpodctl serverless create --template-id t1",
+        "runpodctl network-volume create --size 10",
+        "runpodctl.exe pod create --gpu-id RTX4090",
         "vultr-cli instance create --region ewr",
         "aws ec2 run-instances --image-id ami-123",
         "gcloud compute instances create my-vm",
@@ -392,7 +397,8 @@ def run_self_test():
         record("win form blocks: %s %s" % (tool, cmd), reason is not None)
 
     # 2c. near-miss forms stay allowed
-    for cmd in ["runpodctl.exe get pod", "myrunpodctl create pod x"]:
+    for cmd in ["runpodctl.exe get pod", "myrunpodctl create pod x",
+                "runpodctl pod list", "runpodctl template create --name t"]:
         reason = check("Bash", {"command": cmd}, None, env=iso)
         record("near-miss allowed: %s" % cmd, reason is None)
 
