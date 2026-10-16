@@ -118,7 +118,7 @@ Untracked handoff in a worktree slated for removal:
 
 ```
 Running: none
-Git: 2 worktrees, 1 dirty (../wt-issue-9)
+Git: 2 worktrees, clean, all pushed (handoff in ../wt-issue-9 is excluded)
 PRs: none
 Asked -> done: 2/2
 Needs you: none
