@@ -31,7 +31,7 @@ Show the exact message and exact recipient. Send only on an explicit yes; anythi
 - `SendMessage` to the name from §1.
 - No live channel → append to `skilleddocs/bridge.md` in the shared repo and say it's a drop-off, not a live send.
 
-Log every exchange in `skilleddocs/bridge.md` (create with this header; untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md) (it also covers the `pip install .` hazard).), local time:
+Log every exchange in `skilleddocs/bridge.md` (create with this header; untracked → exclude `skilleddocs/` per [TRACKING.md](../handoff-auto/TRACKING.md), which also covers the `pip install .` hazard), local time:
 
 ```markdown
 | when (local) | from | to | message | status |

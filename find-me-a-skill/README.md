@@ -45,7 +45,7 @@ uses the conversation's goal, then the board.
    session's skill list is labelled "not installed" with the install
    command, and plugin installs get the `krish:` prefix on commands. Nothing fits: it says so, names the nearest option and
    suggests doing the task directly.
-4. **Model and effort per step.** From `CATALOG.md`'s defaults, one tier
+4. **Model and effort per step.** From `CATALOG.md`'s defaults, adjusted
    for a large or risky task: effort goes up first, the model only once
    effort is at `max`; the reverse for a small one. A skill
    that isn't in the catalog shows its origin (plugin or built-in) and an

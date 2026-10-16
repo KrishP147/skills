@@ -107,7 +107,7 @@ git push origin --force --all && git push origin --force --tags
 
 ## 10. Post-push
 
-**Every local copy of this repo, the user's own included**, still holds the old commits (and the secret). A plain `git pull` would merge the old history back in and the next push would re-leak it. Per copy: re-clone, or stash first, then per branch `git fetch origin && git checkout <branch> && git reset --hard origin/<branch>`; never merge or rebase old history. Then `git reflog expire --expire=now --all && git gc --prune=now` to drop the old objects locally. Tell collaborators the same (the step-6 notice).
+**Every local copy of this repo, the user's own included**, still holds the old commits (and the secret). A plain `git pull` would merge the old history back in and the next push would re-leak it. Per copy: re-clone (simplest), or: `git stash` any work, then per branch `git fetch origin && git checkout <branch> && git reset --hard origin/<branch>`, `git stash pop`; `git fetch --tags --force` to take the rewritten tags; delete local-only branches and tags made before the rewrite; never merge or rebase old history. Then `git reflog expire --expire=now --all && git gc --prune=now` to drop the old objects locally (this also drops any stash left, so pop it first). Tell collaborators the same (the step-6 notice).
 
 `gh pr list --state open` → name PRs that must be closed and recreated. Tell the user: old commits stay reachable on GitHub (via `refs/pull/*`, direct SHA, cached views) until GitHub Support garbage-collects them. Rotation protects the secret; the push is hygiene.
 
