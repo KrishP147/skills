@@ -26,7 +26,7 @@ No argument: current repo. Several: §1–3 per repo, one combined report. `--co
 
 ## 3. Rank
 
-Value for effort, highest first; the trade-off in one clause. Size `S` (one session, one area) or `L` (multi-area or needs a design call → `divide` candidate). **Evidence or drop it**: every item cites `file:line`, a SHA, or `#n`.
+Value for effort, highest first; the trade-off in one clause. Size `S` (one session, one area) or `L` (multi-area or needs a design call → `divide` candidate). **Evidence or drop it**: every item cites `file:line`, a SHA, or `#n`. A secret is cited by `file:line` or SHA only, never its value, in the report and the reply.
 
 ## 4. Report
 

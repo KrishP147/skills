@@ -53,7 +53,7 @@ phrases above work without the slash command.
    available.
 4. **Rank and tag.** Every surviving candidate gets a value/effort
    trade-off, an `S`/`L` size tag, and mandatory evidence — no evidence, no
-   listing.
+   listing. A secret is cited by `file:line` or SHA, never by its value.
 5. **Write.** One file, `skilleddocs/gaps/<local-date>.md` — the only write
    this skill makes. Never committed unless asked; `skilleddocs/` is excluded
    per [`TRACKING.md`](../handoff-auto/TRACKING.md).
