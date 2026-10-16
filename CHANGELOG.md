@@ -25,3 +25,4 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 - Skills map: a `/map` page on the site (also `/map` in the slash prompt) grouping every skill, agent and hook, with arrows built from Related links, agent preloads and the sample workflows.
 - New `wayfinder` skill (adapted from Matt Pocock's): plans an effort too big for one session as a `wayfinder:map` issue of decision tickets, then hands off to `divide`; `next` and `planner` skip `wayfinder:*` issues.
 - `find-me-a-skill`: suggests the skill or workflow for a task with model and effort per step, from a generated `CATALOG.md`; site pages show a "suggested model · effort" chip.
+- New `score-loop` skill: hill-climbs one rerunnable numeric score unattended, one hypothesis per commit, keeping only gains beyond a measured noise margin and `git revert`ing the rest, with a results ledger in `skilleddocs/experiments.md`; stops on budget, deadline freeze or plateau.
