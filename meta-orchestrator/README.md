@@ -64,11 +64,63 @@ Works through a repo's backlog unattended. Claude becomes the **orchestrator**: 
 
 ## Example
 
-```
-/meta-orchestrator ~/code/myrepo merge=ask
-```
+First run on a repo (no `scope.md` yet), defaults otherwise, one loop shown
+in full, then the rotation after the tenth merge:
 
-Shows the contract (merge already set to `ask`), you pick "Use these", it writes `skilleddocs/orchestrator/scope.md`, then loops: planner picks #17, a manager implements and reviews it, the orchestrator shows you the green PR and merges on your yes, the verifier updates the board and surfaces #18. After 10 merges it writes `orchestrator-handoff.md` and tells you to run `/meta-orchestrator ~/code/myrepo resume` in a fresh session.
+```transcript
+> /meta-orchestrator ~/code/myrepo merge=ask
+⏺ No skilleddocs/orchestrator/scope.md yet: setup. Recon is read-only.
+⏺ Bash(gh issue list --repo you/myrepo --state open)
+  ⎿ 17  Add CSV export             size:M
+    18  Paginate the audit log     size:S
+    21  Pick a charting library    needs-design
+⏺ Resolved contract (merge from your arguments; prefix, order, test command from recon):
+    scope: all open issues
+    exclude: gated / people / external-input
+    execution: pair, parallel: 1
+    merge: ask, merge_style: squash (the repo's style)
+    interview: answer
+    handoff_budget: 10
+    prefix: feat, test: pytest
+  Use these, or customize?
+> Use these
+⏺ Write(skilleddocs/orchestrator/scope.md)
+⏺ Bash(git commit -m "docs(skilleddocs): orchestrator scope" && git push)
+⏺ Save these as your defaults for future runs?
+> no
+⏺ Agent(subagent_type="planner", prompt="~/code/myrepo + skilleddocs/orchestrator/scope.md")
+  ⎿ Issue: #17 Add CSV export (checklist: 3 items)
+    Key files: src/export.py, tests/test_export.py
+    Branch: feat/issue-17-csv-export
+    Model: sonnet, well-specified
+    Divide: no
+⏺ Bash(git worktree add ../_worktrees/myrepo-issue-17-csv-export -b feat/issue-17-csv-export main)
+⏺ Agent(subagent_type="manager", prompt="working directory: /home/you/code/_worktrees/myrepo-issue-17-csv-export; <the brief, verbatim>; prefix=feat; protected=main; max_rounds=3; never push or merge; code review inline, both axes, no reviewer subagents")
+  ⎿ Branch: feat/issue-17-csv-export, head 4c1d2e9
+    Tests: pytest, 124 passed (run by me)
+    Findings: 1, fixed in round 2
+    Rounds: 2 of 3
+    Unfinished: none
+⏺ Report saved to skilleddocs/orchestrator/reports/. Merge gate: running the tests myself.
+⏺ Bash(cd ../_worktrees/myrepo-issue-17-csv-export && pytest -q)
+  ⎿ 124 passed in 8.31s
+⏺ Bash(git push -u origin feat/issue-17-csv-export && gh pr create --title "Add CSV export" --body "Adds CSV export. Closes #17")
+  ⎿ https://github.com/you/myrepo/pull/40
+⏺ PR #40 Add CSV export: 124 passed, diff in scope (src/export.py, tests/test_export.py). Merge?
+> yes
+⏺ Bash(gh pr merge 40 --squash --delete-branch && git pull --ff-only)
+⏺ Bash(rm ../_worktrees/myrepo-issue-17-csv-export/.venv && git worktree remove ../_worktrees/myrepo-issue-17-csv-export)
+⏺ Bash(git commit -m "docs(skilleddocs): ledger 004" && git push)
+⏺ Merged #17 as PR #40 (squash), 124 passed.
+  Next: verify, then the planner picks again.
+⏺ Agent(subagent_type="verifier", prompt="skilleddocs/orchestrator/reports/<#17 report>; interview=answer; review-done=yes")
+  ⎿ Verified by: 124 passed · CI run 9876543210
+    Decided for you: none
+    Next: #18 Paginate the audit log
+⏺ …nine more loops…
+⏺ handoff_budget reached (10 merges). Wrote and pushed skilleddocs/orchestrator/orchestrator-handoff.md, ledger entry: handoff.
+  Resume in a fresh session: /meta-orchestrator ~/code/myrepo resume
+```
 
 ## Related
 

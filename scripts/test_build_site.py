@@ -73,15 +73,22 @@ class PaletteContrastTest(unittest.TestCase):
         css_rules = css.split("@media (prefers-color-scheme: light)", 1)[1]
         self.assertIn('.menu li[aria-selected="true"] .nm { color: var(--accent-sel); }', css_rules)
         self.assertIn("background: var(--sel-bg); }", css_rules)
+        self.assertIn(".skill-list a:hover { background: var(--sel-bg); }", css_rules)
+        self.assertIn(".skill-list a:hover .nm { color: var(--accent-sel); }", css_rules)
         for theme, t in _palettes(css).items():
             c = {k: _rgba(v) for k, v in t.items() if k not in ("--mono",)}
             panel, bg = c["--panel"], c["--bg"]
             sel = _over(c["--sel-bg"], panel)
+            hov = _over(c["--sel-bg"], bg)
             pairs = {
                 "selected name": (c["--accent-sel"], sel),
                 "selected dim (.kd/.ds)": (c["--dim"], sel),
+                "hover name on bg (.skill-list a:hover .nm)": (c["--accent-sel"], hov),
+                "hover dim on bg (.skill-list a:hover .ds)": (c["--dim"], hov),
                 "accent on bg": (c["--accent"], bg),
                 "accent on panel": (c["--accent"], panel),
+                "dim on panel (transcript .tx-res/.tx-more)": (c["--dim"], panel),
+                "fg on panel (transcript text)": (c["--fg"], panel),
             }
             for label, (fg, back) in pairs.items():
                 r = _contrast(_over(fg, back), back)

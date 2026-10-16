@@ -3,7 +3,8 @@
    --accent is for text (>= 4.5:1 on --bg, --panel and a selected row);
    --accent-line is the brand orange for borders and outlines.
    --sel-bg / --accent-sel: the selected menu row's background and name,
-   >= 4.5:1 for the name and --dim text over --panel (tested). */
+   >= 4.5:1 for the name and --dim text over --panel (tested). The home
+   list's hover row reuses them over --bg (tested too). */
 :root {
   color-scheme: dark;
   --bg: #1a1918;
@@ -55,7 +56,7 @@ html, body {
 
 a { color: var(--accent); }
 a:hover { text-decoration-thickness: 2px; }
-a:focus-visible, .menu li:focus-visible {
+a:focus-visible, .menu li:focus-visible, .tx-tool summary:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -266,7 +267,8 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
   text-decoration: none;
   color: var(--fg);
 }
-.skill-list a:hover { background: var(--accent-soft); }
+.skill-list a:hover { background: var(--sel-bg); }
+.skill-list a:hover .nm { color: var(--accent-sel); }
 .skill-list .nm { flex: 0 0 11em; color: var(--accent); }
 .skill-list .ds {
   color: var(--dim);
@@ -390,6 +392,37 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
 .table-wrap td { overflow-wrap: normal; }
 .table-wrap th { color: var(--accent); }
 .sec hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
+
+/* Example transcript: the home terminal's chrome; "> prompt", then
+   "⏺" replies and collapsed "⏺ Tool(args)" calls with a "⎿" result. */
+.tx {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0 0 12px;
+  min-width: 0;
+}
+.tx > * + * { margin-top: 10px; }
+.tx-prompt, .tx-reply, .tx-tool summary, .tx-res { display: flex; gap: 8px; min-width: 0; }
+.tx-text { flex: 1 1 auto; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tx-md .tx-text { white-space: normal; }
+.tx-md .tx-text > :last-child { margin-bottom: 0; }
+.tx-gt { color: var(--dim); }
+.tx-prompt .tx-text { color: var(--fg); }
+.tx-dot { flex: 0 0 auto; color: var(--fg); }
+.tx-tool .tx-dot { color: var(--accent); }
+.tx-tool summary { cursor: pointer; list-style: none; overflow-wrap: anywhere; }
+.tx-tool summary::-webkit-details-marker { display: none; }
+.tx-name { font-weight: 700; }
+.tx-more { color: var(--dim); }
+.tx-tool[open] .tx-more { display: none; }
+.tx-res { margin: 4px 0 0 1.4em; color: var(--dim); }
+.tx-line { color: var(--dim); white-space: pre-wrap; }
+
+/* detail page: back to the list (Esc on a bare prompt goes there too) */
+.back { display: inline-block; margin: 4px 0 0; text-decoration: none; }
+.back:hover { text-decoration: underline; }
 
 .pn {
   display: flex;

@@ -1,5 +1,7 @@
 """Tests for detail pages (scripts/site_detail.py via build_site.build).
 Run: python -m unittest discover -s scripts -p "test_*.py" """
+import contextlib
+import io
 import os
 import re
 import shutil
@@ -19,7 +21,10 @@ class DetailPagesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.out = tempfile.mkdtemp(prefix="site-detail-")
-        cls.entries = build_site.build(ROOT, cls.out)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            cls.entries = build_site.build(ROOT, cls.out)
+        cls.stderr = err.getvalue()
         cls.by = {e["name"]: e for e in cls.entries}
         cls.pages = {}
         for e in cls.entries:
@@ -161,14 +166,70 @@ class DetailPagesTest(unittest.TestCase):
                 self.assertNotIn('rel="next"', page)
 
     def test_deterministic(self):
+        """Two builds are byte-identical, every file (transcripts included)."""
         out2 = tempfile.mkdtemp(prefix="site-detail2-")
         try:
-            build_site.build(ROOT, out2)
+            with contextlib.redirect_stderr(io.StringIO()):
+                build_site.build(ROOT, out2)
             for name, page in self.pages.items():
                 with open(os.path.join(out2, name, "index.html"), encoding="utf-8") as f:
                     self.assertEqual(f.read(), page, name)
+            files = sorted(os.path.relpath(os.path.join(d, f), self.out)
+                           for d, _s, fs in os.walk(self.out) for f in fs)
+            files2 = sorted(os.path.relpath(os.path.join(d, f), out2)
+                            for d, _s, fs in os.walk(out2) for f in fs)
+            self.assertEqual(files, files2)
+            for rel in files:
+                with open(os.path.join(self.out, rel), "rb") as a, open(os.path.join(out2, rel), "rb") as b:
+                    self.assertEqual(a.read(), b.read(), rel)
         finally:
             shutil.rmtree(out2, ignore_errors=True)
+
+    def _example(self, name):
+        m = re.search(r'aria-labelledby="example">(.*?)</section>', self.pages[name], re.S)
+        self.assertIsNotNone(m, name)
+        return m.group(1)
+
+    def test_every_entry_has_example_no_warnings(self):
+        self.assertEqual(len(self.entries), 28)  # 22 skills, 4 agents, 2 hooks
+        self.assertEqual(build_site.counts(self.entries), (22, 4, 2))
+        self.assertNotIn("WARN", self.stderr)
+        for name in self.pages:
+            self.assertIn('<div class="tx" role="group" aria-label="Example session">',
+                          self._example(name), name)
+
+    def test_default_example_render(self):
+        # "```/cmd args```" + prose: the fence becomes the prompt, the prose one reply block
+        sec = self._example("grilling")
+        self.assertIn('<div class="tx-prompt"><span class="tx-gt" aria-hidden="true">&gt;</span>'
+                      '<span class="tx-text">/grilling move auth from sessions to JWTs</span></div>', sec)
+        self.assertIn('<div class="tx-reply tx-md"><span class="tx-dot" aria-hidden="true">⏺</span>', sec)
+        self.assertIn("<p>Round 1 asks", sec)
+        self.assertNotIn("<pre>", sec)
+        # no leading fence (hook output example): reply only, no prompt
+        sec = self._example("smartzone")
+        self.assertNotIn("tx-prompt", sec)
+        self.assertIn("[smart-zone] Session transcript", sec)
+
+    def test_transcript_fence_pages(self):
+        for name in ("meta-orchestrator", "pair", "pr-watch", "planner", "spend-guard"):
+            sec = self._example(name)
+            self.assertIn('<details class="tx-tool">', sec, name)
+            self.assertNotIn("language-transcript", sec, name)
+
+    def test_missing_example_warns(self):
+        e = dict(self.by["grilling"])
+        e["readme"] = "## What it does\n\nThings.\n"
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            site_detail.build_pages(ROOT, [e], site_detail.load_meta(ROOT), "{{BODY}}", "[]")
+        self.assertIn("WARN: grilling: no Example section", err.getvalue())
+
+    def test_back_link_and_esc_home(self):
+        self.assertIn('<a class="back" href="/">&larr; all commands</a>', self.pages["pair"])
+        with open(os.path.join(ROOT, "site", "src", "app.js"), encoding="utf-8") as f:
+            js = f.read()
+        self.assertIn("else if (!home) { e.preventDefault(); goHome(); }", js)
 
 
 class MetaTest(unittest.TestCase):

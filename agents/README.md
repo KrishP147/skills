@@ -96,8 +96,34 @@ Protected branches: `GUARD_PROTECTED_BRANCHES` (comma list), default `main,maste
 
 ## Example
 
-```
-Agent(subagent_type="planner", prompt="~/code/myrepo; exclusions: label needs-design; order: priority label")
-```
+One issue through all three steps, as an orchestrator (or you) calls them.
+The manager briefs and spawns its own `implementer` inside its turn, so only
+its report comes back; you push and merge in between:
 
-→ a brief for #31 (branch `feat/issue-31-csv-export`, recommended model sonnet, divide: no). Pass it verbatim to a `manager`, which returns commits + `pytest 118/118` + "rounds used 1/3"; you push, merge, then hand the saved report to a `verifier` with `review-done=yes`.
+```transcript
+⏺ Agent(subagent_type="planner", prompt="~/code/myrepo; exclusions: label needs-design; order: priority label")
+  ⎿ Issue: #31 Add CSV export (checklist: 3 items)
+    Key files: src/export.py, tests/test_export.py
+    Constraints: none
+    Branch: feat/issue-31-csv-export
+    Gotchas: none
+    Model: sonnet, narrow and well-specified
+    Divide: no
+⏺ Agent(subagent_type="manager", prompt="working directory: /home/you/code/_worktrees/myrepo-issue-31-csv-export; <the brief, verbatim>; prefix=feat; protected=main; max_rounds=3; never push or merge")
+  ⎿ Branch: feat/issue-31-csv-export, base 1a2b3c4, head 5d6e7f8
+    Commits: 5d6e7f8 feat: CSV export (#31)
+    Tests: pytest, 118 passed; lint clean (run by me)
+    Findings: none
+    Rounds: 1 of 3
+    Unfinished: none
+    Manual steps for caller: push, open the PR, merge
+⏺ Bash(git push -u origin feat/issue-31-csv-export && gh pr create --fill)
+  ⎿ https://github.com/you/myrepo/pull/44
+⏺ Merged PR #44; saved the manager's report to skilleddocs/orchestrator/reports/.
+⏺ Agent(subagent_type="verifier", prompt="skilleddocs/orchestrator/reports/<#31 report>; interview=park; review-done=yes")
+  ⎿ Verified by: 118 passed · CI run 9876543210
+    Findings: none
+    Decided for you: none
+    Manual steps for user: none
+    1. #28 Rework auth flow (unestimated, strong model: needs-design)
+```

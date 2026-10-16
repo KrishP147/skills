@@ -4,7 +4,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from md_render import Renderer, safe_url, slugify  # noqa: E402
+from md_render import Renderer, parse_transcript, safe_url, slugify  # noqa: E402
 
 
 def r(md, **kw):
@@ -73,6 +73,50 @@ class BlockTest(unittest.TestCase):
 
     def test_hr(self):
         self.assertIn("<hr>", r("a\n\n---\n\nb"))
+
+
+class TranscriptTest(unittest.TestCase):
+    SRC = ("> /pair 42 --push\n"
+           "⏺ Bash(gh issue view 42)\n"
+           "  ⎿ title: fix <date> parsing\n"
+           "      indented detail\n"
+           "⏺ Reading the **issue** and `x`.\n"
+           "  second line\n"
+           "\n"
+           "loose line\n")
+
+    def test_parse(self):
+        self.assertEqual(parse_transcript(self.SRC), [
+            ("prompt", "/pair 42 --push", []),
+            ("tool", ("Bash", "gh issue view 42"), ["title: fix <date> parsing", "  indented detail"]),
+            ("reply", "Reading the **issue** and `x`.", ["second line"]),
+            ("text", "loose line", []),
+        ])
+
+    def test_reply_without_parens_is_not_a_tool(self):
+        self.assertEqual(parse_transcript("⏺ Done (3 commits).")[0][0], "reply")
+        self.assertEqual(parse_transcript('⏺ Agent(subagent_type="x", prompt=...)')[0][:2],
+                         ("tool", ("Agent", 'subagent_type="x", prompt=...')))
+
+    def test_fence_renders_transcript(self):
+        h = r("```transcript\n" + self.SRC + "```\n")
+        self.assertTrue(h.startswith('<div class="tx" role="group" aria-label="Example session">'))
+        self.assertNotIn("<pre>", h)
+        self.assertIn('<span class="tx-text">/pair 42 --push</span>', h)
+        self.assertIn('<details class="tx-tool"><summary><span class="tx-dot" aria-hidden="true">⏺</span>'
+                      '<span class="tx-text"><span class="tx-name">Bash</span>(<span class="tx-args">gh issue view 42</span>) '
+                      '<span class="tx-more">(+2 lines)</span></span></summary>', h)
+        self.assertIn("title: fix &lt;date&gt; parsing\n  indented detail</span>", h)
+        self.assertIn("Reading the <strong>issue</strong> and <code>x</code>.\nsecond line", h)
+        self.assertIn('<div class="tx-line">loose line</div>', h)
+
+    def test_transcript_escapes_html(self):
+        h = r("```transcript\n> <script>x</script>\n⏺ T(<b>)\n  ⎿ <img src=x>\n⏺ <i>hi</i>\n```")
+        for tag in ("<script>", "<b>", "<img", "<i>"):
+            self.assertNotIn(tag, h)
+
+    def test_other_fences_unchanged(self):
+        self.assertIn('<pre><code class="language-bash">', r("```bash\nls\n```"))
 
 
 class InlineTest(unittest.TestCase):
