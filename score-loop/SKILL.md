@@ -53,9 +53,11 @@ Per experiment:
 3. Run the harness (local runs are ungated).
 4. Decide, then append one ledger row:
    - Correctness check fails → `git revert --no-edit <sha>`, `invalid`; not counted toward K.
-   - Median beats the best by more than margin × current best → `keep`; it is the new best.
-   - Beats it by that much or less → `git revert --no-edit <sha>`, `noise`.
-   - Worse → `git revert --no-edit <sha>`, `revert`.
+   - Gain = the median's relative improvement over the best median (direction-aware); m = the margin.
+   - Gain > m → `keep`; it is the new best.
+   - m/2 < gain ≤ m → **borderline**: check out the best commit, run the harness now (fresh best median), return to the candidate. Candidate beats the fresh best median by more than m/2 → `keep`; else `git revert --no-edit <sha>`, `noise`. The fresh median only decides this row; the best stays unless the candidate is kept (then its median is the new best). Note: `borderline: best rerun <fresh> (was <best>), cand <c> beats it by <g>% vs m/2 <h>%`.
+   - 0 ≤ gain ≤ m/2 → `git revert --no-edit <sha>`, `noise`.
+   - Worse (gain < 0) → `git revert --no-edit <sha>`, `revert`.
 5. A failed idea moves from Next ideas to Tried with one line why. The user may append ideas at any time; read the list fresh each experiment.
 
 Ledger rows are append-only: reverted rows stay, a correction is a new row.
