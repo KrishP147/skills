@@ -23,6 +23,8 @@ slug = issue-<n>-<kebab-title>   (or ≤6 kebab words of the task)
 git worktree add ../_worktrees/<repo>-<slug> -b <prefix>/<slug> <default>
 ```
 
+This is the one branch rule; a planner brief's Branch follows it, and when a brief names one, use it verbatim (`<slug>` = its part after `<prefix>/`).
+
 `--no-worktree`: `git switch -c <prefix>/<slug> <default>`. Existing worktree or branch → reuse it and say so.
 
 Deps (`node_modules`, `.venv`): link each from the main checkout, paths quoted (shown for `.venv`). Windows: link only when both paths are absolute; an empty one puts the junction at the drive root (`C:\.venv`).
@@ -47,6 +49,7 @@ key files (verified): …   missing/moved: …
 rules: prefix=<p>, protected=<default>, test cmd=<cmd>, commit style=<…>, read <AGENTS.md>
 implementer model: <--model or "your call">
 decisions: <ask | assume>; first A-id: A-<k> (next after the highest A-<number> in main's register)
+register header: <main's register header row, verbatim; none → the default in TEARDOWN.md, Register rows>; each A-n is one row in that format
 max_rounds: 3
 never push, merge, or open a PR.
 ```
@@ -55,7 +58,7 @@ Leave the worktree alone while it runs.
 
 ## 4. On return
 
-1. **INTERIM** report → not a result; wait for the next handback.
+1. **INTERIM** report, or one missing the Branch, Tests or Rounds section (a placeholder, a one-liner) → not a result. INTERIM: wait for the next handback. Otherwise ask the manager once (SendMessage) for its full report; still missing → rerun from §3 with a fresh manager.
 2. Show the report verbatim.
 3. Thin report or risky change → rerun the tests yourself. One-line fixes: commit them.
 4. Unfinished (`skilleddocs/HANDOFF.md`, or the SHA that last held it) → say what's left; offer another round from it.
@@ -74,7 +77,7 @@ Print: branch, worktree, PR URL or "not pushed", test result, rounds, HANDOFF.md
 
 Teardown only after the PR merges, with the exact commands in [TEARDOWN.md](TEARDOWN.md) (Git Bash and PowerShell). `git worktree remove` deletes git-excluded files silently, and it and any recursive delete (`rm -rf`, `Remove-Item -Recurse`) follow a link and empty the main checkout's copy: never run them while a link exists.
 
-1. **Records**: every untracked or ignored file under the worktree's `skilleddocs/` and the doc folders `AGENTS.md`/`CLAUDE.md` names (dated handoffs, `HANDOFF.md`, the decisions register, anything else) goes to the same subpath in the main checkout: new files moved without overwriting; the register merged by appending the rows whose ids main lacks; a same-named file or a clashing row stays put and is reported.
+1. **Records**: every untracked or ignored file under the worktree's `skilleddocs/` and the doc folders `AGENTS.md`/`CLAUDE.md` names (dated handoffs, `HANDOFF.md`, the decisions register, anything else) goes to the same subpath in the main checkout: new files moved without overwriting; `HANDOFF.md` renamed to a dated handoff in main's handoff folder (never overwriting) so the next teardown doesn't clash on it; the register merged by appending the rows whose ids main lacks. The worktree's register is deleted only when every line was carried over or is already in main (trailing `\r` ignored); a heading, prose, a wrong cell count or a clashing row keeps it and prints `STOP` with those lines. A same-named file stays put and is reported.
 2. **Unlink** each dep (removes the link only).
 3. **Hard check**: STOP while a dep link (dangling included) is left or `git -C "<wt>" status --porcelain --ignored --untracked-files=all -- <doc folders>` lists anything; only then `git worktree remove`.
 
