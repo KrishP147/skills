@@ -2,7 +2,7 @@
 
 Step 10's in-place path, for a clone the user keeps instead of re-cloning. Run it in that clone. Nothing is deleted until its copy is saved and checked, and every delete waits for a yes.
 
-`<save>` = a new `mktemp -d` **outside the repo and outside `<tmp>`** (step 12 deletes `<tmp>`), echoed to the user. It holds old content (the secret, if a stash or branch touched it); step 11 offers to delete it.
+`<save>` = a new `mktemp -d` **outside the repo and outside `<tmp>`** (step 12 deletes `<tmp>`), echoed to the user. It holds old content (the secret, if a stash or branch touched it); this file's step 11 offers to delete it.
 
 ## 1. Park the WIP, record everything
 

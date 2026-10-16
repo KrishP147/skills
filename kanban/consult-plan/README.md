@@ -17,7 +17,7 @@ Grills a proposed change, deviation or new idea against the repo's existing plan
 
 ## How it works
 
-1. **Baseline** (whatever exists): open issues (`gh issue list --state open`), board state (`gh project item-list` or `status:*` labels), a roadmap doc (`ROADMAP.md`, `docs/roadmap.md`, …), plus the decisions doc (found by the same rule as step 3) and `skilleddocs/grills/`. Earlier decisions are cited as `D<k>`.
+1. **Baseline** (whatever exists): open issues (`gh issue list --state open`), board state (`gh project item-list` or `status:*` labels), a roadmap doc (`ROADMAP.md`, `docs/roadmap.md`, …), plus the decisions doc (found by the same rule as step 3) and the grill transcripts (`skilleddocs/grills/`, or `grills/` beside a tracked register). Earlier decisions are cited as `D<k>`.
 2. **Grill:** calls [`grilling`](../../grilling/) with that baseline, framed as fit / conflict / extension and what you want to happen.
 3. **Record** once settled, both:
    - **Decision:** append to the repo's decisions doc: the one `AGENTS.md` / `CLAUDE.md` names, else an existing `docs/decisions.md` or ADR folder, else `skilleddocs/decisions.md` (header and rows as in [`grill-docs`](../../grill-docs/)). Source column: `consult-plan <date>` plus the issue or PR link if any.

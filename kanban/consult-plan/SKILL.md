@@ -5,7 +5,7 @@ argument-hint: "the idea, deviation, or innovation"
 ---
 
 0. **Target repo** per [BOARD.md](../next/BOARD.md#target-repo): resolve `origin` (this skill needs it on GitHub), `-R <owner>/<repo>` on every `gh` call, and on a fork ask which repo to write to before any write.
-1. **Baseline**, whatever exists: open issues, board state, roadmap doc, the decisions doc (found as in step 3) and `skilleddocs/grills/` (cite decisions as `D<k>`).
+1. **Baseline**, whatever exists: open issues, board state, roadmap doc, the decisions doc (found as in step 3) and the grill transcripts (`skilleddocs/grills/`, or `grills/` beside a tracked register) (cite decisions as `D<k>`).
 2. **Grill**: call the Skill tool with `"grilling"`, baseline as context. The question tree: does the idea fit, conflict with, or extend the plan, and what does the user want to happen?
 3. **Record** once settled:
    - Append one row per decision to the repo's decisions doc: the one `AGENTS.md`/`CLAUDE.md` names; else an existing `docs/decisions.md` or ADR folder; else `skilleddocs/decisions.md` (same rule as `grill-docs`, which also gives the header and row format; an ADR folder gets one new ADR per decision). Source: `consult-plan <local date>`, plus the issue or PR link when there is one. Untracked → exclude `skilleddocs/` per the `handoff-auto` skill's `TRACKING.md` (it also covers the `pip install .` hazard).
