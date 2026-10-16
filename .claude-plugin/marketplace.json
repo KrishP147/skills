@@ -1,0 +1,17 @@
+{
+  "name": "krish",
+  "owner": {
+    "name": "KrishP147",
+    "url": "https://github.com/KrishP147"
+  },
+  "metadata": {
+    "description": "Krish's Claude Code skills, subagents and dev config."
+  },
+  "plugins": [
+    {
+      "name": "krish",
+      "source": "./",
+      "description": "Skills, subagents and a git guard hook for planning, pairing and unattended orchestration in Claude Code."
+    }
+  ]
+}
