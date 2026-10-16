@@ -50,7 +50,7 @@ Use the AskUserQuestion tool when available (≤4 questions per call, recommende
 | `merge` | `auto` when the gate is green · `ask` before each merge · `pr-only` (open PRs, user merges) | SKILL.md §3 step 3 |
 | `merge_style` | repo's existing style · squash · merge commit · rebase | how PRs land |
 | `interview` | `answer` (agents answer for me from the written plan) · `park` (deviations wait for me) | verifier + consult-plan |
-| `decisions` | `ask` (park calls with no written answer) · `assume` (agent picks its recommendation, records open `A-n` for me to confirm) | SKILL.md §4; briefs carry `decisions=` |
+| `decisions` | `ask` (park calls with no written answer) · `assume` (agent picks its recommendation, records open `A-n` for me to confirm) | SKILL.md §4; briefs carry `decisions=` and `first A-id` |
 | `escalate` | multi-select: new dependency · schema/migration · deleting files · public API change · CI/config change · anything billable (always on) | pause and ask before merging such a change |
 | `docs` | multi-select: ledger (always on) · decisions register · per-issue handoffs · manager reports kept · CHANGELOG entries | what gets written (under `skilleddocs/`; the register per SKILL.md §5) |
 | `docs_commit` | `commit` (on default as written) · `uncommitted`; default per [TRACKING.md](../handoff-auto/TRACKING.md), forced `uncommitted` on a fork | where the paper trail lives |
