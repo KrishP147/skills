@@ -29,7 +29,7 @@ Deps (`node_modules`, `.venv`): link each from the main checkout, paths quoted (
 - Windows, Git Bash (`cygpath` builds the paths; without `MSYS_NO_PATHCONV` MSYS rewrites `/J` into a path):
   ```
   w=$(cygpath -wa "<wt>"); m=$(cygpath -wa "<main>")
-  if [[ $w == [A-Za-z]:\\?* && $m == [A-Za-z]:\\?* ]]; then MSYS_NO_PATHCONV=1 cmd /c mklink /J "$w\.venv" "$m\.venv"; else echo "STOP: path not absolute: '$w' '$m'"; fi
+  if [[ $w == [A-Za-z]:'\'?* && $m == [A-Za-z]:'\'?* ]]; then MSYS_NO_PATHCONV=1 cmd /c mklink /J "$w\.venv" "$m\.venv"; else echo "STOP: path not absolute: '$w' '$m'"; fi
   ```
 - Windows, PowerShell: `if ("<wt>" -match '^[A-Za-z]:\\.' -and "<main>" -match '^[A-Za-z]:\\.') { cmd /c mklink /J "<wt>\.venv" "<main>\.venv" } else { "STOP: path not absolute" }`.
 - mac/linux: `ln -s "<main>/.venv" "<wt>/.venv"`.
