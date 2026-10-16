@@ -66,6 +66,9 @@ def main() -> int:
             skipped.append((fid, "not a secret finding - large-file removal uses --path, not --replace-text"))
             continue
         fingerprint = entry.get("secret_sha256")
+        if not fingerprint and entry.get("location_key"):
+            skipped.append((fid, "no secret value (empty gitleaks Secret) - scrub by --path or edit by hand"))
+            continue
         value = values_by_fingerprint.get(fingerprint) if fingerprint else None
         if not value:
             skipped.append((fid, "could not recover value from gitleaks report (fingerprint mismatch or missing)"))
