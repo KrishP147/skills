@@ -217,5 +217,19 @@ class TestGitleaksDedupe(unittest.TestCase):
         self.assertEqual(findings, [])
 
 
+class TableRowTests(unittest.TestCase):
+    def test_large_blob_commits_column_is_dash(self):
+        row = sf.table_row("L1", {"type": "large", "path": "docs/demo.gif",
+                                  "accumulated_bytes": 3 * 1024 * 1024})
+        self.assertTrue(row.endswith("-"), row)
+        self.assertNotIn(" 0", row[-3:])
+
+    def test_secret_commits_column_counts_commits(self):
+        row = sf.table_row("S1", {"type": "secret", "rule": "github-pat",
+                                  "paths": [{"path": "src/config.js"}],
+                                  "commits": ["a", "b"]})
+        self.assertTrue(row.endswith("2"), row)
+
+
 if __name__ == "__main__":
     unittest.main()
