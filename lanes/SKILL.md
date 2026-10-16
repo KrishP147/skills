@@ -18,7 +18,7 @@ Look for `skilleddocs/orchestrator/scope.md` in the repo.
 For each queued issue (open, in scope, not excluded, not already merged), in queue order:
 
 1. Paths named in the issue body, its comments, or a linked plan.
-2. Area labels (`area:site`, `docs`, `hooks`, ...) mapped to the directories they cover.
+2. Only when the issue names no paths: area labels (`area:site`, `docs`, `hooks`, ...) mapped to the directories they cover. Added to named paths, a broad label directory would merge every lane.
 3. A quick `git grep -l` for the identifiers, commands or file names the issue mentions, keeping only where the change lands: the file defining an identifier the issue changes, or files the issue names. A file that only imports, re-exports or calls the identifier (a package `__init__.py`, a `cli.py`) is not in the set, unless the issue renames the identifier or changes its signature, so the callers must be edited too; then those callers are in. A behaviour change alone keeps callers out.
 
 Record a file set per issue. Mark it **uncertain** when it rests only on a label or a guess, or the issue says "and wherever else". Shared files every change touches (a changelog, a lockfile, a generated count) count as overlap like any other file; name them in the proposal's Why line.
