@@ -119,4 +119,4 @@ each wait for their own yes:
 
 ## Prereqs
 
-`gh` authenticated with `repo` scope (write access where you expect to resolve threads); `pair`'s agents installed for the fix step.
+`gh` authenticated with `repo` scope, `origin` on GitHub (otherwise it stops and says so) (write access where you expect to resolve threads); `pair`'s agents installed for the fix step.

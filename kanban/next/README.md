@@ -67,4 +67,4 @@ Had the latest `main` run failed, the failing workflow would be listed first as 
 
 ## Prereqs
 
-`gh`, authenticated with the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)).
+`gh`, authenticated, `origin` on GitHub (otherwise it stops and says so). Projects v2 boards need the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)).

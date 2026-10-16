@@ -4,7 +4,7 @@
 
 ## What it does
 
-Splits an issue (or a described task) that's too big for one session into two or more session-sized issues, links them from the parent, and puts them on the board.
+Splits an issue (or a described task) that's too big for one session into two or more session-sized issues (about the ~75K-token smart zone, one PR), links them from the parent, and puts them on the board.
 
 ## When to use
 
@@ -19,10 +19,10 @@ Splits an issue (or a described task) that's too big for one session into two or
 ## How it works
 
 1. Reads the target (`gh issue view <n>` or your description).
-2. Proposes 2+ pieces (or uses your split) and **shows it before creating anything**.
-3. On confirmation: `gh issue create` per piece ("Part of #n"), and adds a task-list checkbox per child to the parent's body.
+2. Target already fits one session? Says so and stops. Otherwise proposes 2+ pieces (or uses your split) and **shows it before creating anything**; if you revise the split, it shows it again.
+3. On confirmation: `gh issue create` per piece ("Part of #n"), and adds a task-list checkbox per child to the parent's body. A free-text target has no parent issue, so "Part of", the checkboxes and the roadmap link are skipped.
 4. Adds each child to the board: Projects v2 → `gh project item-add` then `gh project item-edit` to set Status=Todo (`item-add` alone leaves Status empty); label fallback → `status:todo` (created first if missing).
-5. If a roadmap doc links the parent, adds `#n → #a, #b` inline and commits `docs: divide #n into #a/#b`.
+5. If a roadmap doc links the parent, adds `#n → #a, #b` inline and commits `docs: divide #n into #a/#b/#c…` on the current branch (a new branch if you're on the default one). It never pushes without your yes.
 6. If the parent is now only a tracker, says so and offers to close it once children land.
 
 ## Design principles
@@ -42,7 +42,7 @@ Splits an issue (or a described task) that's too big for one session into two or
 - Bring your own split ("divide 28 into the token model and the migration") if you already know the seams.
 - Push back on the proposal before saying yes; nothing exists until you do.
 - Once the parent only tracks children, accept the offer to close it after they land rather than leaving it in Todo.
-- In a repo whose roadmap doc links the parent, it commits the roadmap edit (`docs: divide #n into #a/#b`).
+- In a repo whose roadmap doc links the parent, it commits the roadmap edit (`docs: divide #n into #a/#b/#c…`, on a branch, not pushed).
 
 ## Example
 
@@ -68,4 +68,4 @@ You say yes. It creates #40, #41 and #42 (each "Part of #28. …"), adds three t
 
 ## Prereqs
 
-`gh`, authenticated with the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)).
+`gh`, authenticated, `origin` on GitHub (otherwise it stops and says so). Projects v2 boards need the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)).

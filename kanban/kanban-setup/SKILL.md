@@ -9,7 +9,7 @@ Creates a real board and real, public GitHub issues. Steps 1-3 are read-only; sh
 
 ## 1. Scope
 
-`gh auth status` must list `project`. Missing → user runs `gh auth refresh -s project -s read:project` (opens a browser); stop until done.
+`gh repo view` fails → stop and say why: `origin` isn't a GitHub remote (this skill needs one), or `gh` isn't authenticated (`gh auth status`). `gh auth status` must list `project`. Missing → user runs `gh auth refresh -s project -s read:project` (opens a browser); stop until done.
 
 ## 2. Board (read-only)
 
