@@ -66,7 +66,7 @@ Use the AskUserQuestion tool when available (≤4 questions per call, recommende
 
 ## 4. Write the contract
 
-`skilleddocs/orchestrator/scope.md`: repo path, default branch, then every key above as `key: value` in a fenced `yaml` block, then free-text notes (exclusion reasons, who answers what). Commit it on the default branch: `docs(skilleddocs): orchestrator scope`. (`docs_commit: uncommitted` → leave it untracked and git-excluded per TRACKING.md; the ledger then lives only on this machine. Say so.)
+`skilleddocs/orchestrator/scope.md`: repo path, default branch, then every key above as `key: value` in a fenced `yaml` block, then free-text notes (exclusion reasons, who answers what). Commit it on the default branch: `docs(skilleddocs): orchestrator scope`. Lanes set by [`lanes`](../lanes/SKILL.md) → also start the ledger (SKILL.md §5) with its `decision` entry as 001 (`lanes` §5 step 2), committed with scope.md. (`docs_commit: uncommitted` → leave it untracked and git-excluded per TRACKING.md; the ledger then lives only on this machine. Say so.)
 
 ## 5. Offer to save as defaults
 

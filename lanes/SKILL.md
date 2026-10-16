@@ -11,7 +11,7 @@ A lane is one stream of issues the orchestrator works in series, in its own work
 Look for `skilleddocs/orchestrator/scope.md` in the repo.
 
 - Missing, and not called from meta-orchestrator setup → say "No meta-orchestrator run here, so there is nothing to parallelise; lanes only exist inside one (its merge gate is what keeps them safe)." Offer to start one with `/meta-orchestrator <repo>`. Stop.
-- Called from setup → the queue is setup's `scope` minus `exclude`, in `order`; return the confirmed lanes to setup instead of writing §5 yourself.
+- Called from setup → the queue is setup's `scope` minus `exclude`, in `order`; return the confirmed lanes and the §5 step 2 entry text to setup instead of writing §5 yourself (setup writes them and logs that entry as ledger 001).
 
 ## 1. Predict file sets
 
