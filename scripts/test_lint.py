@@ -86,6 +86,22 @@ class BlockScalarFrontmatter(unittest.TestCase):
     def test_indent_digit(self):
         self.assertEqual(self.fm("d: |2\n  a\n    b\n")["d"], "a\n  b\n")
 
+    def test_header_comment(self):
+        self.assertEqual(self.fm("d: > # c\na\n  b\nk: v\n")["d"], "a b\n")
+        self.assertEqual(self.fm("d: | # c\n  a\n  b\n")["d"], "a\nb\n")
+        self.assertEqual(self.fm("d: >- # c\n  a\n  b\n")["d"], "a b")
+        self.assertEqual(self.fm("d: |2 # c\n  a\n    b\n")["d"], "a\n  b\n")
+
+    def test_hash_without_space_not_block_scalar(self):
+        self.assertEqual(self.fm("d: >#c\n  a\n")["d"], ">#c")
+
+    def test_folded_more_indented(self):
+        self.assertEqual(self.fm("d: >\n  a\n    b\n  c\n")["d"], "a\n  b\nc\n")
+
+    def test_folded_more_indented_with_blank(self):
+        self.assertEqual(self.fm("d: >\n  a\n\n    b\n  c\n")["d"], "a\n\n  b\nc\n")
+        self.assertEqual(self.fm("d: >\n  a\n    b\n\n    c\n  d\n")["d"], "a\n  b\n\n  c\nd\n")
+
     def test_list_still_works(self):
         d = self.fm("tools:\n  - a\n  - b\nempty:\nk: v\n")
         self.assertEqual(d["tools"], ["a", "b"])
