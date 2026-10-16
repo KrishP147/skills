@@ -103,17 +103,16 @@ git remote add origin <url>
 git push origin --force --all && git push origin --force --tags
 ```
 
+A hook or permission rule that blocks the push → show the user these exact commands to run themselves (in Claude Code, prefixed with `!`), then continue at step 10 once they confirm.
+
 `--all` covers non-default branches only because `filter-repo` turned the fresh clone's `origin/*` into local branches. Run `git branch` before pushing and confirm every branch you mean to keep is listed; a missing one is not pushed, and keeps its old history on the remote.
 
 ## 10. Post-push
 
-**Every local copy of this repo, the user's own included**, still holds the old commits (and the secret). A plain `git pull` would merge the old history back in and the next push would re-leak it. Per copy: re-clone (simplest; carry uncommitted work over by hand), or:
+**Every local copy of this repo, the user's own included**, still holds the old commits (and the secret). A plain `git pull` would merge the old history back in and the next push would re-leak it. Per copy, either:
 
-1. `git stash list` first. The reflog expire below deletes **every** stash entry, older ones included. Apply and commit (or save elsewhere) each one the user wants; go on only when the list is empty or the user says the rest can go.
-2. Note the current branch, `git stash -u` any work.
-3. Per branch: `git fetch origin && git checkout <branch> && git reset --hard origin/<branch>`. `git fetch --tags --force` for the rewritten tags. Delete local-only branches and tags made before the rewrite. Never merge or rebase old history.
-4. `git checkout <noted branch> && git stash pop`. A conflicting pop keeps the entry: resolve, then `git stash drop`. `git stash list` must be empty again.
-5. `git reflog expire --expire=now --all && git gc --prune=now` to drop the old objects locally.
+- **Re-clone** (simplest): copy uncommitted work, stashes (`git stash show -p --include-untracked stash@{n}`) and unpushed branches (`git bundle create`) out of the old clone first, and keep it until they are carried over.
+- **Reset in place**: follow [POST-PUSH.md](POST-PUSH.md). It parks the WIP first, saves every stash entry (untracked parts included) and every local-only branch and tag outside the repo, resets the pushed branches, re-creates the stashes on the new history and checks them against the saved copies, and deletes a branch or tag only on a yes. Its `reflog expire` and `gc` run last. Never a bare `git reflog expire --all`: it wipes the stash list.
 
 Tell collaborators the same (the step-6 notice).
 
