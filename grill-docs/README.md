@@ -23,12 +23,12 @@ Runs the `grilling` interview on a plan or decision and leaves a paper trail in 
 3. After each answered round, appends a `### Q<n>` block (topic / asked / recommended / answer / why) to the transcript, and one `| D<k> | date | decision | why | source |` row to the decisions doc (created with a header if missing). `Q<n>` counts across the whole session. The heading is bare `### Q<n>` so the register's `grills/<file>#q<n>` source resolves on GitHub (anchors are lowercase). Delegated answers ("go with your recs") are recorded as `(delegated)`.
 4. When the frontier is empty and you confirm: sets `Status: settled`, adds `## Summary` and `## Open`, prints both paths. Nothing is committed unless you ask.
 
-Writes: `skilleddocs/grills/<date>-<slug>.md` and the decisions doc: the one `AGENTS.md` / `CLAUDE.md` names, else an existing `docs/decisions.md` or ADR folder, else `skilleddocs/decisions.md` (the same rule `consult-plan` uses). The transcript header's `Register:` field says which.
+Writes: `skilleddocs/grills/<date>-<slug>.md` and the decisions doc: the one `AGENTS.md` / `CLAUDE.md` names, else an existing `docs/decisions.md`, else an ADR folder (`docs/adr/`, `doc/adr/`, `docs/decisions/`), else `skilleddocs/decisions.md` (the same rule `consult-plan` uses). The transcript header's `Register:` field says which. In an ADR folder, a new ADR that reverses or narrows an old one also marks the old one `Superseded by NNNN` / `Amended by NNNN`.
 
 ## Design principles
 
 - **Write as you go.** Each round is recorded before the next one, so an abandoned session still leaves a usable record (`Status: abandoned at Q<n>`).
-- **The register is the interface.** Planners, verifiers and `consult-plan` read only the register (the decisions doc above), so every answer becomes a row, delegated ones included.
+- **The register is the interface.** Planners, verifiers and `consult-plan` read the register (the decisions doc above), so every answer becomes a row, delegated ones included.
 - **Append-only.** A decision is reversed with a new row; old rows stay as written.
 
 ## Use cases
