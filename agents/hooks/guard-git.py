@@ -525,6 +525,14 @@ def analyze(cmd, ctx, depth=0):
             ctx.block("command nested too deeply to analyse.")
         return
     ps = ctx.powershell
+    if ps:
+        for m in IEX_PAREN_RE.finditer(cmd):  # `iex ('git push ' + 'origin main')`
+            inner, _ = _extract(cmd, m.end(), ")")
+            lit = ps_literal_concat(inner)
+            if lit is None:
+                ctx.dynamic_exec("Invoke-Expression (expression)")
+            else:
+                analyze(lit, ctx, depth + 1)
     segs, subs, docs = split_commands(cmd, ps=ps)
     for s in subs:
         analyze(s, ctx, depth + 1)
@@ -549,6 +557,22 @@ def analyze(cmd, ctx, depth=0):
                 analyze_in(" ".join(toks[1:]), ctx, depth + 1, mode == "ps")
             elif len(toks) == 1 and not toks[0].startswith("-"):
                 analyze_in(toks[0], ctx, depth + 1, mode == "ps")
+
+
+IEX_PAREN_RE = re.compile(r"(?i)(?<![\w-])(iex|invoke-expression)(\s+-c(ommand)?)?\s*\(")
+PS_LITERAL_RE = re.compile(r"""\s*('[^']*'|"[^"$`]*")\s*""")
+
+
+def ps_literal_concat(expr):
+    """`'git push ' + "origin main"` -> its value; None if not all literals."""
+    parts = expr.split("+")
+    vals = []
+    for p in parts:
+        m = PS_LITERAL_RE.fullmatch(p)
+        if not m:
+            return None
+        vals.append(m.group(1)[1:-1])
+    return "".join(vals)
 
 
 def analyze_in(cmd, ctx, depth, ps):
