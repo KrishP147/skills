@@ -219,7 +219,7 @@ gh auth refresh -s project -s read:project
 python scripts/lint.py
 ```
 
-Checks every `SKILL.md` and agent file (`agents/README.md` is docs, skipped by lint and install): frontmatter present, `name` matches the folder, description present and ≤1024 chars (YAML `>`/`|` block scalars are parsed; a description that is only the indicator fails), every skill an agent preloads exists and is model-invocable, every relative link in a skill's prompt files resolves. The install scripts run this first and stop on failure. It also prints non-fatal `WARN:` lines (stderr) for a skill README missing a required section — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Checks every `SKILL.md` and agent file (`agents/README.md` is docs, skipped by lint and install): frontmatter present, `name` matches the folder, description present and ≤1024 chars (YAML `>`/`|` block scalars are parsed, incl. a `# comment` after the indicator and more-indented folded lines; a description that is only the indicator fails), every skill an agent preloads exists and is model-invocable, every relative link in a skill's prompt files resolves. The install scripts run this first and stop on failure. It also prints non-fatal `WARN:` lines (stderr) for a skill README missing a required section — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 It also checks every tracked file in the repo for forbidden words, so nothing project-specific or personal leaks in. No word list ships in the repo (it would defeat the point). Configure your own locally:
 

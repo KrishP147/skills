@@ -36,6 +36,20 @@ Model-invocable, so "watch my PRs until they're merged" also works without the s
 9. **Logs** every pass to `skilleddocs/pr-watch/<local-date>-<repo>.md`.
 10. **Ends** with one line per PR: merged (link), waiting-on-maintainer (and why), or needs-you (an open gate or a thread only you can answer) — every PR/thread/CI run linked.
 
+## Flow
+
+```mermaid
+flowchart TD
+    list[List open PRs] --> threads[Classify review threads]
+    threads --> ci[Read CI]
+    ci --> fix[Fix valid threads via pair]
+    fix --> gate[Gate: ask for a yes]
+    gate -->|yes| push[Push, reply, resolve]
+    push --> watch[Watch until merged or closed]
+    watch -->|next pass| threads
+    watch --> done[End: one line per PR]
+```
+
 ## Design principles
 
 - **Outward actions are always gated.** Push, thread reply, thread resolve, and bot re-trigger each need an explicit yes; a force push needs its own, never reused from an earlier approval.

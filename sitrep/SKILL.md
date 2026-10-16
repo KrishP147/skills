@@ -15,7 +15,11 @@ Read-only snapshot of right now; no file writes (progress-report covers history)
 
 ## 2. Verdict
 
-**SAFE** only when nothing runs and nothing is dirty or unpushed (or it's covered by a committed, pushed handoff). Else **NOT SAFE** + each reason.
+**SAFE** only when nothing runs and nothing is dirty or unpushed, or the mid-flight work is covered by a handoff: committed + pushed, or saved on disk per [TRACKING.md](../handoff-auto/TRACKING.md) (untracked, `skilleddocs/` excluded; the only option on forks). Cover is for the work the handoff describes; other dirty/unpushed code still needs commit/push or a mention in the handoff.
+
+An untracked handoff dies with its worktree: **NOT SAFE** if that worktree is not the main one (first `git worktree list` entry) or was created this session via pair/meta-orchestrator, or if unsure it survives. Reason names the handoff path: move it out or keep the worktree.
+
+Else **NOT SAFE** + each reason.
 
 ## 3. Output (≤10 lines, no preamble, drop empty lines)
 
@@ -34,4 +38,4 @@ Verdict: NOT SAFE — stop feat/x's shell and push first
 2. Act on an explicit yes only; anything vaguer → repeat the list.
 3. `TaskStop` each (no tool → tell the user how).
 4. Commit or push only if the yes named that too.
-5. Mid-flight work → `handoff-auto`, print its path.
+5. Mid-flight work → `handoff-auto`, print its path. Earns SAFE on forks and untracked repos too (§2 caveats apply).

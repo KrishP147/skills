@@ -16,13 +16,18 @@ Each skill checks for this and tells you if it's missing, but it's a one-time in
 
 ## The loop
 
-```
-next  →  (you implement, in a fresh session)  →  session-handoff  →  update-progress
- ↑                                                                          │
- └──────────────────── (prints "run next" when done) ───────────────────────┘
+```mermaid
+flowchart TD
+    next[next: top tasks from the board] --> impl[You implement, in a fresh session]
+    impl --> handoff[session-handoff: handoff doc, card to In Review]
+    handoff --> update[update-progress: verify, docs, board]
+    update -->|finishes with next| next
+    update -.->|deviations| consult[consult-plan]
 ```
 
 Card status flow: todo (set explicitly by `gh project item-edit` when an issue is added — `item-add` alone leaves Status empty) → in-progress (`implementer`/`pair`, on branch create) → in-review (`session-handoff`) → done (`update-progress`). Label-mode `status:*` labels are created on first use (`gh label create --color <hex> --force`, colors in [`next/BOARD.md`](next/BOARD.md)), not assumed to exist.
+
+## The skills
 
 - **[`next`](next/)** — what to work on, pulled from the board.
 - **[`session-handoff`](session-handoff/)** — run when you're wrapping up an implementation session.

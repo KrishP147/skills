@@ -96,6 +96,30 @@ class DetailPagesTest(unittest.TestCase):
             if e["group"] != "agents" and "## Tips" not in e["readme"]:
                 self.assertNotIn(">Tips</h2>", self.pages[name], name)
 
+    def test_flow_diagrams(self):
+        def flow(name):
+            m = re.search(r'<h2 id="flow">Flow</h2>\n(.*?)</section>', self.pages[name], re.S)
+            return m and m.group(1)
+        for name in ("pair", "pr-watch", "meta-orchestrator"):
+            sec = flow(name)
+            self.assertTrue(sec, name)
+            self.assertIn('<div class="flow" tabindex="0"><svg class="flow-svg"', sec)
+            page = self.pages[name]
+            # Flow sits after How it works, before Example.
+            self.assertLess(page.index(">How it works</h2>"), page.index(">Flow</h2>"))
+            self.assertLess(page.index(">Flow</h2>"), page.index(">Example</h2>"))
+        # Every kanban skill inherits the group's loop (and its prose links
+        # are rebased to the child dir).
+        kanban = [e["name"] for e in self.entries if e["source"].startswith("kanban/")]
+        self.assertEqual(len(kanban), 6)
+        loop = flow("next")
+        self.assertIn("update-progress: verify, docs, board", loop)
+        for name in kanban:
+            self.assertEqual(flow(name), loop, name)
+        self.assertIn('href="https://github.com/KrishP147/skills/blob/master/kanban/next/BOARD.md"', loop)
+        self.assertNotIn("The loop", self.pages["next"])
+        self.assertNotIn("language-mermaid", "".join(self.pages.values()))
+
     def test_chips(self):
         grill_me = self.pages["grill-me"]
         self.assertIn("Matt Pocock", grill_me)
@@ -277,6 +301,43 @@ class SectionMappingTest(unittest.TestCase):
         pages = site_detail.build_pages(ROOT, [e], {}, "{{BODY}}|{{NAME}}", "[]")
         self.assertIn("<code>{{NAME}}</code> and {{DATA}}", pages[e["name"]])
         self.assertTrue(pages[e["name"]].endswith("|" + e["name"]))
+
+    def test_flow_aliases(self):
+        k = site_detail.section_key
+        for h in ("Flow", "The loop", "Diagram", "Flow diagram", "Flowchart"):
+            self.assertEqual(k(h), "flow", h)
+        keys = [key for key, _t in site_detail.SECTIONS]
+        self.assertEqual(keys.index("flow"), keys.index("how") + 1)
+        self.assertLess(keys.index("flow"), keys.index("example"))
+
+    def test_group_sections_inherited_unless_own(self):
+        root = tempfile.mkdtemp(prefix="site-inherit-")
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        os.makedirs(os.path.join(root, "grp", "a"))
+        with open(os.path.join(root, "grp", "README.md"), "w", encoding="utf-8") as f:
+            f.write("# grp\n\n## The loop\n\n```mermaid\nflowchart TD\n  P --> Q\n```\n\nSee [b](b/x.md).\n\n"
+                    "## Prereqs\n\ngh\n")
+        e = {"group": "skills", "name": "a", "source": "grp/a", "readme": "## What it does\n\nw\n"}
+        _pre, pairs, _base = site_detail.raw_sections(root, e, "")
+        got = dict((site_detail.section_key(h), b) for h, b in pairs)
+        self.assertIn("P --> Q", got["flow"])
+        self.assertIn("[b](../b/x.md)", got["flow"])  # rebased to the child dir
+        self.assertEqual(got["prereqs"], "gh")
+        own = dict(e, readme="## What it does\n\nw\n\n## Flow\n\n```mermaid\nflowchart LR\n  X --> Y\n```\n")
+        _pre, pairs, _base = site_detail.raw_sections(root, own, "")
+        flows = [b for h, b in pairs if site_detail.section_key(h) == "flow"]
+        self.assertEqual(len(flows), 1)
+        self.assertIn("X --> Y", flows[0])
+        self.assertIn("prereqs", [site_detail.section_key(h) for h, _b in pairs])
+        top = dict(e, source="a")  # no parent group: nothing inherited
+        _pre, pairs, _base = site_detail.raw_sections(root, top, "")
+        self.assertEqual([site_detail.section_key(h) for h, _b in pairs], ["what"])
+
+    def test_bad_mermaid_fails_build(self):
+        import flow_svg
+        e = dict(build_site.collect(ROOT)[0], readme="## Flow\n\n```mermaid\nflowchart TD\n  A --- B\n```\n")
+        with self.assertRaisesRegex(flow_svg.FlowError, "^%s: line 2" % re.escape(e["name"])):
+            site_detail.build_pages(ROOT, [e], {}, "{{BODY}}", "[]")
 
     def test_install_heading_maps_to_invoke(self):
         self.assertEqual(site_detail.section_key("Install into a repo"), "invoke")

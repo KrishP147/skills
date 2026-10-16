@@ -48,8 +48,12 @@ slash command.
    questions, or "none".
 6. **Verdict.** SAFE to close only if nothing's running, nothing's
    dirty/unpushed (or it's intentional and already handed off), and any
-   mid-flight work has a handoff written, committed, and pushed. Otherwise
-   NOT SAFE, with the specific reasons.
+   mid-flight work has a handoff: committed and pushed, or saved on disk per
+   [`TRACKING.md`](../handoff-auto/TRACKING.md) (untracked; the only option
+   on forks). An untracked handoff covers only the work it describes, and
+   is NOT SAFE when its worktree is a non-main one or was made by
+   pair/meta-orchestrator (it would be removed with the worktree), or when
+   unsure. Otherwise NOT SAFE, with the specific reasons.
 7. **On "close" / "yes, stop them":** lists exactly what will be stopped and
    what (if anything) would be committed/pushed, and waits for an explicit
    yes before doing either. On yes, stops background tasks with `TaskStop`
@@ -108,6 +112,17 @@ PRs: #21 checks passing
 Asked -> done: 3/4 (in progress: fixing date parser)
 Needs you: none
 Verdict: NOT SAFE - background test run still failing, fix/date-parse unpushed
+```
+
+Untracked handoff in a worktree slated for removal:
+
+```
+Running: none
+Git: 2 worktrees, clean, all pushed (handoff in ../wt-issue-9 is excluded)
+PRs: none
+Asked -> done: 2/2
+Needs you: none
+Verdict: NOT SAFE - untracked handoff in worktree slated for removal: move ../wt-issue-9/skilleddocs/handoffs/2026-10-15-x.md or keep worktree
 ```
 
 ## Related

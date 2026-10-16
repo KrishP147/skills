@@ -71,14 +71,17 @@ def find_agent_files(root):
     )
 
 
-BLOCK_SCALAR_RE = re.compile(r"^[>|](?:[+-]\d?|\d[+-]?)?$")
+# Group 1 is the bare header; an optional trailing `# comment` (preceded by
+# whitespace) is allowed after it.
+BLOCK_SCALAR_RE = re.compile(r"^([>|](?:[+-]\d?|\d[+-]?)?)(?:\s+#.*)?$")
 
 
 def _block_scalar(header, block):
     """Value of a YAML block scalar (`>` folded, `|` literal; optional
     chomping `-`/`+`, optional indent digit). Clip keeps one trailing
     newline. Folded: single newlines become spaces, blank lines become
-    newlines. More-indented lines are not specially preserved."""
+    newlines. Lines indented deeper than the block's base indent keep their
+    line breaks (YAML 1.2 8.1.3): no folding into or out of them."""
     folded = header[0] == ">"
     chomp = "-" if "-" in header else "+" if "+" in header else ""
     digit = re.search(r"\d", header)
@@ -97,14 +100,20 @@ def _block_scalar(header, block):
     if folded:
         text = ""
         breaks = 0
+        prev_more = False
         for l in lines:
             if l == "":
                 breaks += 1
                 continue
+            more = l[0] in " \t"
             if text:
-                text += "\n" * breaks if breaks else " "
+                if more or prev_more:
+                    text += "\n" * (breaks + 1)
+                else:
+                    text += "\n" * breaks if breaks else " "
             text += l
             breaks = 0
+            prev_more = more
     else:
         text = "\n".join(lines)
     if chomp == "-":
@@ -147,7 +156,8 @@ def parse_frontmatter(text):
                 if val == "":
                     data[key] = []
                     current_key = key
-                elif BLOCK_SCALAR_RE.match(val):
+                elif (m := BLOCK_SCALAR_RE.match(val)):
+                    header = m.group(1)
                     block = []
                     while i < len(fm_lines):
                         nxt = fm_lines[i]
@@ -155,7 +165,7 @@ def parse_frontmatter(text):
                             break
                         block.append(nxt)
                         i += 1
-                    data[key] = _block_scalar(val, block)
+                    data[key] = _block_scalar(header, block)
                     current_key = None
                 else:
                     data[key] = val
