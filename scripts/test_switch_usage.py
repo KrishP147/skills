@@ -20,7 +20,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_switch import FAKE, SCRIPT, SID, Base, cs  # noqa: E402
+from test_switch import FAKE, SCRIPT, SID, Base, agent_file, cs  # noqa: E402
 
 STATUS = SCRIPT.parent / "statusline.py"
 _spec = importlib.util.spec_from_file_location("switch_statusline", STATUS)
@@ -215,7 +215,7 @@ class HookTest(Base):
         self.assertIn("switching to 'alt'", out["reason"])
         self.assertTrue(out["hookSpecificOutput"]["suppressOriginalPrompt"])
         self.assertEqual(json.loads((self.sw / "requests" / "4242.json").read_text()),
-                         {"target": "alt", "session": SID})
+                         {"target": "alt", "session": SID, "rc": False, "transcript": ""})
 
     def test_bom_stdin(self):
         raw = b"\xef\xbb\xbf" + json.dumps({"session_id": SID, "prompt": "/switch alt"}).encode()
@@ -248,6 +248,70 @@ class HookTest(Base):
             {"seen": time.time(), "five_hour": {"pct": 93, "resets_at": time.time() + 3600}}))
         self.assertEqual(self.hook("hello", self.env), {"systemMessage": "main at 93%: run /switch alt"})
         self.assertIsNone(self.hook("hello", self.env))
+
+
+class HookConfirmTest(Base):
+    """Two-step confirm in the hook: first /switch prints the check and a pending marker, the same
+    command again within 120 s or a trailing yes switches."""
+    hook = HookTest.hook
+
+    def setUp(self):
+        super().setUp()
+        self.register("main", "alt", "work")
+        self.env = {"CLAUDE_SWITCH_LAUNCHER": "4242", "CLAUDE_SWITCH_ACCOUNT": "main"}
+        self.bridge = dict(self.env, CLAUDE_CODE_BRIDGE_SESSION_ID="b1")
+        self.pending = self.sw / "requests" / "4242.pending.json"
+
+    def test_same_command_again_confirms(self):
+        out = self.hook("/switch alt", self.bridge)
+        self.assertEqual(out["decision"], "block")
+        self.assertIn("live: Remote Control is on", out["reason"])
+        self.assertIn("type /switch alt again within 120 s, or /switch alt yes, to switch.", out["reason"])
+        self.assertEqual(self.requests(), ["4242.pending.json"])
+        out = self.hook("/switch alt", self.bridge)
+        self.assertIn("switching to 'alt'", out["reason"])
+        self.assertEqual(json.loads((self.sw / "requests" / "4242.json").read_text())["rc"], True)
+        self.assertFalse(self.pending.exists())
+
+    def test_window_and_name_must_match(self):
+        self.hook("/switch alt", self.bridge)
+        self.assertIn("again within", self.hook("/switch work", self.bridge)["reason"])  # other name: asks for it
+        cs.atomic_write(self.pending, json.dumps({"name": "alt", "time": time.time() - 121}))
+        self.assertIn("again within", self.hook("/switch alt", self.bridge)["reason"])
+        self.assertNotIn("4242.json", self.requests())
+
+    def test_yes_word_confirms(self):
+        out = self.hook("/switch alt yes", self.bridge)
+        self.assertIn("switching to 'alt'", out["reason"])
+        os.remove(self.sw / "requests" / "4242.json")
+        out = self.hook("/switch yes", dict(self.bridge, CLAUDE_SWITCH_PREVIOUS="work"))
+        self.assertIn("switching to 'work'", out["reason"])
+
+    def test_live_agent_from_transcript_path(self):
+        t = self.tmp / "proj" / (SID + ".jsonl")
+        t.parent.mkdir()
+        t.write_text("{}\n")
+        agent_file(t.with_suffix("") / "subagents", "x1", False, 3600)
+        raw = json.dumps({"session_id": SID, "prompt": "/switch alt", "transcript_path": str(t),
+                          "cwd": str(self.tmp)})
+        out = self.hook(None, self.env, raw=raw)
+        self.assertIn("live: 1 subagent (x1)", out["reason"])
+        self.assertIn("again within", out["reason"])
+        out = self.hook(None, self.env, raw=raw)
+        self.assertIn("switching to 'alt'", out["reason"])
+        req = json.loads((self.sw / "requests" / "4242.json").read_text())
+        self.assertEqual(req["transcript"], str(t.absolute()))
+        self.assertIn("- cwd: %s" % self.tmp, (self.sw / "requests" / "4242.note.md").read_text())
+
+    def test_nothing_live_immediate(self):
+        out = self.hook("/switch alt", self.env)
+        self.assertIn("before switching main -> alt:", out["reason"])
+        self.assertIn("switching to 'alt'", out["reason"])
+        self.assertFalse(self.pending.exists())
+
+    def test_rc_ok_passes_through(self):
+        self.assertIsNone(self.hook("/switch rc-ok alt on", self.env))
+        self.assertIsNone(self.hook("/switch alt no", self.env))
 
 
 class SettingsTest(Base):
