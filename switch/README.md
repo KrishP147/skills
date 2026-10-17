@@ -29,7 +29,7 @@ Runs several Claude Code accounts side by side, each with its own config dir, an
 1. Install the skills: `scripts/install-skills.sh` (on Windows, `scripts/install-skills.ps1`).
 2. Start Claude as usual and type `/switch setup work` to name the account you're on `work` (plain `/switch setup` calls it `main`).
    - Claude shows the shell profile and settings changes it would make and asks "Write these changes?". Nothing is written until you say yes.
-   - Rename the account later with `/switch rename main work`.
+   - Called it `main` and want another name? `/switch rename main work`.
 3. Open a new terminal, because shell profiles only load in new shells (or reload with `source ~/.bashrc` / `. $PROFILE`). Then run `claude` (or `claude-work`).
 4. Inside that session, run `/switch add personal`.
    - It creates `~/.claude-personal`, links your first account's skills, settings and history into it, and reopens this conversation there.
