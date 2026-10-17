@@ -500,6 +500,8 @@ class AccountsTest(Base):
         self.add("job")
         cases = ((("remove", "main"), None, "first account"),
                  (("remove", "work"), {"CLAUDE_SWITCH_ACCOUNT": "work"}, "account you're on"),
+                 (("remove", "work"), {"CLAUDE_SWITCH_ACCOUNT": "old-name",
+                                       "CLAUDE_CONFIG_DIR": str(self.home / ".claude-work")}, "account you're on"),
                  (("remove", "nope"), None, "unknown account"))
         for argv, env, msg in cases:
             with self.assertRaises(SystemExit) as e:
@@ -567,10 +569,24 @@ class MigrateTest(Base):
         self.assertIn("'Bad' is not a valid account name", out)
         self.assertIn(".claude-empty: no .credentials.json", out)
         self.assertNotIn("stale", out)
-        self.assertIn("claude-proj()", (self.tmp / "default" / ".bashrc").read_text())  # fallback target, mocked
+        self.assertIn("run setup once", out)  # no recorded profiles, no block yet: shells untouched
+        self.assertFalse((self.tmp / "default").exists())
         rc, out = self.main("migrate")
         self.assertIn("nothing new", out)
         self.assertEqual(tree_hash(h), before)
+
+    def test_unrecorded_profiles_only_update_existing_block(self):
+        cs.save({"accounts": []})  # registry from before profiles were recorded
+        rc = self.main("setup", "--account=main=%s" % (self.home / ".claude"),
+                       "--profile=bash=%s" % (self.tmp / "default" / ".bashrc"), "--yes")[0]
+        self.assertEqual(rc, 0)
+        reg = cs.load()
+        del reg["profiles"]
+        cs.save(reg)
+        (self.home / ".claude-alt" / "projects").mkdir(parents=True)
+        rc, out = self.main("migrate")
+        self.assertIn("claude-alt()", (self.tmp / "default" / ".bashrc").read_text())
+        self.assertIn("bash", cs.load()["profiles"])
 
     def test_keeps_registered_main(self):
         self.register("main", "alt")

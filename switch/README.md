@@ -158,7 +158,8 @@ flowchart TD
   picks its own shims when it looks for the real `claude`.
 - `--profile SHELL=PATH` (repeatable; `bash`, `zsh`, `fish`, `powershell`,
   `pwsh`, `cmd`) writes only those targets, for a non-default profile.
-- Rerun setup after moving Python: wrappers embed its absolute path.
+- Rerun setup after moving Python (wrappers embed its absolute path) or
+  updating the skill (refreshes the script copy the wrappers call).
 - PowerShell with execution policy `Restricted` (the Windows default)
   never loads your profile, so `claude-<name>` is missing: run
   `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.

@@ -576,14 +576,27 @@ def cmd_setup(args):
     return 0
 
 
+def has_block(shell, path):
+    path = Path(path)
+    try:
+        if shell == "cmd":
+            return path.is_dir() and any(SHIM_MARK in read_text(f)[0] for f in path.glob("claude*.cmd"))
+        return BEGIN in read_text(path)[0]
+    except (OSError, SystemExit):
+        return False
+
+
 def regen_shells(reg):
     """Save the registry, refresh the stable script copy, then rewrite our
     block in the shell files setup recorded (default_targets() when none).
     No prompt: only the marker block changes. Prints each changed path."""
     save(reg)
     targets = {k: Path(v) for k, v in (reg.get("profiles") or {}).items()}
-    if not targets:
-        targets = default_targets()
+    if not targets:  # registry from before profiles were recorded: only files already holding our block
+        targets = {k: v for k, v in default_targets().items() if has_block(k, v)}
+        if not targets:
+            print("shell files not written: run setup once (it shows the diff and records the files)")
+            return
         reg["profiles"] = {k: str(v) for k, v in targets.items()}
         save(reg)
     install_copy()
@@ -780,7 +793,8 @@ def delete_refusal(reg, acct):
 def cmd_remove(args):
     reg = load()
     acct = _account_or_exit(reg, args.name)
-    if args.name == os.environ.get("CLAUDE_SWITCH_ACCOUNT"):
+    live = os.environ.get("CLAUDE_CONFIG_DIR")  # catches a current account renamed mid-session
+    if args.name == os.environ.get("CLAUDE_SWITCH_ACCOUNT") or (live and _norm(live) == _norm(acct["dir"])):
         raise SystemExit("claude-switch: '%s' is the account you're on; switch away first" % args.name)
     if len(reg["accounts"]) == 1:
         raise SystemExit("claude-switch: '%s' is the last account; not removed" % args.name)
