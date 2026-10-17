@@ -203,7 +203,9 @@ class NoSwitchTest(Base):
         rc, out = self.main("add", "reset", "--account", "work")
         self.assertNotEqual(rc, 0)
         self.assertIn("need the switch skill", out)
-        self.assertIn("hook line from the remind README", self.main("add", "in", "--", "1h", "x")[1])
+        out = self.main("add", "in", "--", "1h", "x")[1]
+        self.assertIn("add this UserPromptSubmit hook command once (README): ", out)
+        self.assertIn("/.claude-remind/remind.py hook", out)
 
 
 class AccountTest(Base):

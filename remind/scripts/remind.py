@@ -510,7 +510,14 @@ def hook_status():
         except OSError:
             pass
         return "switch's hook predates remind: rerun switch setup once to refresh it"
-    return "needs the hook line from the remind README (no switch hook here)"
+    return "add this UserPromptSubmit hook command once (README): %s" % hook_line()
+
+
+def hook_line():
+    """Absolute interpreter (Windows `python3` may be the Store stub) and the
+    stable copy, forward slashes so Git Bash and PowerShell both run it."""
+    parts = [str(p).replace("\\", "/") for p in (sys.executable, home() / "remind.py")]
+    return " ".join('"%s"' % p if " " in p else p for p in parts) + " hook"
 
 
 def cmd_list(args):
