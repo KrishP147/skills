@@ -2,6 +2,8 @@
 
 *By DietrichGebert (MIT), included verbatim from [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail/blob/84740e3d344b69b4a133201fa519eb37a62a2b2a/skills/ponytail/SKILL.md) (v5.2.0). `SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Works on its own.
+
 ## What it does
 
 Puts Claude in "lazy senior developer" mode for the whole session: it solves the task with the smallest change that fully works, and ends its reply with one or two lines saying what it skipped or did not check, plus any risk you must know.

@@ -53,7 +53,7 @@ Classify each unresolved thread, citing its URL:
 
 One `pair` call per PR on its existing head branch, every **valid** thread (path, line, body) as the task. Tell it the PR exists: no new PR, no push. disagree/question threads get replies, not diffs.
 
-Can't spawn subagents (so `pair` can't run)? Fix inline on the PR's head branch instead: same valid threads, run the repo's tests, commit; the §5 gates still apply.
+Can't spawn subagents, or `pair` isn't installed? Fix inline on the PR's head branch instead: same valid threads, run the repo's tests, commit; the §5 gates still apply.
 
 ## 5. Gate, then push and reply
 

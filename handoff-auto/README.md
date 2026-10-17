@@ -2,6 +2,8 @@
 
 *Derived from Matt Pocock's `handoff` (MIT). `SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Works on its own.
+
 ## What it does
 
 Same handoff document as [`handoff`](../handoff/), but Claude (or a skill or subagent) can call it without you typing a command.

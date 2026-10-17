@@ -12,7 +12,7 @@ Read-only: suggest, never invoke a skill, agent or tool that changes anything. T
 First that applies:
 - Text after the command.
 - The goal of this conversation so far.
-- The top 1-3 board tasks, found as the `next` skill's `BOARD.md` says (`~/.claude/skills/next/` or, as the plugin, `kanban/next/`); give one suggestion per task.
+- The top 1-3 board tasks, found as the `next` skill's `BOARD.md` says (`~/.claude/skills/next/` or, as the plugin, `kanban/next/`); give one suggestion per task. No `next` skill installed: skip this line.
 - No repo or no board: ask what the task is, then stop.
 
 ## 2. Options (at most 3)

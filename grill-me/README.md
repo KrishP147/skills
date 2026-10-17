@@ -2,6 +2,8 @@
 
 *By Matt Pocock (MIT), included verbatim. `SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Works on its own.
+
 ## What it does
 
 Short alias for [`grilling`](../grilling/): a relentless interview to sharpen a plan or design.

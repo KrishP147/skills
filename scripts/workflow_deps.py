@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Resolve sample workflows (site/data/workflows.json) to what to install.
-Stdlib only; used by install-skills.sh and install-skills.ps1.
+"""Resolve sample workflows (site/data/workflows.json) or single skills,
+agents and hooks to what to install. Stdlib only; used by install-skills.sh
+and install-skills.ps1.
 
   workflow_deps.py list                     name<TAB>title per workflow
-  workflow_deps.py resolve NAME [NAME ...]  one "<kind> <value>" line each:
+  workflow_deps.py list-names               name<TAB>kind per skill/agent/hook
+  workflow_deps.py resolve [WF ...] [--skill NAME ...]
+  workflow_deps.py resolve-names NAME [NAME ...]
+                                            one "<kind> <value>" line each:
       skill <repo-relative dir>   e.g. "skill kanban/next"
       agent <name>                agents/<name>.md
       hook <name>                 hooks/<name>.py (copied, never wired)
@@ -12,18 +16,24 @@ Stdlib only; used by install-skills.sh and install-skills.ps1.
                                             settings.json snippet for hooks
                                             copied into HOOKS_DIR
 
-Unknown workflow name: the list goes to stderr and the exit code is 2.
+Names may be comma-separated. --skill takes any skill, agent or hook name.
+Unknown name: the valid names go to stderr and the exit code is 2.
 
-Closure, starting from every skill/agent/hook a workflow's steps name:
+Closure, starting from every skill/agent/hook a workflow's steps name (and
+each --skill name):
   preloads  an agent's frontmatter `skills:` (site_map preloads edges)
   calls     a site_map related edge whose target the source also names in
             its own SKILL.md (agent: its .md) as `name`, /name or name/.
             Related links alone pull in most of the repo; this keeps the
             ones the source actually calls.
+  spawns    an agent the source's own SKILL.md (agent: its .md) passes as
+            subagent_type="name" or "krish:name" (manager -> implementer).
   files     a relative link in any non-README .md of a selected skill that
             points into another skill's dir (e.g. ../next/BOARD.md), so
             no installed skill links to a file that isn't there.
-Hooks come only from workflow steps, never from edges.
+Hooks come only from workflow steps or --skill, never from edges.
+OPTIONAL lists "calls"/"spawns" edges whose source works without the target (it
+only suggests it, or has a fallback); they are not followed.
 """
 import glob
 import json
@@ -40,6 +50,7 @@ import site_workflows  # noqa: E402
 
 ROOT = os.path.dirname(HERE)
 _FILE_LINK_RE = re.compile(r"\]\(((?:\.\./)+[^)\s#]*)")
+_SPAWN_RE = re.compile(r'subagent_type="(?:krish:)?([\w-]+)"')
 
 # hooks/<name>.py -> (event, matcher or None, command suffix); per hooks/README.md
 HOOK_WIRING = {
@@ -48,7 +59,26 @@ HOOK_WIRING = {
 }
 
 
+# src -> targets it names but works without; see each source's SKILL.md
+OPTIONAL = {
+    "find-me-a-skill": {"implementer", "manager", "meta-orchestrator", "next", "pair", "planner",
+                        "verifier"},  # suggests, runs nothing
+    "gap-scan": {"divide", "grill-docs", "kanban-setup"},  # offers, doesn't run
+    "handoff-auto": {"handoff"},  # credit line only
+    "pr-watch": {"pair"},  # fixes inline without it
+    "repo-scrub": {"repo-showcase"},  # either order, either alone
+    "repo-showcase": {"repo-scrub"},
+    "score-loop": {"sitrep"},  # pointer only
+    "smartzone": {"divide", "session-handoff"},  # hook text suggests them
+    "wayfinder": {"divide", "meta-orchestrator"},  # offered at the end
+}
+
+
 class UnknownWorkflow(Exception):
+    pass
+
+
+class UnknownName(Exception):
     pass
 
 
@@ -104,22 +134,34 @@ class Graph:
             elif "related" in kinds:
                 if src not in texts:
                     texts[src] = _read(_source_md(root, self.by_name[src], self.kinds[src]))
-                if _names(texts[src], dst):
+                if _names(texts[src], dst) and dst not in OPTIONAL.get(src, ()):
                     self.deps[src].append(dst)
         for e in self.entries:
-            if self.kinds[e["name"]] == "skill":
-                self.deps[e["name"]].extend(_file_links(root, e, by_dir))
+            n, k = e["name"], self.kinds[e["name"]]
+            if k == "skill":
+                self.deps[n].extend(_file_links(root, e, by_dir))
+            if k in ("skill", "agent"):
+                if n not in texts:
+                    texts[n] = _read(_source_md(root, e, k))
+                for a in _SPAWN_RE.findall(texts[n]):
+                    if self.kinds.get(a) == "agent" and a != n and a not in OPTIONAL.get(n, ()):
+                        self.deps[n].append(a)
 
     def names(self):
         return [wf["name"] for wf in self.workflows]
 
-    def resolve(self, wf_names):
-        """{"skill": [...], "agent": [...], "hook": [...]} sorted names."""
+    def resolve(self, wf_names=(), names=()):
+        """{"skill": [...], "agent": [...], "hook": [...]} sorted names, for
+        the union of workflows wf_names and skill/agent/hook names."""
         known = {wf["name"]: wf for wf in self.workflows}
         bad = [n for n in wf_names if n not in known]
-        if bad or not wf_names:
+        if bad or not (wf_names or names):
             raise UnknownWorkflow(", ".join(bad))
+        bad = [n for n in names if n not in self.kinds]
+        if bad:
+            raise UnknownName(", ".join(bad))
         seeds = [s["name"] for n in wf_names for s in known[n]["steps"] if s["kind"] != "human"]
+        seeds += list(names)
         seen, todo = set(seeds), list(seeds)
         while todo:
             for d in self.deps[todo.pop()]:
@@ -131,8 +173,8 @@ class Graph:
             out[self.kinds[n]].append(n)
         return out
 
-    def lines(self, wf_names):
-        r = self.resolve(wf_names)
+    def lines(self, wf_names=(), names=()):
+        r = self.resolve(wf_names, names)
         out = ["skill " + self.by_name[n]["source"] for n in r["skill"]]
         out += ["agent " + n for n in r["agent"]]
         out += ["hook " + n for n in r["hook"]]
@@ -148,6 +190,32 @@ def split_names(args):
 
 def listing(g):
     return ["%s\t%s" % (wf["name"], wf["title"]) for wf in g.workflows]
+
+
+def needs_line(g, name):
+    """The README line saying what installing `name` alone brings along."""
+    r = g.resolve(names=[name])
+    others = [n for k in ("skill", "agent", "hook") for n in r[k] if n != name]
+    if not others:
+        return "Works on its own."
+    return "Needs: %s (installed with it)." % ", ".join("`%s`" % n for n in others)
+
+
+def name_listing(g):
+    return ["%s\t%s" % (e["name"], g.kinds[e["name"]]) for e in g.entries]
+
+
+def parse_resolve(args):
+    """['a', '--skill', 'x,y', 'b'] -> (['a', 'b'], ['x', 'y'])."""
+    wfs, names, it = [], [], iter(args)
+    for a in it:
+        if a == "--skill":
+            names.append(next(it, ""))
+        elif a.startswith("--skill="):
+            names.append(a[len("--skill="):])
+        else:
+            wfs.append(a)
+    return split_names(wfs), split_names(names)
 
 
 def snippet(hooks_dir, hooks):
@@ -169,7 +237,7 @@ def main(argv):
     out = sys.stdout
     if hasattr(out, "reconfigure"):
         out.reconfigure(newline="\n")  # shells read these lines; no \r on Windows
-    if not argv or argv[0] not in ("list", "resolve", "snippet"):
+    if not argv or argv[0] not in ("list", "list-names", "resolve", "resolve-names", "snippet"):
         sys.stderr.write(__doc__)
         return 1
     cmd, rest = argv[0], argv[1:]
@@ -183,13 +251,26 @@ def main(argv):
     if cmd == "list":
         out.write("\n".join(listing(g)) + "\n")
         return 0
-    names = split_names(rest)
+    if cmd == "list-names":
+        out.write("\n".join(name_listing(g)) + "\n")
+        return 0
+    if cmd == "resolve-names":
+        wfs, names = [], split_names(rest)
+        if not names:
+            sys.stderr.write("error: no skill, agent or hook name given\n")
+            return 2
+    else:
+        wfs, names = parse_resolve(rest)
     try:
-        lines = g.lines(names)
+        lines = g.lines(wfs, names)
     except UnknownWorkflow as e:
         msg = "unknown workflow(s): %s" % e if str(e) else "no workflow name given"
         sys.stderr.write("error: %s\nWorkflows:\n" % msg)
         sys.stderr.write("".join("  %s\n" % ln for ln in listing(g)))
+        return 2
+    except UnknownName as e:
+        sys.stderr.write("error: unknown skill, agent or hook name(s): %s\nNames:\n" % e)
+        sys.stderr.write("".join("  %s\n" % ln for ln in name_listing(g)))
         return 2
     out.write("\n".join(lines) + "\n")
     return 0

@@ -57,6 +57,8 @@ ALIASES = {
 _README_NOTE_RE = re.compile(r"^\*.*`SKILL\.md` is the prompt Claude follows")
 _FENCE_RE = re.compile(r"^\s*(```|~~~)")
 _TRANSCRIPT_FENCE_RE = re.compile(r"^ {0,3}(```|~~~)\s*transcript\s*$", re.M)
+# README line saying what an install of this alone brings (workflow_deps.needs_line)
+_NEEDS_RE = re.compile(r"^(?:Works on its own\.|Needs: .+ \(installed with it\)\.)$", re.M)
 
 
 def esc(s):
@@ -482,6 +484,7 @@ def build_pages(root, entries, meta, template, data_json, site_base="", workflow
     backlinks = {e["name"]: set() for e in entries}
     for e in entries:
         pre, pairs, base = raw_sections(root, e, agents_readme)
+        pre, needs = pop_needs(pre)
         ordered, extras = organise(pre, pairs)
         if e["group"] == "agents":
             base_dir, agents_md = "agents", True
@@ -491,7 +494,7 @@ def build_pages(root, entries, meta, template, data_json, site_base="", workflow
             base_dir, agents_md = e["source"], False
         targets = set()
         rw = index.rewriter(base_dir, targets.add, agents_readme=agents_md)
-        rendered[e["name"]] = (ordered, extras, rw, prereq_hint(pairs))
+        rendered[e["name"]] = (ordered, extras, rw, prereq_hint(pairs), needs)
         if missing_example(ordered):
             sys.stderr.write("WARN: %s: no Example section (its page has no transcript)\n" % e["name"])
         # Pre-render to collect outgoing page links (for backlinks).
@@ -511,7 +514,7 @@ def build_pages(root, entries, meta, template, data_json, site_base="", workflow
     pages = {}
     names = [e["name"] for e in entries]
     for i, e in enumerate(entries):
-        ordered, extras, rw, hint = rendered[e["name"]]
+        ordered, extras, rw, hint, needs = rendered[e["name"]]
         ordered = list(ordered)
         if e["group"] == "agents":
             ordered = _with_agent_related(ordered, e, backlinks[e["name"]], site_base)
@@ -524,7 +527,7 @@ def build_pages(root, entries, meta, template, data_json, site_base="", workflow
         for fixed in ("term", "cmd", "menu", "echo", "hint", "status", "prompt-box",
                       "comments", "skill-data", "source"):
             rd.unique_id(fixed)
-        body = []
+        body = [install_section(e, rd.unique_id("install"), rd.inline(needs) if needs else "")]
         for key, title, md in ordered:
             body.append(_section(rd, title, md, example=key == "example"))
         for heading, md in extras:
@@ -616,6 +619,36 @@ def example_html(rd, md):
 
 def missing_example(ordered):
     return not any(k == "example" for k, _t, _b in ordered)
+
+
+def install_cmds(name):
+    """(bash, PowerShell) one-liners that install just this entry from a clone."""
+    return ("./scripts/install-skills.sh --skill %s" % name,
+            ".\\scripts\\install-skills.ps1 -Skill %s" % name)
+
+
+def pop_needs(md):
+    """(md without its README "Works on its own." / "Needs: ..." line, that
+    line or ""). The line belongs under the install commands on the site."""
+    m = _NEEDS_RE.search(md)
+    if not m:
+        return md, ""
+    return (md[:m.start()] + md[m.end():].lstrip("\n")).strip(), m.group(0)
+
+
+def install_section(e, sid, needs_html=""):
+    """'Install' section, first on every detail page; needs_html is the
+    rendered README needs line, shown under the commands."""
+    sh, ps = install_cmds(e["name"])
+    note = ("Install just this, from a clone of the repo. It is copied, not wired: "
+            "the installer prints the settings.json snippet to add."
+            if e["group"] == "hooks" else
+            "Install just this, from a clone of the repo. Anything it needs comes with it.")
+    needs = '<p class="needs">%s</p>\n' % needs_html if needs_html else ""
+    return ('<section class="sec" aria-labelledby="%s">\n<h2 id="%s">Install</h2>\n<p class="dim">%s</p>\n'
+            '<pre class="wf-cmd"><code>%s   # bash, Git Bash, macOS, Linux\n%s   # Windows PowerShell</code></pre>\n'
+            '%s</section>'
+            % (esc(sid), esc(sid), esc(note), esc(sh), esc(ps), needs))
 
 
 def _source_section(e):

@@ -2,6 +2,8 @@
 
 *Original. Wraps Matt Pocock's `grilling` (MIT). `SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Needs: `consult-plan`, `handoff-auto`, `next` (installed with it).
+
 ## What it does
 
 Runs the `grilling` interview on a plan or decision and leaves a paper trail in the repo: the full question → recommendation → answer transcript, and one row per settled decision in an append-only register. Everything else about the interview is unchanged.

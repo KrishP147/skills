@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Needs: `handoff-auto` (installed with it).
+
 ## What it does
 
 Watches your open pull requests (your own repo, or a fork against its upstream) until they merge.
@@ -36,7 +38,7 @@ Watches your open pull requests (your own repo, or a fork against its upstream) 
    - Cites its thread URL.
 3. **Read CI** (`gh pr checks`); a fork PR stuck at `action_required` is reported as waiting on maintainer approval, not as failing.
 4. **Fix** the valid threads through [`pair`](../pair/) (one call per PR, every valid thread's path/line/body as the task), which reruns the tests.
-   - Where subagents can't be spawned, it fixes inline on the head branch with the same gates.
+   - Where subagents can't be spawned, or `pair` isn't installed, it fixes inline on the head branch with the same gates.
 5. **Gate.** Shows the diff summary and drafted replies, and asks before pushing or replying.
    - A force push needs its own fresh yes even if the push itself was already approved.
 6. **Push, then reply and resolve.**
@@ -139,4 +141,4 @@ each wait for their own yes:
 - `gh` authenticated with `repo` scope.
 - `origin` on GitHub (otherwise it stops and says so).
 - Write access where you expect to resolve threads.
-- `pair`'s agents installed for the fix step.
+- Optional: `pair` and its agents for the fix step (without them it fixes inline).

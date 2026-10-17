@@ -117,6 +117,36 @@ class DetailPagesTest(unittest.TestCase):
             self.assertNotRegex(page, r'theme[^,;]*https?://', name)
             self.assertIn("Use cases &amp; tips from the community", page, name)
 
+    def test_install_section_first(self):
+        # Every page opens with its own one-line install, bash + PowerShell.
+        for name, page in self.pages.items():
+            first = re.search(r'<h2 id="([^"]*)">(.*?)</h2>', page)
+            self.assertEqual(first.groups(), ("install", "Install"), name)
+            self.assertIn("./scripts/install-skills.sh --skill %s   #" % name, page, name)
+            self.assertIn(".\\scripts\\install-skills.ps1 -Skill %s   #" % name, page, name)
+            self.assertEqual("copied, not wired" in page, self.by[name]["group"] == "hooks", name)
+
+    def test_needs_line_in_install_not_body(self):
+        # the README's "Works on its own." / "Needs: ..." line sits under the
+        # install commands, and nowhere else on the page
+        sec = re.compile(r'<h2 id="install">Install</h2>.*?</section>', re.S)
+        for name, page in self.pages.items():
+            if self.by[name]["group"] == "hooks":
+                continue
+            install = sec.search(page).group(0)
+            self.assertRegex(install, r'</pre>\n<p class="needs">(Works on its own\.|Needs: .+ \(installed with it\)\.)</p>', name)
+            rest = page.replace(install, "")
+            self.assertNotIn("Works on its own.", rest, name)
+            self.assertNotIn("(installed with it).", rest, name)
+        self.assertIn('<p class="needs">Needs: <code>divide</code>, <code>next</code> (installed with it).</p>',
+                      self.pages["planner"])
+
+    def test_pop_needs(self):
+        self.assertEqual(site_detail.pop_needs("Intro.\n\nNeeds: `a` (installed with it).\n\nMore."),
+                         ("Intro.\n\nMore.", "Needs: `a` (installed with it)."))
+        self.assertEqual(site_detail.pop_needs("Works on its own.\n\nIntro."), ("Intro.", "Works on its own."))
+        self.assertEqual(site_detail.pop_needs("Needs a token."), ("Needs a token.", ""))
+
     def test_sections_ordered_none_empty(self):
         titles = [t for _k, t in site_detail.SECTIONS] + ["Source"]
         h2 = re.compile(r'<h2 id="[^"]*">(.*?)</h2>')

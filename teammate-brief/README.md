@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Needs: `handoff-auto` (installed with it).
+
 ## What it does
 
 Writes a handoff document for a person joining or picking up a project. It covers:

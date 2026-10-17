@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Works on its own.
+
 ## What it does
 
 Tells you which skill or sample workflow fits a task, which model and

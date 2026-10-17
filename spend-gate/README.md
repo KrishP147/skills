@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Needs: `handoff-auto` (installed with it).
+
 ## What it does
 
 Stops Claude from running a billable action (spinning up a GPU pod, calling a paid API, buying a paid tier, spending cloud credits) without first:

@@ -18,6 +18,8 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 
 ## planner
 
+Needs: `divide`, `next` (installed with it).
+
 - **Role:** picks the next single unit of work from the board and writes the kickoff brief.
   - Read-only: `disallowedTools: Edit, Write, NotebookEdit`; never creates issues.
   - `maxTurns: 40`.
@@ -56,6 +58,8 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
   - The `next` and `divide` skills installed.
 
 ## manager
+
+Needs: `handoff-auto`, `kanban-setup`, `next`, `session-handoff`, `implementer` (installed with it).
 
 - **Role:** owns one task end to end in a worktree.
   - Never implements itself: briefs an implementer, then reviews its work as if it didn't trust it.
@@ -109,6 +113,8 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 
 ## implementer
 
+Needs: `handoff-auto`, `kanban-setup`, `next`, `session-handoff` (installed with it).
+
 - **Role:** implements one well-specified issue from a kickoff brief on its own branch.
   - `maxTurns: 200`.
 - **You pass:** the kickoff brief verbatim + branch prefix + protected branch + `decisions` (from `manager` or the orchestrator).
@@ -142,6 +148,8 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
   - Python 3.8+ (and Git Bash on Windows) for the guard hook.
 
 ## verifier
+
+Needs: `consult-plan`, `next`, `update-progress` (installed with it).
 
 - **Role:** verifies an implementation session and closes the loop.
   - `maxTurns: 120`.

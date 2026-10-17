@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Needs: `consult-plan`, `divide`, `handoff-auto`, `kanban-setup`, `meta-orchestrator`, `next`, `pair`, `progress-report`, `session-handoff`, `update-progress`, `implementer`, `manager`, `planner`, `verifier` (installed with it).
+
 ## What it does
 
 Sets how many issues a [`meta-orchestrator`](../meta-orchestrator/) run works on at once. It predicts which files each queued issue will touch, groups issues that share files into the same **lane**, proposes a lane count with a cost line, and on your yes writes the lanes into the run's `scope.md`.

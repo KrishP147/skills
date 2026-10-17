@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Needs: `handoff-auto` (installed with it).
+
 ## What it does
 
 Coordinates with another running Claude Code session or agent that might be working on the same repo.

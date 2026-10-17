@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Works on its own.
+
 ## What it does
 
 Sets reminders tied to your Claude accounts or to a time. A due reminder shows once at your next prompt, and timed ones also pop up on your desktop at the exact time.
