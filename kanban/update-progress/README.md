@@ -15,19 +15,21 @@ In a fresh session after [`session-handoff`](../session-handoff/). The `verifier
 `/update-progress [path to handoff doc]`
 
 - Omit the path to use the newest file by mtime in `skilleddocs/handoffs/` across all worktrees (then the OS temp dir).
-- Model-invocable.
+- Claude can also run it itself.
 
 ## How it works
 
 1. **Locate the handoff**: the given path, or the newest by mtime.
    - Looks in the handoff folder (`AGENTS.md`/`CLAUDE.md`'s, else `skilleddocs/handoffs/`) of every `git worktree list` entry, current first.
-   - Other worktrees' untracked files only.
-   - Skips one whose issues already carry a "verified, merged" comment.
+   - In other worktrees, only untracked files.
+   - Skips a handoff whose issues already carry a "verified, merged" comment.
    - Tied mtimes are listed and you are asked.
    - Then temp dir.
 2. **Verify claims:** `git log` over the handoff's base SHA..head (else `git merge-base <default> <branch>`).
-   - Fetches first and counts head as merged when it is on `origin/<default>` or the branch has a merged PR containing it (squash and rebase merges count; a deleted PR branch is read via the PR's `pull/<n>/head` ref; an erroring check never counts as merged).
-   - Runs the repo's test suite on the handoff's code: the default checkout (fast-forwarded) if head is merged, else the worktree with the branch checked out, else a temporary `git worktree add` of head.
+   - Fetches first. It counts head as merged when head is on `origin/<default>` or the branch has a merged PR containing it.
+     Squash and rebase merges count; a deleted PR branch is read via the PR's `pull/<n>/head` ref; a check that errors never counts as merged.
+   - Runs the repo's test suite on the handoff's code.
+     It uses the default checkout (fast-forwarded) if head is merged, else the worktree with the branch checked out, else a temporary `git worktree add` of head.
    - Doesn't trust "tests pass".
 3. **Code review** via the `code-review` skill if product code changed.
 4. **Update docs that exist** (only once the work is merged into the default branch):
@@ -39,12 +41,15 @@ In a fresh session after [`session-handoff`](../session-handoff/). The `verifier
    - Closes it and moves the card to Done if complete, verified and merged.
    - Complete and verified but unmerged → In Review with a "verified, awaiting merge" comment.
    - Otherwise sets the card/label to where it stands.
-   - Label mode: creates `status:done` first if missing; complete, verified and merged → `status:in-review` (or a never-moved `status:in-progress`) becomes `status:done`; partial/blocked keeps its label.
+   - Label mode: creates `status:done` first if missing.
+     When complete, verified and merged, `status:in-review` (or a never-moved `status:in-progress`) becomes `status:done`.
+     Partial or blocked work keeps its label.
 6. **Escalate deviations:** if the handoff's `## Board status` lists deviations/innovations, calls [`consult-plan`](../consult-plan/).
 7. **Commits the doc edits and the handoff** on the default branch.
    - The handoff is moved into the default checkout first if it sits in the task's worktree, so it can't block that branch's next merge.
-   - Handoff only if it was left uncommitted and the repo is in commit mode per [`TRACKING.md`](../../handoff-auto/TRACKING.md).
-   - A protected default branch (a PR required by classic protection or a ruleset; an unclear answer, e.g. no admin rights on the classic endpoint, means it asks) gets a `docs/` branch instead (or the repo's own branch prefix).
+   - The handoff is committed only if it was left uncommitted and the repo is in commit mode per [`TRACKING.md`](../../handoff-auto/TRACKING.md).
+   - If the default branch is protected, the edits go on a `docs/` branch instead (or the repo's own branch prefix).
+     Protected means a PR is required by classic protection or a ruleset. If the answer is unclear (e.g. no admin rights on the classic endpoint), it asks.
    - Pushes, and opens that PR, only on your yes.
 8. Ends by calling (or telling you to call) [`next`](../next/).
 
