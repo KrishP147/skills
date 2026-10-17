@@ -187,7 +187,7 @@ def main(argv):
     try:
         lines = g.lines(names)
     except UnknownWorkflow as e:
-        msg = "unknown workflow(s): %s" % e if str(e) else "no workflow named"
+        msg = "unknown workflow(s): %s" % e if str(e) else "no workflow name given"
         sys.stderr.write("error: %s\nWorkflows:\n" % msg)
         sys.stderr.write("".join("  %s\n" % ln for ln in listing(g)))
         return 2
