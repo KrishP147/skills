@@ -94,6 +94,94 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(sorted(hooks), sorted(workflow_deps.HOOK_WIRING))
 
 
+LINK_RE = re.compile(r"\]\(([^)\s]+)\)")
+
+
+def copy_like_installer(g, r, dest):
+    """Lay out a resolve() result as the installers do: flat skill dirs,
+    agents/ (+ agents/hooks/ once any agent is in), hooks/."""
+    for n in r["skill"]:
+        shutil.copytree(os.path.join(ROOT, g.by_name[n]["source"]), os.path.join(dest, "skills", n),
+                        ignore=shutil.ignore_patterns("__pycache__"))
+    if r["agent"]:
+        shutil.copytree(os.path.join(ROOT, "agents", "hooks"), os.path.join(dest, "agents", "hooks"),
+                        ignore=shutil.ignore_patterns("__pycache__"))
+    for n in r["agent"]:
+        shutil.copy(os.path.join(ROOT, "agents", n + ".md"), os.path.join(dest, "agents"))
+    for n in r["hook"]:
+        os.makedirs(os.path.join(dest, "hooks"), exist_ok=True)
+        shutil.copy(os.path.join(ROOT, "hooks", n + ".py"), os.path.join(dest, "hooks"))
+
+
+def dangling_links(dest):
+    """'file: link' for each relative .md link in an installed non-README
+    file whose target is missing from the install."""
+    out = []
+    for base, _dirs, files in os.walk(dest):
+        for f in files:
+            if not f.endswith(".md") or f == "README.md":
+                continue
+            p = os.path.join(base, f)
+            with open(p, encoding="utf-8-sig") as fh:
+                text = fh.read()
+            for url in LINK_RE.findall(text):
+                path = url.split("#")[0]
+                if not path or re.match(r"^[a-z][a-z0-9+.-]*:", path, re.I) or path.startswith("/"):
+                    continue
+                if not os.path.exists(os.path.normpath(os.path.join(base, path))):
+                    out.append("%s: %s" % (os.path.relpath(p, dest).replace(os.sep, "/"), url))
+    return out
+
+
+class NamesTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.g = workflow_deps.Graph(ROOT)
+
+    def test_each_kind_alone(self):
+        self.assertEqual(self.g.resolve(names=["switch"]), {"skill": ["switch"], "agent": [], "hook": []})
+        r = self.g.resolve(names=["planner"])
+        self.assertEqual(r["agent"], ["planner"])
+        self.assertIn("next", r["skill"])
+        self.assertIn("agent-hooks", self.g.lines(names=["planner"]))
+        self.assertEqual(self.g.resolve(names=["spend-guard"]), {"skill": [], "agent": [], "hook": ["spend-guard"]})
+
+    def test_unknown_name_raises(self):
+        with self.assertRaises(workflow_deps.UnknownName):
+            self.g.resolve(names=["switch", "no-such-thing"])
+
+    def test_union_with_workflow(self):
+        wf, one = self.g.resolve(["go-public"]), self.g.resolve(names=["switch"])
+        both = self.g.resolve(["go-public"], ["switch"])
+        for k in both:
+            self.assertEqual(set(both[k]), set(wf[k]) | set(one[k]), k)
+
+    def test_optional_edges_are_real_and_unfollowed(self):
+        # each OPTIONAL entry names a real edge source/target, and none is followed
+        for src, dsts in workflow_deps.OPTIONAL.items():
+            self.assertIn(src, self.g.kinds)
+            for d in dsts:
+                self.assertIn(d, self.g.kinds, src)
+                self.assertNotIn(d, self.g.deps[src], "%s still pulls %s" % (src, d))
+
+    def test_dangling_links_detects(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, "skills", "a"))
+            with open(os.path.join(tmp, "skills", "a", "SKILL.md"), "w") as f:
+                f.write("[ok](SKILL.md#x) [web](https://x.y) [bad](../b/BOARD.md)\n")
+            with open(os.path.join(tmp, "skills", "a", "README.md"), "w") as f:
+                f.write("[ignored](../../README.md)\n")
+            self.assertEqual(dangling_links(tmp), ["skills/a/SKILL.md: ../b/BOARD.md"])
+
+    def test_every_entry_standalone(self):
+        # each skill, agent and hook installed alone (with what it needs)
+        # links to nothing that isn't installed
+        for n in self.g.kinds:
+            with self.subTest(n), tempfile.TemporaryDirectory() as tmp:
+                copy_like_installer(self.g, self.g.resolve(names=[n]), tmp)
+                self.assertEqual(dangling_links(tmp), [])
+
+
 class CliTest(unittest.TestCase):
     def run_main(self, *argv):
         out, err = io.StringIO(), io.StringIO()
