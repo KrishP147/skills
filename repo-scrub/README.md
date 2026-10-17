@@ -31,16 +31,16 @@ Defaults to the current repo. Only you can run it (`disable-model-invocation: tr
 
 1. **Prereqs and target** — version-checks each tool (stops with the install command if one is missing), then `gh repo view … --json name,owner,isPrivate,defaultBranchRef` and confirms you accept a history rewrite + force-push.
    - `<tmp>` is one `mktemp -d` path, echoed once.
-   - Lists every other remote in your clone (each is its own copy of the history, scanned, rewritten and pushed to on a yes).
-   - Lists every submodule (a separate repo to scrub on its own; relative URLs flagged).
+   - Lists every other remote in your clone. Each holds its own copy of the history, so it is scanned, rewritten and pushed to on a yes.
+   - Lists every submodule. Each is a separate repo to scrub on its own; relative URLs are flagged.
 2. **Git LFS bail-out** — stops with a warning if the root `.gitattributes` shows LFS-tracked paths; `git filter-repo` has no LFS awareness.
    - The same check runs over all history in step 3 to catch nested files and other branches.
 3. **Scan (throwaway clone #1)**
    - `gitleaks git --log-opts="--all -m"` (or `detect --source` pre-8.19) over all history, merge commits included (a secret added only in a conflict resolution is invisible without `-m`).
    - Other remotes' branches fetched in, `git filter-repo --analyze`.
    - [`scripts/summarize_findings.py`](scripts/summarize_findings.py) merges them into `findings.json`, written to a work dir *outside* the clone.
-     Secrets get IDs `S1…`: deduped by rule + value, or by location when the value is empty; fingerprint only, no raw value on disk.
-     Large blobs get IDs `L1…`: sized by bytes accumulated across all versions of that path in history.
+     Secrets get IDs `S1…`, deduped by rule and value (or by location when the value is empty). Only a fingerprint is stored; no raw value goes to disk.
+     Large blobs get IDs `L1…`, sized by the bytes of every version of that path in history added up.
    - Personal strings handed over by `repo-showcase` (or named by you) get a `git log --all -m -S'<string>'` and `--grep` check each, since gitleaks has no rule for names or emails; hits become `P1…`.
    - Emails in commit messages and author/committer identities other than yours are found the same way (`git log --all --format=…`).
    - Signed commits and tags are counted: a rewrite drops every signature.
@@ -132,5 +132,5 @@ Defaults to the current repo. Only you can run it (`disable-model-invocation: tr
 ## Prereqs
 
 - `gh` (authenticated), [`gitleaks`](https://github.com/gitleaks/gitleaks), [`git-filter-repo`](https://github.com/newren/git-filter-repo), and Python for the helper scripts.
-- Install commands are in the [top README](../README.md#install); the skill also prints the right one if a tool is missing.
+- Install commands are in the [top README](../README.md#update); the skill also prints the right one if a tool is missing.
 - No separate sizing tool: before/after repo size comes from `git count-objects -vH`.

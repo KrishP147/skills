@@ -45,8 +45,8 @@ Defaults to the current repo. Claude also runs it when you say one of the phrase
    - One-line pitch.
    - Result.
    - Demo media placeholder(s) the user fills in themselves (never a fabricated screenshot/GIF/metric).
-   - Quickstart, actually run from a clean clone. Installs go in a temp prefix or venv, never global, and never by registry name unless that registry entry's repository URL is this repo.
-   - The quickstart result is reported; a step whose toolchain isn't installed on this machine is reported `not run: <tool> missing` and kept, never dropped.
+   - Quickstart, actually run from a clean clone. Installs go in a temp prefix or venv, never global. It installs by registry name only when that registry entry's repository URL is this repo.
+   - The quickstart result is reported. A step whose tool isn't installed on this machine is reported as `not run: <tool> missing` and kept, never dropped.
    - Architecture only if the audience needs it.
    - Credits.
 5. **Scan for secrets and private names**

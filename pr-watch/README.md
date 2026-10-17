@@ -37,7 +37,7 @@ Watches your open pull requests (your own repo, or a fork against its upstream) 
    - Classifies each unresolved one as valid / outdated / disagree / question.
    - Cites its thread URL.
 3. **Read CI** (`gh pr checks`); a fork PR stuck at `action_required` is reported as waiting on maintainer approval, not as failing.
-4. **Fix** the valid threads through [`pair`](../pair/) (one call per PR, every valid thread's path/line/body as the task), which reruns the tests.
+4. **Fix** the valid threads through [`pair`](../pair/), which reruns the tests. One call per PR, with every valid thread's path, line and body as the task.
    - Where subagents can't be spawned, or `pair` isn't installed, it fixes inline on the head branch with the same gates.
 5. **Gate.** Shows the diff summary and drafted replies, and asks before pushing or replying.
    - A force push needs its own fresh yes even if the push itself was already approved.
@@ -46,7 +46,7 @@ Watches your open pull requests (your own repo, or a fork against its upstream) 
    - Resolves only threads it just fixed or proved outdated by reading the current diff, and only after another explicit yes.
    - Never resolves a disagree/question thread, which gets a reply and stays open.
 7. **Optional bot re-trigger** (`@coderabbitai review`), only on a fresh yes.
-   - Notes that bots frequently never run on fork PRs at all.
+   - Bots often never run on fork PRs at all; it says so.
 8. **Watches** (`Monitor` or a bounded poll, never a blind sleep) until merged/closed/stopped, re-reading threads and CI every pass.
 9. **Logs** every pass to `skilleddocs/pr-watch/<local-date>-<repo>.md` in the repo you're working from, one file per PR repo.
    - Committed or untracked per [TRACKING.md](../handoff-auto/TRACKING.md) (always untracked on a fork).

@@ -48,7 +48,7 @@ Claude also runs it when you say one of the phrases above.
 5. **Ownership map** — area/path -> who to ask.
 6. **Don't-touch list** — what to leave alone and why, per item.
 7. **Draft, then write** — shows the full draft before writing.
-   - Saves to `skilleddocs/briefs/<name>-<local-date>.md` on confirmation (`teammate` when no name was given).
+   - On your yes, saves it to `skilleddocs/briefs/<name>-<local-date>.md`. With no name given, `<name>` is `teammate`.
 8. **Gate.**
    - Commits only when [`TRACKING.md`](../handoff-auto/TRACKING.md) allows it and on yes.
    - Pushes only on a separate yes.
