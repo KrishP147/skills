@@ -19,9 +19,9 @@
     ],
     "tested": [
       "grill-me", "wayfinder", "score-loop", "repo-showcase", "pr-watch",
-      "teammate-brief", "ponytail"
+      "teammate-brief", "ponytail", "switch"
     ],
-    "new": ["switch"]
+    "new": []
   },
   "aliases_note": "Extra search words per name for the slash prompt. Lowercase a-z, 0-9, -; never an existing name.",
   "aliases": {
