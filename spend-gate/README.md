@@ -22,8 +22,8 @@ Stops Claude from running a billable action (spinning up a GPU pod, calling a pa
 
 ## How to invoke
 
-Model-invocable - Claude reaches for it on its own before a billable action.
-You can also invoke it directly:
+Claude runs it on its own before a billable action.
+You can also run it directly:
 
 ```
 /spend-gate
