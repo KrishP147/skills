@@ -75,6 +75,6 @@ Grills a proposed change, deviation or new idea against the repo's existing plan
 ## Prereqs
 
 - `gh`, authenticated, and `origin` on GitHub.
-- On a fork it asks which repo to write to (fork issues off: it reads the parent).
+- On a fork it asks which repo to write to. If the fork has issues turned off (GitHub's default), it reads issues from the parent.
 - Projects v2 boards also need the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)); label mode doesn't.
 - [`grilling`](../../grilling/) installed.

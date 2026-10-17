@@ -34,7 +34,7 @@ Ends an implementation session tied to a GitHub issue: writes the handoff docume
 
 ## Design principles
 
-- **Record reality, not hope.** Only a complete session (the issue's done-when is met; deviations are listed, the done-when is not rewritten) moves the card to In Review; partial or blocked work stays In Progress, and a blocked one gets an issue comment saying why.
+- **Record reality, not hope.** Only a complete session moves the card to In Review. Complete means the issue's done-when is met: deviations are listed, and the done-when is not rewritten to fit. Partial or blocked work stays In Progress, and a blocked one gets an issue comment saying why.
 - **Wrap, don't duplicate.** The document itself comes from `handoff-auto`; this skill only adds board status and the card move.
 - **Path last.** The handoff path is the final line, so the `implementer` agent's caller can read it.
 

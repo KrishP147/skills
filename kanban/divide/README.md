@@ -6,7 +6,7 @@ Needs: `next` (installed with it).
 
 ## What it does
 
-Splits an issue (or a described task) that's too big for one session into two or more session-sized issues (about the ~75K-token smart zone, one PR).
+Splits an issue (or a described task) that's too big for one session into two or more session-sized issues (each fits the ~75K-token smart zone and one PR).
 
 - Links them from the parent.
 - Puts them on the board.
@@ -88,5 +88,5 @@ You say yes.
 ## Prereqs
 
 - `gh`, authenticated, `origin` on GitHub (otherwise it stops and says so).
-- On a fork it asks which repo to write to (fork issues off: it reads the parent).
+- On a fork it asks which repo to write to. If the fork has issues turned off (GitHub's default), it reads issues from the parent.
 - Projects v2 boards need the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)).

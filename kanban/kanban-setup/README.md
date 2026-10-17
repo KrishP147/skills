@@ -26,7 +26,7 @@ Default `current`. Only you can run it (`disable-model-invocation: true`), becau
 1. **Prereq:** `gh auth status` must list the `project` scope.
    - Otherwise offers `gh auth refresh -s project -s read:project` (you run it) or label mode.
    - Stops until you pick.
-2. **Board (read-only until you say yes):** looks for `<repo> Board` per `next`'s [`BOARD.md`](../next/BOARD.md) and, if it exists, checks the Status field via `gh project field-list` for an "In Review" option (the default only has Todo/In Progress/Done).
+2. **Board (read-only until you say yes):** looks for `<repo> Board` as described in `next`'s [`BOARD.md`](../next/BOARD.md). If the board exists, it checks its Status field (`gh project field-list`) for an "In Review" option; the default field only has Todo/In Progress/Done.
    - Nothing is created in this step.
    - Label mode (four `status:*` labels instead of a board) is used when you ask for it, the `project` scope isn't granted, or the owner can't create projects.
 3. **Scan:** README "Roadmap"/"TODO" sections, `TODO`/`FIXME` comments, `CHANGELOG.md`, `docs/` and plan-like docs; skips `skilleddocs/`, `node_modules`, `.venv` and vendored dirs.

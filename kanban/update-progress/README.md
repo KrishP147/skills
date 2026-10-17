@@ -25,11 +25,11 @@ In a fresh session after [`session-handoff`](../session-handoff/). The `verifier
    - Looks in the handoff folder (`AGENTS.md`/`CLAUDE.md`'s, else `skilleddocs/handoffs/`) of every `git worktree list` entry, current first.
    - In other worktrees, only untracked files.
    - Skips a handoff whose issues already carry a "verified, merged" comment.
-   - Tied mtimes are listed and you are asked.
-   - Then temp dir.
+   - If several share the newest mtime, it lists them and asks you.
+   - If none is found there, it checks the OS temp dir.
 2. **Verify claims:** `git log` over the handoff's base SHA..head (else `git merge-base <default> <branch>`).
-   - Fetches first. It counts head as merged when head is on `origin/<default>` or the branch has a merged PR containing it.
-     Squash and rebase merges count; a deleted PR branch is read via the PR's `pull/<n>/head` ref; a check that errors never counts as merged.
+   - Fetches first. Head counts as merged when it is on `origin/<default>` or the branch has a merged PR containing it.
+     Squash and rebase merges count. A deleted PR branch is read via the PR's `pull/<n>/head` ref. A check that errors never counts as merged.
    - Runs the repo's test suite on the handoff's code.
      It uses the default checkout (fast-forwarded) if head is merged, else the worktree with the branch checked out, else a temporary `git worktree add` of head.
    - Doesn't trust "tests pass".
