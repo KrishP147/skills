@@ -1,7 +1,7 @@
 ---
 name: switch
 description: Move this conversation to another Claude account (the previous one, or one by name), or add, remove, rename and list accounts.
-argument-hint: "[account name] | add <name> | remove <name> [--delete-dir] | rename <old> <new> | list"
+argument-hint: "[account name] | add <name> | remove <name> [--delete-dir] | rename <old> <new> | list | theme <name> [theme]"
 disable-model-invocation: true
 allowed-tools:
   - Bash("${CLAUDE_SWITCH_PYTHON:-python3}" "${CLAUDE_SKILL_DIR}/scripts/claude_switch.py" request:*)
@@ -9,6 +9,7 @@ allowed-tools:
   - Bash("${CLAUDE_SWITCH_PYTHON:-python3}" "${CLAUDE_SKILL_DIR}/scripts/claude_switch.py" remove:*)
   - Bash("${CLAUDE_SWITCH_PYTHON:-python3}" "${CLAUDE_SKILL_DIR}/scripts/claude_switch.py" rename:*)
   - Bash("${CLAUDE_SWITCH_PYTHON:-python3}" "${CLAUDE_SKILL_DIR}/scripts/claude_switch.py" list:*)
+  - Bash("${CLAUDE_SWITCH_PYTHON:-python3}" "${CLAUDE_SKILL_DIR}/scripts/claude_switch.py" theme:*)
 ---
 
 Pick the branch by the first word of `$ARGUMENTS` and run only its commands with the Bash tool, exactly as written, no text before the first one.
@@ -21,7 +22,7 @@ Pick the branch by the first word of `$ARGUMENTS` and run only its commands with
 
 Show its output as is. `switching to '<name>'` means the launcher ends this session and reopens it on the new account, which asks for a login; add nothing.
 
-**`rename <old> <new>`** or **`list`**:
+**`rename <old> <new>`**, **`list`** or **`theme <name> [theme]`**:
 
 ```
 "${CLAUDE_SWITCH_PYTHON:-python3}" "${CLAUDE_SKILL_DIR}/scripts/claude_switch.py" $ARGUMENTS

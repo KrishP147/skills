@@ -10,7 +10,9 @@ dir, and moves a live conversation from one to another. Start Claude with
 `/switch` closes it and reopens the same conversation on your previous
 account, `/switch <name>` on a named one. `/switch add|remove|rename|list`
 manages the accounts; new ones share skills, settings and history with
-the first.
+the first. A statusline shows which account you're on and how much of
+its session and weekly limits is used, and warns you near the limit
+with the account that has the most room left.
 
 ## When to use
 
@@ -44,9 +46,12 @@ Then, in a new shell, `claude` or `claude-alt`, and inside a session:
 /switch remove <name> [--delete-dir]
 /switch rename <old> <new>
 /switch list
+/switch theme <name> [dark|light|...|-]
 ```
 
-User-invoked only; Claude never switches on its own.
+User-invoked only; Claude never switches on its own. To take the
+statusline and hook back out of `settings.json`:
+`python3 claude_switch.py setup --uninstall`.
 
 ## How it works
 
@@ -101,6 +106,44 @@ User-invoked only; Claude never switches on its own.
    last use and which one you're on. **`migrate`** registers `~/.claude`
    and every `~/.claude-<name>` dir holding `.credentials.json`,
    `.claude.json` or `projects/`; it only reads them and links nothing.
+   Renaming the account you're on is fine: the launcher looks it up by
+   its dir at the next switch.
+9. **Statusline.** Setup also writes a `statusLine` (refreshed every 60
+   s) into the shared `settings.json`, the first account's, which `add`
+   links into the others. It prints the account name in its colour, then
+   `session 42% · 2h13m left  week 18% · 4d6h left` from Claude Code's
+   `rate_limits.five_hour` / `seven_day` fields (`-` until Claude reports
+   them; they only exist for Pro and Max plans). A statusline you had
+   before is never overwritten: setup records it in the registry, the
+   new one runs it with the same input and puts its output on the same
+   line, and `setup --uninstall` puts it back. Settings are backed up to
+   `~/.claude-switch/backups/` and written in place, so a linked
+   `settings.json` stays linked.
+10. **Usage guard.** The statusline caches each account's last seen
+    usage in `~/.claude-switch/usage/<account>.json`. With two or more
+    accounts, a `UserPromptSubmit` hook warns once when the account
+    crosses 90% and once at 97% in a window: `main at 91%: run /switch
+    alt`, naming the account with the most room (a window past its reset
+    counts as empty).
+11. **`/switch` at 100%.** The same hook catches a typed `/switch` or
+    `/switch <name>`, writes the launcher's request and blocks the
+    prompt, so the switch makes no API call and works on an account that
+    is out of usage. Claude Code passes a typed skill line to this hook
+    as typed, before the skill expands (hooks reference, section
+    "UserPromptSubmit input"; blocking per "UserPromptSubmit decision
+    control"). `add`, `remove`, `rename`, `list` and `theme` still go
+    through the skill.
+12. **Theme and title.** `/switch theme <name> <theme>` gives an account
+    its own Claude theme: the launcher passes it as
+    `--settings '{"theme":...}'`, merged with a `--settings` you passed
+    yourself (yours wins on the same key). It also sets the terminal tab
+    title to `claude: <name>` at each start and switch, and prints the
+    switch line in the target account's colour.
+
+Launcher-only: the switch itself, the theme, the tab title and the
+rename pickup need Claude started with `claude` or `claude-<name>`.
+The statusline and the guard work in any session that reads the shared
+`settings.json`; `/switch` outside a launcher prints the setup steps.
 
 ## Flow
 
@@ -127,6 +170,9 @@ flowchart TD
 - **Show before writing.** Setup prints the exact profile diff and asks;
   later account commands only rewrite the marked block in the files setup
   recorded, and print each path they change.
+- **Wrap, never replace.** Setup adds one statusline and one hook to
+  `settings.json`, keeps a statusline you had and runs it, and
+  `--uninstall` removes only what it added.
 - **Deleting never follows a link.** Shared history lives behind every
   account's `projects/` link, so a delete that recursed through one would
   wipe it for all accounts.
@@ -134,7 +180,8 @@ flowchart TD
 ## Use cases
 
 - Out of usage on one account: `/switch` and keep going in the same
-  conversation on the other.
+  conversation on the other; the hook does it without an API call.
+- The guard says `main at 91%: run /switch alt` before you run out.
 - Two terminals, two accounts, both switching back and forth all day.
 - A new login that should see your skills and history from the start:
   `/switch add work`, log in, carry on.
@@ -167,6 +214,16 @@ flowchart TD
   `Set-Content` writes ANSI): save it as UTF-8 and rerun.
 - An old `~/.claude-switch` *file* from earlier scripts is moved aside to
   `~/.claude-switch.stale-<time>`.
+- On Windows Claude Code runs the statusline and hook commands through
+  Git Bash when it is installed, else PowerShell (statusline docs,
+  "Windows configuration"). Setup writes them with forward slashes and
+  short (8.3) names for paths with spaces, so the same line works in
+  both.
+- An account registered by `setup` or `migrate` with its own
+  `settings.json` (not linked from the first) doesn't get the statusline
+  or the hook; only the first account's file is written.
+- Theme names are Claude Code's: `dark`, `light`, `dark-daltonized`,
+  `light-daltonized`, `dark-ansi`, `light-ansi`. `-` clears it.
 
 ## Example
 
