@@ -1342,6 +1342,7 @@ def plan_settings(reg, install, accounts=None, keep=()):
     Updates reg["settings"] (each file's original statusLine). A file that
     isn't a UTF-8 JSON object is left alone."""
     states = settings_states(reg)
+    home = settings_files(reg)[0]
     plan = []
     for path in settings_files(reg, accounts):
         if any(_same(path, k) for k in keep):
@@ -1355,7 +1356,10 @@ def plan_settings(reg, install, accounts=None, keep=()):
             print("warning: %s is not a JSON object; statusline and hooks not changed" % path)
             continue
         key = _state_key(states, path)
-        new, state = apply_settings(cur, states.get(key), install)
+        st = states.get(key)
+        if st is None and is_our_statusline(cur.get("statusLine")):  # a copy of the first file (add's copy, split hardlink)
+            st = states.get(_state_key(states, home))
+        new, state = apply_settings(cur, st, install)
         if state is None:
             states.pop(key, None)
         else:

@@ -539,6 +539,18 @@ class AccountSettingsTest(Base):
         self.assertEqual(json.loads(self.alt_s.read_text()), {"statusLine": self.THEIRS})
         self.assertEqual(set(self.originals()), {self.key(self.main_s), self.key(mig / "settings.json")})
 
+    def test_copy_inherits_original(self):
+        """A copy of a written file (add's copy fallback, a split hardlink) gets the first file's original."""
+        self.main_s.write_text(json.dumps({"statusLine": self.THEIRS}))
+        self.main("setup", "--profile=bash=%s" % self.bashrc, "--yes", "--account", "main=%s" % self.main_s.parent)
+        self.alt_s.write_text(self.main_s.read_text())
+        rc, out = self.setup()
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.originals()[self.key(self.alt_s)], self.THEIRS)
+        self.setup("--uninstall")
+        for p in (self.main_s, self.alt_s):
+            self.assertEqual(json.loads(p.read_text()), {"statusLine": self.THEIRS}, p)
+
 
 class ThemeTest(Base):
     def test_overlay_and_merge(self):

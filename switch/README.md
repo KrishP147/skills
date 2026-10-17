@@ -123,7 +123,8 @@ statusline and hook back out of `settings.json`:
    linked between accounts is written once, and an account whose dir
    doesn't exist yet is skipped (rerun setup after its first login).
    `add` and `migrate` do the same for a new account with its own file;
-   `remove` takes them out of a file no other account uses. It prints the account name in its colour, then
+   `remove` takes them out of a file no other account uses. The
+   statusline prints the account name in its colour, then
    `session 42% · 2h13m left  week 18% · 4d6h left` from Claude Code's
    `rate_limits.five_hour` / `seven_day` fields (`-` until Claude reports
    them; they only exist for Pro and Max plans). A statusline you had
