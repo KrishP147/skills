@@ -149,7 +149,7 @@ preview deploys.
   inherited from a group README; entries in no workflow get no section.
 - **Warning.** An entry with no Example prints
   `WARN: <name>: no Example section ...` on stderr (the build still
-  succeeds); a test keeps all 34 entries at zero warnings.
+  succeeds); a test keeps all 35 entries at zero warnings.
 - **Back home.** A visible `← all commands` link above the echoed command;
   on the prompt, Esc clears the text, then (bare `/`, menu open or not)
   goes home. On the home page Esc never navigates.

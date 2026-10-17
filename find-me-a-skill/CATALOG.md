@@ -29,6 +29,7 @@ Install section.
 | ponytail | skill | sonnet | medium | `/ponytail` | Lazy senior dev mode: the smallest change that fully solves the task, and a reply a busy human understands in one read. | lazy-fix-handoff |
 | pr-watch | skill | sonnet | high | `/pr-watch` | Watch the user's open PRs to merge — read bot and human review threads, fix valid ones via pair, reply to or resolve the rest with evidence, report CI; every push, reply, and resolve gated on a yes. | pair-to-pr |
 | progress-report | skill | sonnet | low | `/progress-report` | Write a short progress report of what an orchestrated or long session did since the last report (never overlapping): done, what worked, what didn't, concerns, decisions made for the user, manual steps. | unattended-backlog, brief-a-teammate |
+| remind | skill (user only) | haiku | low | `/remind` | Set a reminder for when an account's session or weekly limit resets, when its usage drops under a percentage, or at a time; list or cancel them. | usage-limit |
 | repo-scrub | skill (user only) | opus | high | `/repo-scrub` | Scan a GitHub repo's full history for secrets and large files, scrub what the user picks, rewrite history safely, then flip it private → public. | go-public |
 | repo-showcase | skill | sonnet | high | `/repo-showcase` | Make a repo public-facing on its working tree — README rewritten around outcome and demo, stale docs pruned, outdated claims fixed, secrets and private names found, GitHub metadata proposed — then hand off to /repo-scrub. | go-public |
 | score-loop | skill | opus | high | `/score-loop` | Run an unattended experiment loop that hill-climbs one rerunnable numeric score — local grader-mirroring harness, one hypothesis per commit, keep only gains beyond the noise margin, auto-revert the rest, append-only results ledger; stops on budget, deadline or plateau. | climb-a-score |
@@ -205,4 +206,5 @@ human-in-the-loop points: nothing continues without you.
 3. you: The statusline shows the account and its session and weekly use; near the limit a warning names the account with the most room. Type /switch or /switch <name>; it is user-only, so Claude can't start it.
 4. /switch (skill, haiku · low): A prompt hook writes a request for this terminal's launcher only, with no API call so it works at 100%; the launcher ends the session and resumes it on the target account (--continue when --resume fails).
 5. /sitrep (skill, haiku · low): On the new account, lists what was running and asked vs done, so nothing from before the move is lost.
-6. you: Carry on; /switch with no name goes back to the account you came from.
+6. /remind (skill, haiku · low): /remind when <old account>'s session limit resets takes the reset time from the usage cache and pops a toast then; the next prompt on any account says it once.
+7. you: Carry on; /switch with no name goes back to the account you came from.
