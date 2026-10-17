@@ -2,7 +2,7 @@
 """Run several Claude Code accounts (one CLAUDE_CONFIG_DIR each) and move a
 live conversation between them. Stdlib only.
 
-  run [name|-] [claude args]   launcher loop; '-' or no known name = most recent
+  run [name|-] [claude args]   launcher loop; '-' or no name = most recent
   request [name] --session ID  ask the launcher this session runs under to switch
   setup [--account NAME=DIR ...] [--profile SHELL=PATH ...] [--yes]
                                register accounts, write shell wrappers
@@ -321,10 +321,14 @@ def cmd_run(argv):
     if not reg["accounts"]:
         print(setup_steps(), file=sys.stderr)
         return 2
-    if argv and (argv[0] == "-" or find(reg, argv[0])):
+    if argv and not argv[0].startswith("-"):  # wrappers pass '-' or a name first
         name, args = argv[0], list(argv[1:])
+        if not find(reg, name):
+            print("claude-switch: unknown account '%s'. accounts: %s"
+                  % (name, ", ".join(a["name"] for a in reg["accounts"])), file=sys.stderr)
+            return 2
     else:
-        name, args = "-", list(argv)
+        name, args = "-", list(argv[1:] if argv[:1] == ["-"] else argv)
     acct = most_recent(reg) if name == "-" else find(reg, name)
     claude = find_claude()
     req_path = ensure_home() / "requests" / ("%d.json" % os.getpid())
@@ -452,7 +456,10 @@ def read_text(p):
     except FileNotFoundError:
         return "", False
     bom = raw.startswith(b"\xef\xbb\xbf")
-    return raw.decode("utf-8-sig"), bom
+    try:
+        return raw.decode("utf-8-sig"), bom
+    except UnicodeDecodeError:
+        raise SystemExit("claude-switch: %s is not UTF-8; save it as UTF-8 and rerun setup" % p)
 
 
 def plan_setup(reg, targets, py, script):

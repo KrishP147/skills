@@ -259,6 +259,15 @@ class SetupTest(Base):
         self.assertEqual(sorted(x.name for x in self.profiles()["cmd"].iterdir()),
                          ["claude-main.cmd", "claude-mine.cmd", "claude.cmd"])
 
+    def test_non_utf8_profile_refused(self):
+        p = self.profiles()["powershell"]
+        p.parent.mkdir(parents=True)
+        p.write_bytes(b"# caf\xe9\r\n")  # ANSI-encoded, as PowerShell 5.1 Set-Content writes
+        with self.assertRaises(SystemExit) as e:
+            self.setup()
+        self.assertIn("not UTF-8", str(e.exception))
+        self.assertEqual(p.read_bytes(), b"# caf\xe9\r\n")
+
     def test_no_yes_writes_nothing(self):
         with mock.patch("builtins.input", side_effect=EOFError):
             rc, out = self.setup("alt=%s" % self.tmp, yes=False)
@@ -357,8 +366,12 @@ class LauncherTest(Base):
         rc, _, _ = self.finish(self.launch("-", FAKE_EXIT="3"))
         self.assertEqual(rc, 3)
         self.assertEqual([e["account"] for e in self.log()], ["alt"])
-        rc, _, _ = self.finish(self.launch("hello"))  # not an account: passed to claude
-        self.assertEqual(self.log()[-1]["args"], ["hello"])
+        rc, _, _ = self.finish(self.launch("--model", "x"))  # no name: most recent, args to claude
+        self.assertEqual((rc, self.log()[-1]["account"], self.log()[-1]["args"]), (0, "alt", ["--model", "x"]))
+        rc, _, err = self.finish(self.launch("gone", "hi"))  # stale claude-<name> wrapper
+        self.assertEqual(rc, 2)
+        self.assertIn("unknown account 'gone'. accounts: main, alt", err)
+        self.assertEqual(len(self.log()), 2)  # claude not started
 
     def test_two_launchers_dont_cross(self):
         a = self.launch("main", log="a.jsonl", FAKE_SWITCH_TO="alt", FAKE_SESSION=SID)
