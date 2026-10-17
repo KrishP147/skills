@@ -19,7 +19,7 @@ Later layers override earlier ones:
 3. The repo's `AGENTS.md` / `CLAUDE.md` rules.
 4. Arguments passed to this run.
 
-Any key settled by layers 2–4 is not asked again.
+Any key settled by layers 2–4 is not asked again. `execution:` in any layer (an old scope.md, `orchestrator-defaults.md`, `execution=flat`) reads as `shape:` (D419); `implementer_model: planner` reads as `size`.
 
 ## 3. Interview
 
@@ -29,7 +29,7 @@ Use the AskUserQuestion tool when available (≤4 questions per call, recommende
 
 | Round | Keys |
 |---|---|
-| 1. Run shape | `scope`, `exclude`, `stop`, `execution`, `parallel` + `lanes` (run the [`lanes`](../lanes/SKILL.md) grouping on the queue instead of asking a bare number) |
+| 1. Run shape | `scope`, `exclude`, `stop`, `shape`, `parallel` + `lanes` (run the [`lanes`](../lanes/SKILL.md) grouping on the queue instead of asking a bare number) |
 | 2. Control | `merge`, `merge_style`, `pr_body`, `interview`, `decisions`, `escalate` |
 | 3. Documentation | `docs`, `docs_commit`, `reports`, `report_format` + `ledger_detail` |
 | 4. Models and pacing | `implementer_model`, `review_model`, `handoff_budget`, `notify` |
@@ -44,8 +44,8 @@ Use the AskUserQuestion tool when available (≤4 questions per call, recommende
 | `exclude` | gated / people / external-input issues · custom labels | planner drops these; `wayfinder:*` issues are always excluded (planning tickets, worked only via `/wayfinder`) |
 | `order` | priority label → board order → oldest · roadmap order · explicit | planner's ordering |
 | `stop` | queue empty · after N merges (per run, not reset on resume) · after a time box | when SKILL.md §7 "done" applies |
-| `execution` | `pair` · `flat` | manager per issue, or implementer directly |
-| `parallel` | 1 · the count [`lanes`](../lanes/SKILL.md) proposes (file-disjoint groups of the queue) | concurrent issues, one worktree per lane; `lanes:` maps each named lane to its issues |
+| `shape` | `pair` · `auto` (planner picks per brief) · `swarm` · `flat` | SKILL.md §2 Shape |
+| `parallel` | 1 · the count [`lanes`](../lanes/SKILL.md) proposes (file-disjoint groups of the queue) | concurrent issues, one worktree per lane; swarm: haiku implementers at once; `lanes:` maps each named lane to its issues |
 | `target_repo` | `origin`'s repo · on a fork, asked: the fork or the parent (the parent only on an explicit yes naming it) | every `gh` write (issues, cards, PRs); per the `next` skill's `BOARD.md`, Target repo section |
 | `merge` | `auto` when the gate is green · `ask` before each merge · `pr-only` (open PRs, user merges) | SKILL.md §3 step 3 |
 | `merge_style` | repo's existing style · squash · merge commit · rebase | how PRs land |
@@ -58,7 +58,7 @@ Use the AskUserQuestion tool when available (≤4 questions per call, recommende
 | `report_format` | markdown · docx | progress-report output |
 | `ledger_detail` | `standard` · `terse` · `verbose` | ledger entry size |
 | `pr_body` | summary + `Closes #n` · detailed (changes, tests, risks) | PR descriptions |
-| `implementer_model` | `planner` (its recommendation) · `sonnet` · `opus` | implementer model |
+| `implementer_model` | `size` (SKILL.md §1 size rule) · `sonnet` · `opus` | implementer model |
 | `review_model` | opus · sonnet | planner, manager, verifier |
 | `handoff_budget` | 10 merges · 5 · 20 · custom | rotation point (ROTATION.md) |
 | `notify` | `none` · `blockers` · `all` (blockers + merges + finish) | needs the PushNotification tool |

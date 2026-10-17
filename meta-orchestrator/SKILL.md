@@ -27,7 +27,7 @@ Every `key` below is a field of that contract. Respect the repo's `skilleddocs/`
 
 Each agent is `<name>` (e.g. `manager`), or `krish:<name>` (e.g. `krish:manager`) when installed as the plugin; pass that as `subagent_type`.
 
-Models: `review_model` for planner/manager/verifier. Implementer by size (D416): trivial → `haiku`, small/medium → `sonnet`, large or risky → `opus`; the brief or `implementer_model` (other than `size`) overrides. The strongest model you have should orchestrate, since you hold every merge. `haiku` only for mechanical no-judgment chores (board moves, filing a pre-written issue, labels, CI log triage, read-only recon, doc count/link fixes, a spelled-out conflict resolution) or a trivial implementer (swarm items included); never for design calls, assumed decisions, code review, verifier, manager or the merge gate.
+Models: `review_model` for planner/manager/verifier. Implementer by size (D416): trivial → `haiku`, small/medium → `sonnet`, large or risky → `opus`; the brief or `implementer_model` (unless `size` or the old `planner`) overrides. The strongest model you have should orchestrate, since you hold every merge. `haiku` only for mechanical no-judgment chores (board moves, filing a pre-written issue, labels, CI log triage, read-only recon, doc count/link fixes, a spelled-out conflict resolution) or a trivial implementer (swarm items included); never for design calls, assumed decisions, code review, verifier, manager or the merge gate.
 
 ## 2. Loop
 
