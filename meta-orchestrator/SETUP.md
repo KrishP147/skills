@@ -19,7 +19,7 @@ Later layers override earlier ones:
 3. The repo's `AGENTS.md` / `CLAUDE.md` rules.
 4. Arguments passed to this run.
 
-Any key settled by layers 2–4 is not asked again. `execution:` in any layer (an old scope.md, `orchestrator-defaults.md`, `execution=flat`) reads as `shape:` (D419); `implementer_model: planner` reads as `size`.
+Any key settled by layers 2–4 is not asked again. `execution:` in any layer (an old scope.md, `orchestrator-defaults.md`, `execution=flat`) reads as `shape:`; `implementer_model: planner` reads as `size`.
 
 ## 3. Interview
 
