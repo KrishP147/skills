@@ -26,7 +26,7 @@ Watches your open pull requests (your own repo, or a fork against its upstream) 
 
 - No argument: every open PR authored by you, across repos.
 - `--once` runs a single pass and reports instead of watching.
-- Model-invocable, so "watch my PRs until they're merged" also works without the slash.
+- Claude also runs it from a plain request like "watch my PRs until they're merged".
 
 ## How it works
 
@@ -37,13 +37,13 @@ Watches your open pull requests (your own repo, or a fork against its upstream) 
 3. **Read CI** (`gh pr checks`); a fork PR stuck at `action_required` is reported as waiting on maintainer approval, not as failing.
 4. **Fix** the valid threads through [`pair`](../pair/) (one call per PR, every valid thread's path/line/body as the task), which reruns the tests.
    - Where subagents can't be spawned, it fixes inline on the head branch with the same gates.
-5. **GATE** — shows the diff summary and drafted replies and asks before pushing or replying.
+5. **Gate.** Shows the diff summary and drafted replies, and asks before pushing or replying.
    - A force push needs its own fresh yes even if the push itself was already approved.
 6. **Push, then reply and resolve.**
    - Replies to every thread with the fixing commit's SHA (or, for disagree/question threads, the reasoning).
    - Resolves only threads it just fixed or proved outdated by reading the current diff, and only after another explicit yes.
    - Never resolves a disagree/question thread, which gets a reply and stays open.
-7. **Optional bot re-trigger** (`@coderabbitai review`) only on a fresh yes.
+7. **Optional bot re-trigger** (`@coderabbitai review`), only on a fresh yes.
    - Notes that bots frequently never run on fork PRs at all.
 8. **Watches** (`Monitor` or a bounded poll, never a blind sleep) until merged/closed/stopped, re-reading threads and CI every pass.
 9. **Logs** every pass to `skilleddocs/pr-watch/<local-date>-<repo>.md` in the repo you're working from, one file per PR repo.
