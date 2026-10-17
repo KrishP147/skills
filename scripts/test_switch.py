@@ -776,25 +776,24 @@ class AccountBoundTest(Base):
         sub = self.transcript.with_suffix("") / "subagents"
         agent_file(sub, "done", True, 3600)
         agent_file(sub, "stuck", False, 3600)
-        agent_file(sub, "fresh", True, 30)
-        self.assertEqual(cs.live_agents(str(self.transcript)), ["fresh", "stuck"])
+        agent_file(sub, "fresh", True, 30)  # finished seconds ago: not live
+        agent_file(sub, "busy", False, 30)
+        self.assertEqual(cs.live_agents(str(self.transcript)), ["busy", "stuck"])  # an hour-old unfinished one too
         self.assertEqual(cs.live_agents(None), [])
         rc, out = self.main("request", "alt", "--session", SID, env=self.env)
         self.assertEqual(rc, 0)
-        self.assertIn("  2 subagents (fresh, stuck): paused by the switch; resume each with SendMessage", out)
-        self.assertIn("- live subagents: fresh, stuck", (self.sw / "requests" / "4242.note.md").read_text())
+        self.assertIn("  2 subagents (busy, stuck): paused by the switch; resume each with SendMessage", out)
+        self.assertIn("- live subagents: busy, stuck", (self.sw / "requests" / "4242.note.md").read_text())
 
     def test_check_lines_and_note(self):
         agent_file(self.transcript.with_suffix("") / "subagents", "a1", False, 3600)
         rc, out = self.main("request", "alt", "--session", SID, env=self.env)
         self.assertEqual(rc, 0)
-        lines = out.splitlines()
-        self.assertEqual(lines[0], "before switching main -> alt:")
-        for want in ("  dies: background Bash commands and monitors",
-                     "  stays on main: artifacts published this session (republishing needs edit rights), routines",
-                     "  follows the login: run /mcp on alt for claude.ai connectors and MCP OAuth; "
-                     "the Chrome extension must be signed into alt's org"):
-            self.assertTrue(any(x.startswith(want) for x in lines), want)
+        self.assertEqual(out.splitlines(), [
+            "before switching main -> alt:",
+            "  1 subagent (a1): paused by the switch; resume each with SendMessage after relaunch",
+            "  dies: background Bash commands and monitors, if any (Explore/Plan agents are one-shot)",
+            "switching to 'alt': this session ends now and resumes there."])  # no stays-on / follows lines
         self.assertEqual(self.req()["transcript"], str(self.transcript.absolute()))
         note = (self.sw / "requests" / "4242.note.md").read_text()
         for want in ("main -> alt", "- session: " + SID, "- cwd: ", "- branch: ", "- last commit: ",
@@ -808,13 +807,21 @@ class AccountBoundTest(Base):
         rc, out = self.main("request", "yes", "--session", SID, env=dict(self.env, CLAUDE_SWITCH_PREVIOUS="alt"))
         self.assertEqual((rc, self.req()["target"]), (0, "alt"))  # lone yes, no such account: the default
         reg = cs.load()
-        self.assertEqual([cs.request_name(reg, w) for w in ([], ["yes"], ["alt", "yes"], ["alt"])],
+        self.assertEqual([cs.request_name(reg, w)[0] for w in ([], ["yes"], ["alt", "yes"], ["alt"])],
                          [None, None, "alt", "alt"])
+        for w in (["alt", "now"], ["a", "b", "yes"], ["alt", "yes", "yes"]):
+            self.assertEqual(cs.request_name(reg, w), (None, "usage: /switch [name]"), w)
         cs.upsert(reg, "yes", str(self.tmp / "y"))
-        self.assertEqual([cs.request_name(reg, w) for w in (["yes"], ["yes", "yes"])], ["yes", "yes"])
+        self.assertEqual([cs.request_name(reg, w) for w in (["yes"], ["yes", "yes"])], [("yes", None)] * 2)
         cs.save(reg)
         rc, out = self.main("request", "yes", "--session", SID, env=self.env)
         self.assertEqual((rc, self.req()["target"]), (0, "yes"))
+
+    def test_extra_words_usage(self):
+        for words in (["alt", "now"], ["a", "b", "yes"]):
+            rc, out = self.main("request", *words, "--session", SID, env=self.env)
+            self.assertEqual((rc, out), (1, "usage: /switch [name]\n"), words)
+        self.assertEqual(self.requests(), [])
 
     def test_resume_args(self):
         alt = cs.find(cs.load(), "alt")

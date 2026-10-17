@@ -235,7 +235,7 @@ class HookTest(Base):
         self.assertEqual(self.requests(), [])
 
     def test_passes_through(self):
-        for prompt in ("/switch add work2", "/switch remove alt", "/switch list", "/switch a b",
+        for prompt in ("/switch add work2", "/switch remove alt", "/switch list", "/switch theme alt dark",
                        "/switcher alt", "please /switch alt", "hello"):
             self.assertIsNone(self.hook(prompt, self.env), prompt)
         self.assertIsNone(self.hook("/switch alt"))  # not under a launcher: the skill shows setup steps
@@ -291,10 +291,12 @@ class HookNeverAsksTest(Base):
         self.assertEqual(req["transcript"], str(t.absolute()))
         self.assertIn("- cwd: %s" % self.tmp, (self.sw / "requests" / "4242.note.md").read_text())
 
-    def test_other_words_pass_through(self):
-        self.assertIsNone(self.hook("/switch rc-ok alt on", self.env))
-        self.assertIsNone(self.hook("/switch alt no", self.env))
+    def test_extra_words_blocked_with_usage(self):
+        for prompt in ("/switch alt now", "/switch a b yes", "/switch rc-ok alt on", "/switch alt no"):
+            out = self.hook(prompt, self.env)
+            self.assertEqual((out["decision"], out["reason"]), ("block", "usage: /switch [name]"), prompt)
         self.assertEqual(self.requests(), [])
+        self.assertIsNone(self.hook("/switch alt now"))  # not under a launcher: the skill handles it
 
 
 class SettingsTest(Base):
@@ -309,6 +311,12 @@ class SettingsTest(Base):
     def read(self):
         return json.loads(self.settings.read_text(encoding="utf-8"))
 
+    def original(self):
+        """main's recorded statusLine; the registry holds one entry per file."""
+        states = cs.load()["settings"]
+        self.assertEqual(list(states), [os.path.realpath(str(self.settings))])
+        return states[os.path.realpath(str(self.settings))]["statusline_original"]
+
     def our_hooks(self, s):
         return [h for g in s.get("hooks", {}).get("UserPromptSubmit", []) for h in g["hooks"] if cs.is_our_hook(h)]
 
@@ -322,7 +330,7 @@ class SettingsTest(Base):
         self.assertTrue((self.sw / "statusline.py").is_file())
         self.assertEqual(len(self.our_hooks(s)), 1)
         self.assertEqual(self.our_hooks(s)[0]["timeout"], 10)
-        self.assertIsNone(cs.load()["settings"]["statusline_original"])
+        self.assertIsNone(self.original())
         if os.name == "nt":
             self.assertNotIn("\\", s["statusLine"]["command"])
         rc, out = self.setup()
@@ -349,12 +357,12 @@ class SettingsTest(Base):
         self.assertEqual(s["hooks"]["UserPromptSubmit"][0], user_hook)
         self.assertEqual(len(self.our_hooks(s)), 1)
         self.assertEqual(s["hooks"]["Stop"], before["hooks"]["Stop"])
-        self.assertEqual(cs.load()["settings"]["statusline_original"], theirs)
+        self.assertEqual(self.original(), theirs)
         backups = list((self.sw / "backups").iterdir())
         self.assertEqual([json.loads(b.read_text()) for b in backups], [before])
         self.setup()  # ours already there: original kept, nothing duplicated
         self.assertEqual(self.read(), s)
-        self.assertEqual(cs.load()["settings"]["statusline_original"], theirs)
+        self.assertEqual(self.original(), theirs)
         rc, out = self.setup("--uninstall")
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.read(), before)
@@ -365,7 +373,7 @@ class SettingsTest(Base):
         del reg["settings"]  # registry lost: our own command must not become "the original"
         cs.save(reg)
         self.setup()
-        self.assertIsNone(cs.load()["settings"]["statusline_original"])
+        self.assertIsNone(self.original())
         self.setup("--uninstall")
         self.assertNotIn("statusLine", self.read())
 
@@ -409,6 +417,139 @@ class SettingsTest(Base):
         self.assertEqual(rc, 1)
         self.assertIn('+  "statusLine": {', out)
         self.assertFalse(self.settings.exists())
+
+
+class AccountSettingsTest(Base):
+    """Every account's own settings.json gets the statusline and hook; a linked one is written once."""
+    THEIRS = {"type": "command", "command": "mine.sh"}
+
+    def setUp(self):
+        super().setUp()
+        self.bashrc = self.tmp / "profiles" / ".bashrc"
+        self.main_s = self.home / ".claude" / "settings.json"
+        self.alt_s = self.tmp / "cfg-alt" / "settings.json"
+        self.main_s.parent.mkdir(parents=True)
+        self.alt_s.parent.mkdir(parents=True)
+        self.main_s.write_text('{"a": 1}')
+        self.alt_s.write_text(json.dumps({"statusLine": self.THEIRS}))
+
+    def setup(self, *extra):
+        return self.main("setup", "--profile=bash=%s" % self.bashrc, "--yes", "--account",
+                         "main=%s" % self.main_s.parent, "--account", "alt=%s" % self.alt_s.parent, *extra)
+
+    def hooks(self, p):
+        s = json.loads(Path(p).read_text())
+        return [h for g in s.get("hooks", {}).get("UserPromptSubmit", []) for h in g["hooks"] if cs.is_our_hook(h)]
+
+    def originals(self):
+        return {k: v["statusline_original"] for k, v in cs.load().get("settings", {}).items()}
+
+    def key(self, p):
+        return os.path.realpath(str(p))
+
+    def test_two_unlinked_accounts(self):
+        gone = self.tmp / "cfg-gone"
+        rc, out = self.setup("--account", "gone=%s" % gone)
+        self.assertEqual(rc, 0, out)
+        for p in (self.main_s, self.alt_s):
+            self.assertEqual(len(self.hooks(p)), 1, p)
+            self.assertTrue(cs.is_our_statusline(json.loads(p.read_text())["statusLine"]))
+        self.assertFalse(gone.exists())  # a dir that doesn't exist is skipped
+        self.assertEqual(self.originals(), {self.key(self.main_s): None, self.key(self.alt_s): self.THEIRS})
+        reg = cs.load()
+        for acct, want in (("main", None), ("alt", self.THEIRS)):
+            with mock.patch.dict(os.environ, {"CLAUDE_SWITCH_ACCOUNT": acct}):
+                self.assertEqual(cs.statusline_original(reg), want)
+        self.assertEqual(self.setup()[1].count("up to date"), 1)
+        rc, out = self.setup("--uninstall")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(json.loads(self.main_s.read_text()), {"a": 1})
+        self.assertEqual(json.loads(self.alt_s.read_text()), {"statusLine": self.THEIRS})
+        self.assertNotIn("settings", cs.load())
+
+    def test_bad_file_skipped_others_written(self):
+        self.alt_s.write_text("{oops")
+        rc, out = self.setup()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("%s is not a JSON object" % self.key(self.alt_s), out)
+        self.assertEqual(self.alt_s.read_text(), "{oops")
+        self.assertEqual(len(self.hooks(self.main_s)), 1)
+
+    def check_linked_once(self):
+        rc, out = self.setup()
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(out.count("+++ "), 3, out)  # registry, .bashrc, one settings.json
+        self.assertEqual(len(list((self.sw / "backups").iterdir())), 1)
+        self.assertEqual(len(self.hooks(self.alt_s)), 1)
+        self.assertEqual(list(self.originals().values()), [None])
+        self.setup("--uninstall")
+        self.assertEqual(json.loads(self.alt_s.read_text()), {"a": 1})
+
+    def test_hardlinked_written_once(self):
+        self.alt_s.unlink()
+        os.link(self.main_s, self.alt_s)
+        self.check_linked_once()
+        self.assertTrue(os.path.samefile(self.main_s, self.alt_s))
+
+    def test_symlinked_written_once(self):
+        self.alt_s.unlink()
+        try:
+            os.symlink(self.main_s, self.alt_s)
+        except OSError:
+            self.skipTest("no symlink rights")
+        self.check_linked_once()
+        self.assertTrue(self.alt_s.is_symlink())
+
+    def test_old_registry_migrates(self):
+        self.main_s.write_text(json.dumps({"statusLine": self.THEIRS}))
+        self.main("setup", "--profile=bash=%s" % self.bashrc, "--yes", "--account", "main=%s" % self.main_s.parent)
+        reg = cs.load()
+        reg["settings"] = {"installed": True, "statusline_original": self.THEIRS}  # the one-file format
+        cs.save(reg)
+        with mock.patch.dict(os.environ, {"CLAUDE_SWITCH_ACCOUNT": "main"}):
+            self.assertEqual(cs.statusline_original(reg), self.THEIRS)
+        self.alt_s.write_text("{}")
+        self.setup()
+        self.assertEqual(self.originals(), {self.key(self.main_s): self.THEIRS, self.key(self.alt_s): None})
+        self.setup("--uninstall")
+        self.assertEqual(json.loads(self.main_s.read_text()), {"statusLine": self.THEIRS})
+        self.assertEqual(json.loads(self.alt_s.read_text()), {})
+
+    def test_add_migrate_remove(self):
+        self.main("setup", "--profile=bash=%s" % self.bashrc, "--yes", "--account", "main=%s" % self.main_s.parent)
+        rc, out = self.main("add", "alt", "--dir", str(self.alt_s.parent))  # own settings.json: left as is
+        self.assertEqual(rc, 0, out)
+        self.assertIn("updated %s" % self.key(self.alt_s), out)
+        self.assertEqual(len(self.hooks(self.alt_s)), 1)
+        self.assertEqual(self.originals()[self.key(self.alt_s)], self.THEIRS)
+        rc, out = self.main("add", "work")  # linked: already has them
+        self.assertNotIn("updated %s" % self.key(self.main_s), out)
+        self.assertEqual(len(self.originals()), 2)
+        mig = self.home / ".claude-mig"
+        (mig / "projects").mkdir(parents=True)
+        (mig / "settings.json").write_text("{}")
+        rc, out = self.main("migrate")
+        self.assertIn("updated %s" % self.key(mig / "settings.json"), out)
+        self.assertEqual(len(self.hooks(mig / "settings.json")), 1)
+        rc, out = self.main("remove", "work")  # its settings.json is main's: untouched
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(len(self.hooks(self.main_s)), 1)
+        rc, out = self.main("remove", "alt")  # kept dir, own file: ours taken out
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(json.loads(self.alt_s.read_text()), {"statusLine": self.THEIRS})
+        self.assertEqual(set(self.originals()), {self.key(self.main_s), self.key(mig / "settings.json")})
+
+    def test_copy_inherits_original(self):
+        """A copy of a written file (add's copy fallback, a split hardlink) gets the first file's original."""
+        self.main_s.write_text(json.dumps({"statusLine": self.THEIRS}))
+        self.main("setup", "--profile=bash=%s" % self.bashrc, "--yes", "--account", "main=%s" % self.main_s.parent)
+        self.alt_s.write_text(self.main_s.read_text())
+        rc, out = self.setup()
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.originals()[self.key(self.alt_s)], self.THEIRS)
+        self.setup("--uninstall")
+        for p in (self.main_s, self.alt_s):
+            self.assertEqual(json.loads(p.read_text()), {"statusLine": self.THEIRS}, p)
 
 
 class ThemeTest(Base):
