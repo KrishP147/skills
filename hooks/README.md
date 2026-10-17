@@ -15,7 +15,7 @@ summary; the build fails if a hook has no section). See [`../site/README.md`](..
 `UserPromptSubmit` hook. Prints a one-line warning into the conversation when
 the live context passes ~75k tokens, so both you and Claude see it and can
 wrap up: `/divide` the rest, then `/session-handoff` (or, for an orchestrator,
-the rotation step in `meta-orchestrator`, see `ROTATION.md`). Heuristic only;
+the rotation step in `meta-orchestrator`, see [`ROTATION.md`](../meta-orchestrator/ROTATION.md)). Heuristic only;
 `/context` is the precise check.
 
 How it works: on every prompt you submit, Claude Code passes the hook JSON on stdin; the script reads `transcript_path` and only the tail of that file (never the whole transcript).
@@ -26,7 +26,7 @@ How it works: on every prompt you submit, Claude Code passes the hook JSON on st
 - If the result is at least the threshold it prints the warning (stdout is injected into the conversation).
 - Below it, or on any error (missing file, malformed lines, bad env), it prints nothing and never blocks.
 
-Threshold: env var `SMARTZONE_TOKENS` (integer tokens), default `75000` (the old 1.5 MB size check at ~20 bytes per token).
+Threshold: env var `SMARTZONE_TOKENS` (integer tokens), default `75000` (the same as the hook's earlier 1.5 MB transcript-size check, at ~20 bytes per token).
 
 - A bad value falls back to the default.
 - Set it in the hook `command` or your shell env.
@@ -105,9 +105,9 @@ python hooks/smartzone.py --self-test
 
 ## `spend-guard.py` — block billable commands without an approval
 
-`PreToolUse` hook for `Bash`, `PowerShell` and MCP tool calls. Enforces the
-[`spend-gate`](../spend-gate/) skill's gate at the tool-call level: blocks a
-command or MCP call that matches a known billable pattern unless an
+`PreToolUse` hook for `Bash`, `PowerShell` and MCP tool calls. It enforces the
+[`spend-gate`](../spend-gate/) skill's gate at the tool-call level. A command
+or MCP call that matches a known billable pattern is blocked unless an
 approval already exists, so a billable action can't slip through even if
 the gate steps get skipped in the prompt.
 
@@ -196,7 +196,7 @@ Approval scheme (either allows the one matched action):
    - The hook deletes the first file it finds (sorted by name) and allows that single call; the next matching call is blocked again until another approval file appears.
    - The file is gone after use, so it is no record: the log is `skilleddocs/spend.md`.
    - A call holding two or more billable commands (`<create> && <create>`) is refused and the file kept: run them as separate calls.
-2. **`SPEND_GATE_APPROVED=<label>`.** For `Bash`, prefix the one command: `SPEND_GATE_APPROVED=yes runpodctl create pod ...`. This is a shell per-command env assignment, read out of the command string itself (the hook never executes the command), so it only ever covers that one invocation.
+2. **`SPEND_GATE_APPROVED=<label>`.** For `Bash`, prefix the one command: `SPEND_GATE_APPROVED=yes runpodctl create pod ...`. The hook reads this prefix from the command text (it never runs the command), so it covers only that one invocation.
    - For `PowerShell`, start the command with `$env:SPEND_GATE_APPROVED='<label>'; <cmd>` (leading only, `;` required, non-empty literal value, no `$` variables; a Bash-style prefix is not honoured).
    - Both inline forms count only when the rest of the call is one simple command whose program is the call's only billable match.
      These are not approved: `true && <create>`, `<create>; <create>`, a pipe, `&`, a newline, a subshell, `$(...)`, backticks or a wrapper (`bash -c '<create>'`, `xargs`, `sudo`).
