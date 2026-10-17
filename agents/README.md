@@ -70,7 +70,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
   1. Orients read-only; confirms every file the task cites exists; detects the test command.
   2. Writes a ≤40-line brief (includes "if stuck, write `skilleddocs/HANDOFF.md`, commit only if [`TRACKING.md`](../handoff-auto/TRACKING.md) says so, stop").
   3. Spawns an `implementer` (not `fork`, no `isolation`) on the model it was given, else by size (trivial → haiku, small/medium → sonnet, large or risky → opus) with `run_in_background` unset so the call blocks.
-     - Some Agent tool versions have no foreground mode; then, or if the call returns early, it never fabricates a result or sleep-polls, ends the turn with a plain-text status and lets the completion notification wake it.
+     - Some Agent tool versions have no foreground mode. In that case, or if the call returns early, it never makes up a result or sleep-polls. It ends the turn with a plain-text status and lets the completion notification wake it.
      - Only with no notification path does it return **INTERIM — implementer still running** (callers must not act on it).
   4. Reviews every round itself, inline:
      - Commit scope, `git diff <base>...HEAD`, reruns tests + lint.
@@ -93,7 +93,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
   - Never deletes links or worktrees either, and never a recursive delete through a linked `node_modules`/`.venv` — teardown is the caller's job.
 - **Design principles:**
   - Never implements, only briefs and reviews, treating the implementer's "pass" as a claim to rerun.
-  - Review stays inline in its own context (no reviewer subagents, nested fan-out stalls).
+  - Review stays inline in its own context (no reviewer subagents, because nested fan-out stalls).
   - A stalled round restarts a fresh implementer from `HANDOFF.md` instead of stretching one context.
 - **Use cases:**
   - One task inside a worktree for [`pair`](../pair/).
@@ -118,7 +118,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
   - Commits small.
   - Runs the repo's detected test command before claiming done.
   - Multi-session task or low turns → writes the handoff early.
-  - Stuck or past ~100k tokens → writes `skilleddocs/HANDOFF.md` (done / not done / next step / failed attempts), commits it only if [`TRACKING.md`](../handoff-auto/TRACKING.md) says so (never on a fork), stops, so a manager can restart a fresh implementer from it.
+  - Stuck or past ~100k tokens: writes `skilleddocs/HANDOFF.md` (done / not done / next step / failed attempts), then stops, so a manager can restart a fresh implementer from it. It commits that file only if [`TRACKING.md`](../handoff-auto/TRACKING.md) says so (never on a fork).
 - **You get back:**
   - Calls `session-handoff` (which wraps `handoff-auto`).
   - Final message ends with the handoff document's absolute path on its own line.
@@ -127,7 +127,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 - **Design principles:**
   - One issue, one session, small commits.
   - "Done" means it watched the tests pass.
-  - Push and PR merge belong to the caller and the hook blocks pushes to protected branches and PR merges (local `git merge` is left to the caller).
+  - Push and PR merge belong to the caller; the hook blocks pushes to protected branches and PR merges (local `git merge` is left to the caller).
   - Board errors never block, they go in the handoff.
 - **Use cases:**
   - The worker under a `manager` (via `pair`) or directly under `meta-orchestrator` with `shape: flat`, or on haiku per item of a `swarm` batch.
@@ -135,7 +135,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 - **Tips:**
   - Give it a real kickoff brief (checklist, key files, branch prefix, protected branch); scope that grows past one session makes it stop early and hand off.
   - A guard-hook block is reported, not worked around.
-  - Its last output line is the handoff path, which callers parse.
+  - Its last output line is the handoff path, which callers read.
 - **Prereqs:**
   - `handoff-auto` and `session-handoff` installed.
   - `gh` for reads (card moves are the caller's).
@@ -153,7 +153,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
   - `decisions` (`ask`|`assume`, default `ask`).
   - User-answered `D<k>` (settled; never re-decided).
 - **How it works:**
-  1. Runs `update-progress` end to end: claims vs `git log`, tests, CI, code review (skipped if `review-done=yes`), docs/board/issue updates. Code review is inline, two axes (standards + spec), no reviewer subagents.
+  1. Runs `update-progress` end to end: claims vs `git log`, tests, CI, code review (skipped if `review-done=yes`), docs/board/issue updates. Code review is inline, on two axes (standards + spec), with no reviewer subagents.
   2. Deviations: if authorized, answers `consult-plan` itself from the written plan and lists every Q → A; if not, records the deviation and leaves the plan untouched.
   3. Calls `next`.
 - **You get back:**
