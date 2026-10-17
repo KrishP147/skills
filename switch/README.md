@@ -24,14 +24,17 @@ the first.
 ## How to invoke
 
 One-time setup from a shell (use the installed copy, e.g.
-`~/.claude/skills/switch/scripts/claude_switch.py`):
+`~/.claude/skills/switch/scripts/claude_switch.py`). On Windows type
+`python` (or `py`) wherever these examples say `python3`: there
+`python3` is usually the Microsoft Store stub.
 
 ```
 python3 claude_switch.py setup --account main=~/.claude --account alt=~/.claude-alt
 ```
 
 Already have `~/.claude-<name>` dirs? `python3 claude_switch.py migrate`
-registers them (and `~/.claude` as `main`) without touching their contents.
+(Windows: `python claude_switch.py migrate`) registers them (and
+`~/.claude` as `main`) without touching their contents.
 
 Then, in a new shell, `claude` or `claude-alt`, and inside a session:
 
@@ -49,7 +52,9 @@ User-invoked only; Claude never switches on its own.
 
 1. **Setup** (`claude_switch.py setup`) registers each `--account NAME=DIR`
    in `~/.claude-switch/accounts.json` (name, dir, colour, theme,
-   last-used; written atomically). No `--account` on a first run registers
+   last-used; written atomically) and copies the script there; the
+   wrappers call that copy, so updating or uninstalling the skill
+   doesn't break your shells. No `--account` on a first run registers
    `main` = `~/.claude`. It then writes a block between
    `# >>> claude-switch >>>` markers into each shell profile it finds
    (bash, zsh, fish, PowerShell 5.1 and 7) and `claude.cmd` /
@@ -70,7 +75,9 @@ User-invoked only; Claude never switches on its own.
    (Windows: the whole process tree, MCP servers included), restores the
    terminal (raw mode, alt screen, bracketed paste, cursor) and starts the
    target account with `--resume <session id>`. If that exits with an
-   error within 10 s it prints one line and uses `--continue`.
+   error within 10 s it prints one line and uses `--continue`. Other
+   args you started Claude with (e.g. `--model`) are not carried across
+   a switch; only `--resume` / `--continue` are passed.
 5. When Claude exits without a request, the launcher exits with its code.
    Ctrl+C goes to Claude, never the launcher.
 6. **`add <name>`** creates `~/.claude-<name>` (or `--dir`) and links the
@@ -151,8 +158,12 @@ flowchart TD
   picks its own shims when it looks for the real `claude`.
 - `--profile SHELL=PATH` (repeatable; `bash`, `zsh`, `fish`, `powershell`,
   `pwsh`, `cmd`) writes only those targets, for a non-default profile.
-- Rerun setup after moving the skill or Python: wrappers embed both
-  absolute paths.
+- Rerun setup after moving Python: wrappers embed its absolute path.
+- PowerShell with execution policy `Restricted` (the Windows default)
+  never loads your profile, so `claude-<name>` is missing: run
+  `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
+- Setup refuses a profile that isn't UTF-8 (PowerShell 5.1's
+  `Set-Content` writes ANSI): save it as UTF-8 and rerun.
 - An old `~/.claude-switch` *file* from earlier scripts is moved aside to
   `~/.claude-switch.stale-<time>`.
 
