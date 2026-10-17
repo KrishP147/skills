@@ -27,12 +27,25 @@ Also model-invocable: meta-orchestrator's setup calls it for `parallel:`.
 ## How it works
 
 1. **Checks for a run.** No `skilleddocs/orchestrator/scope.md` → explains that lanes only exist inside a meta-orchestrator run and offers to start one.
-2. **Predicts file sets.** For each queued issue: paths named in the issue, its area labels (only when it names no paths), and a quick `git grep` for what it mentions. Guesses are flagged as uncertain.
-3. **Groups.** Issues whose file sets overlap share a lane, in queue order; the groups left are the independent streams. Lanes get area names (`site`, `hooks`), not numbers.
-4. **Picks the count.** Asking for more lanes than there are independent streams, or more than 4, gets questions: a best-guess grouping and the options, never a silent cap. `increase` usually adds one by splitting the longest lane on file-disjoint issues; `decrease` merges two colliding lanes, or folds the shortest into the nearest.
-5. **Proposes.** Lanes, their issues and areas, why, and a cost line ("3 lanes ≈ 3× tokens/hour, about the same per issue", plus a number when the ledger has token counts). You can pin an issue to a lane, rename a lane, or move an issue before you say yes.
+2. **Predicts file sets.** For each queued issue:
+   - paths named in the issue
+   - its area labels (only when it names no paths)
+   - a quick `git grep` for what it mentions
+   - Guesses are flagged as uncertain.
+3. **Groups.**
+   - Issues whose file sets overlap share a lane, in queue order; the groups left are the independent streams.
+   - Lanes get area names (`site`, `hooks`), not numbers.
+4. **Picks the count.**
+   - Asking for more lanes than there are independent streams, or more than 4, gets questions: a best-guess grouping and the options, never a silent cap.
+   - `increase` usually adds one by splitting the longest lane on file-disjoint issues.
+   - `decrease` merges two colliding lanes, or folds the shortest into the nearest.
+5. **Proposes.**
+   - Lanes, their issues and areas, why, and a cost line ("3 lanes ≈ 3× tokens/hour, about the same per issue", plus a number when the ledger has token counts).
+   - You can pin an issue to a lane, rename a lane, or move an issue before you say yes.
 6. **Writes.** `parallel:` and a named `lanes:` map into `scope.md`, plus a ledger entry.
-7. **Takes effect at the orchestrator's next loop.** Running agents are never killed; a removed lane finishes its current issue and its remaining issues move to other lanes.
+7. **Takes effect at the orchestrator's next loop.**
+   - Running agents are never killed.
+   - A removed lane finishes its current issue and its remaining issues move to other lanes.
 
 ## Design principles
 
