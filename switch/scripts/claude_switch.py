@@ -3,9 +3,7 @@
 live conversation between them. Stdlib only.
 
   run [name|-] [claude args]   launcher loop; '-' or no name = most recent
-  request [name] [yes] --session ID
-                               pre-switch check, then ask this session's launcher to switch
-  rc-ok NAME on|off            Remote Control switches to NAME without a question
+  request [name] --session ID  pre-switch notes, then ask this session's launcher to switch
   setup [--account NAME=DIR ...] [--profile SHELL=PATH ...] [--yes]
                                register accounts, write shell wrappers
   add NAME [--dir DIR]         new account sharing the first one's items
@@ -201,9 +199,7 @@ def setup_steps():
     )
 
 
-NEED_YES = 3  # make_request: something live; nothing written until confirmed
 LIVE_SECS = 600
-PENDING_SECS = 120
 
 
 def find_transcript(session, config_dir=None):
@@ -254,29 +250,23 @@ def live_agents(transcript, now=None):
     return out
 
 
-def pre_switch_check(current, target, agents, rc, ask=True):
-    """(text, needs_yes). Live: subagents, Remote Control (unless the
-    target has rc_ok). The rest are reminders that never ask. ask=False
-    (only two accounts: nothing to choose) prints the same lines as notes
-    and never asks."""
+def pre_switch_notes(current, target, agents, remote):
+    """Info lines printed before a switch; they never stop it."""
     cur = current or "this account"
     lines = ["before switching %s -> %s:" % (cur, target["name"])]
     if agents:
-        lines.append("  %s: %d subagent%s (%s): paused by the switch; resume each with SendMessage after relaunch"
-                     % ("live" if ask else "note", len(agents), "" if len(agents) == 1 else "s", ", ".join(agents)))
-    rc_ask = ask and rc and not target.get("rc_ok")
-    if rc:
-        lines.append("  %s: Remote Control is on: this session reappears under %s's Claude apps; "
-                     "a phone signed into %s loses it%s"
-                     % ("live" if rc_ask else "note", target["name"], cur,
-                        " (/switch rc-ok %s on stops this question)" % target["name"] if rc_ask else ""))
+        lines.append("  %d subagent%s (%s): paused by the switch; resume each with SendMessage after relaunch"
+                     % (len(agents), "" if len(agents) == 1 else "s", ", ".join(agents)))
+    if remote:
+        lines.append("  Remote Control ends with this session; run /remote-control on %s if you want it"
+                     % target["name"])
     lines += [
         "  dies: background Bash commands and monitors, if any (Explore/Plan agents are one-shot)",
         "  stays on %s: artifacts published this session (republishing needs edit rights), routines" % cur,
         "  follows the login: run /mcp on %s for claude.ai connectors and MCP OAuth; "
         "the Chrome extension must be signed into %s's org" % (target["name"], target["name"]),
     ]
-    return "\n".join(lines), bool(ask and agents or rc_ask)
+    return "\n".join(lines)
 
 
 def _git(cwd, *args):
@@ -289,10 +279,6 @@ def _git(cwd, *args):
 
 def note_path(launcher):
     return switch_home() / "requests" / ("%s.note.md" % launcher)
-
-
-def pending_path(launcher):
-    return switch_home() / "requests" / ("%s.pending.json" % launcher)
 
 
 def write_note(launcher, current, target, session, agents, cwd):
@@ -316,21 +302,18 @@ def write_note(launcher, current, target, session, agents, cwd):
     atomic_write(note_path(launcher), "\n".join(lines))
 
 
-def split_yes(reg, words):
-    """(name, confirmed) from request words: [name] [yes]. A lone 'yes'
-    is the confirm unless an account is called that."""
+def request_name(reg, words):
+    """Account name from request words. A trailing 'yes' (the old confirm
+    word) is dropped, unless it is the only word and an account is called that."""
     words = list(words or [])
-    yes = bool(words) and words[-1] == "yes" and not (len(words) == 1 and find(reg, "yes"))
-    if yes:
+    if words and words[-1] == "yes" and not (len(words) == 1 and find(reg, "yes")):
         words.pop()
-    return (words[0] if words else None), yes
+    return words[0] if words else None
 
 
-def make_request(name, session, confirmed=False, transcript=None, cwd=None):
-    """Print-ready (rc, message). Writes the pre-switch check, then the
-    resume note and this launcher's request file. rc 2 = not under a
-    launcher; NEED_YES = something live, 3+ accounts, and not confirmed
-    (nothing written). With two accounts it never asks."""
+def make_request(name, session, transcript=None, cwd=None):
+    """Print-ready (rc, message). Writes the resume note and this launcher's
+    request file; never asks. rc 2 = not under a launcher."""
     launcher = os.environ.get("CLAUDE_SWITCH_LAUNCHER")
     if not launcher:
         return 2, setup_steps()
@@ -343,23 +326,16 @@ def make_request(name, session, confirmed=False, transcript=None, cwd=None):
     transcript = transcript if transcript and Path(transcript).is_file() else find_transcript(session)
     transcript = str(Path(transcript).absolute()) if transcript else ""
     agents = live_agents(transcript)
-    rc = bool(os.environ.get("CLAUDE_CODE_BRIDGE_SESSION_ID"))
-    check, needs_yes = pre_switch_check(current, target, agents, rc, ask=len(reg["accounts"]) >= 3)
-    if needs_yes and not confirmed:
-        return NEED_YES, check + "\nsomething above is live: nothing switched yet."
+    check = pre_switch_notes(current, target, agents, os.environ.get("CLAUDE_CODE_BRIDGE_SESSION_ID"))
     ensure_home()
     write_note(launcher, current, target["name"], session, agents, cwd)
     atomic_write(switch_home() / "requests" / ("%s.json" % launcher),
-                 json.dumps({"target": target["name"], "session": session or "", "rc": rc,
-                             "transcript": transcript}))
+                 json.dumps({"target": target["name"], "session": session or "", "transcript": transcript}))
     return 0, check + "\nswitching to '%s': this session ends now and resumes there." % target["name"]
 
 
 def cmd_request(args):
-    name, yes = split_yes(load(), args.words)
-    rc, msg = make_request(name, args.session, confirmed=yes or args.yes)
-    if rc == NEED_YES:
-        msg += "\nto switch anyway, rerun with yes: /switch %s" % ((name + " ") if name else "") + "yes"
+    rc, msg = make_request(request_name(load(), args.words), args.session)
     print(msg)
     return rc
 
@@ -578,13 +554,13 @@ def cmd_run(argv):
     acct = most_recent(reg) if name == "-" else find(reg, name)
     claude = find_claude()
     req_path = ensure_home() / "requests" / ("%d.json" % os.getpid())
-    for p in (req_path, pending_path(os.getpid()), note_path(os.getpid())):  # a reused pid's leftovers
+    pending = req_path.with_name("%d.pending.json" % os.getpid())  # written by older versions
+    for p in (req_path, pending, note_path(os.getpid())):  # a reused pid's leftovers
         _remove(p)
     term = Terminal()
     fail_secs = float(os.environ.get("CLAUDE_SWITCH_RESUME_FAIL_SECS", "10"))
     previous = None
     resuming = False
-    rc_flag = []
     old = signal.signal(signal.SIGINT, lambda *_: None)  # a function, not SIG_IGN: exec resets it for the child
     try:
         while True:
@@ -612,7 +588,7 @@ def cmd_run(argv):
                 if resuming and rc != 0 and time.monotonic() - started < fail_secs:
                     print("claude-switch: --resume failed on '%s'; continuing its latest conversation instead"
                           % acct["name"], file=sys.stderr)
-                    args, resuming = ["--continue"] + rc_flag, False
+                    args, resuming = ["--continue"], False
                     continue
                 return rc
             target = find(load(), req["target"])
@@ -622,8 +598,7 @@ def cmd_run(argv):
             term.restore()
             sid = str(req.get("session") or "")
             previous, acct = refresh(acct)["name"], target
-            rc_flag = ["--remote-control"] if req.get("rc") is True else []
-            args = resume_args(acct, sid, str(req.get("transcript") or "")) + rc_flag
+            args = resume_args(acct, sid, str(req.get("transcript") or ""))
             resuming = args[0] == "--resume"
             print(paint(acct, ">> claude-switch: %s -> %s" % (previous, acct["name"])), file=sys.stderr)
             if note_path(os.getpid()).is_file():
@@ -1371,7 +1346,7 @@ def write_settings(path, old, new):
 WINDOWS_USAGE = (("five_hour", 5 * 3600), ("seven_day", 7 * 86400))
 LEVELS = (90, 97)
 SWITCH_RE = re.compile(r"^/(?:[\w.-]+:)?switch(?:\s+(.*))?$", re.S)
-SUBCOMMANDS = ("add", "remove", "rename", "list", "theme", "rc-ok")
+SUBCOMMANDS = ("add", "remove", "rename", "list", "theme")
 
 
 def usage_path(name, suffix=""):
@@ -1454,36 +1429,6 @@ def guard(reg, now):
     return "%s at %d%%: run /switch %s" % (acct["name"], int(pct), best["name"])
 
 
-def hook_switch(launcher, words, data, now=None):
-    """Two-step confirm without the model: with 3+ accounts and something live the first
-    `/switch [name]` prints the check, writes a pending marker and switches
-    nothing; the same command again within 120 s, or `/switch [name] yes`,
-    confirms. Returns the message for the block reason."""
-    now = time.time() if now is None else now
-    name, yes = split_yes(load(), words)
-    pend = pending_path(launcher)
-    p = _read_json(pend)
-    again = p.get("name") == (name or "") and _num(p.get("time")) and 0 <= now - p["time"] <= PENDING_SECS
-    rc, msg = make_request(name, str(data.get("session_id") or ""), confirmed=yes or again,
-                           transcript=data.get("transcript_path") or None, cwd=data.get("cwd") or None)
-    if rc == NEED_YES:
-        atomic_write(pend, json.dumps({"name": name or "", "time": now}))
-        cmd = "/switch" + (" " + name if name else "")
-        return msg + "\ntype %s again within %d s, or %s yes, to switch." % (cmd, PENDING_SECS, cmd)
-    _remove(pend)
-    return msg
-
-
-def cmd_rc_ok(args):
-    reg = load()
-    acct = _account_or_exit(reg, args.name)
-    acct["rc_ok"] = args.value == "on"
-    save(reg)
-    print("'%s' rc-ok: %s (%s)" % (acct["name"], args.value, "switching a Remote Control session to it no longer asks"
-                                   if acct["rc_ok"] else "switching a Remote Control session to it asks a yes"))
-    return 0
-
-
 def cmd_hook():
     """UserPromptSubmit. `/switch` or `/switch <name>` under a launcher: write
     the request and block the prompt, so nothing reaches the API (works at
@@ -1499,7 +1444,9 @@ def cmd_hook():
             words = (m.group(1) or "").split()
             if (len(words) <= 2 and (not words or words[0] not in SUBCOMMANDS)
                     and (len(words) < 2 or words[1] == "yes")):
-                print(json.dumps({"decision": "block", "reason": hook_switch(launcher, words, data),
+                _, msg = make_request(request_name(load(), words), str(data.get("session_id") or ""),
+                                      transcript=data.get("transcript_path") or None, cwd=data.get("cwd") or None)
+                print(json.dumps({"decision": "block", "reason": msg,
                                   "hookSpecificOutput": {"hookEventName": HOOK_EVENT,
                                                          "suppressOriginalPrompt": True}}))
                 return 0
@@ -1540,9 +1487,8 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("run", help="launcher loop: run [name|-] [claude args]")
     r = sub.add_parser("request", help="ask this session's launcher to switch")
-    r.add_argument("words", nargs="*", metavar="name|yes", help="[name] [yes]: yes confirms a switch with something live")
+    r.add_argument("words", nargs="*", metavar="name", help="account (default: the previous one)")
     r.add_argument("--session", default="")
-    r.add_argument("--yes", action="store_true", help="same as a trailing yes")
     s = sub.add_parser("setup", help="register accounts and write shell wrappers")
     s.add_argument("--account", action="append", metavar="NAME=DIR")
     s.add_argument("--profile", action="append", metavar="SHELL=PATH",
@@ -1568,13 +1514,9 @@ def main(argv=None):
     th = sub.add_parser("theme", help="show or set an account's Claude theme ('-' clears)")
     th.add_argument("name")
     th.add_argument("theme", nargs="?")
-    ro = sub.add_parser("rc-ok", help="on: switching a Remote Control session to this account doesn't ask")
-    ro.add_argument("name")
-    ro.add_argument("value", choices=("on", "off"))
     a = p.parse_args(argv)
     return {"request": cmd_request, "setup": cmd_setup, "add": cmd_add, "remove": cmd_remove,
-            "rename": cmd_rename, "list": cmd_list, "migrate": cmd_migrate, "theme": cmd_theme,
-            "rc-ok": cmd_rc_ok}[a.cmd](a)
+            "rename": cmd_rename, "list": cmd_list, "migrate": cmd_migrate, "theme": cmd_theme}[a.cmd](a)
 
 
 if __name__ == "__main__":
