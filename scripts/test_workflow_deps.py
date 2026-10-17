@@ -311,6 +311,37 @@ class InstallerMixin:
         self.assertFalse(os.path.exists(self.tmp + "/skills"))
         self.assertFalse(os.path.exists(self.agents))
 
+    def test_skill_alone(self):
+        self.seed()
+        rc, out, err = self.install(None, "switch")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.ls(self.skills), ["old-skill", "switch"])
+        self.assertEqual(self.ls(self.agents), ["mine.md"])
+        self.assertFalse(os.path.exists(self.hooks))
+        self.assertNotIn("stale", (out + err).lower())
+
+    def test_hook_alone_no_skills_dir(self):
+        rc, out, err = self.install(None, "spend-guard")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.ls(self.hooks), ["spend-guard.py"])
+        self.assertFalse(os.path.exists(self.skills))
+        self.assertFalse(os.path.exists(self.agents))
+
+    def test_skill_and_workflow_union(self):
+        rc, out, err = self.install("lazy-fix-handoff", "switch,planner")
+        self.assertEqual(rc, 0, out + err)
+        want = workflow_deps.Graph(ROOT).resolve(["lazy-fix-handoff"], ["switch", "planner"])
+        self.assertEqual(self.ls(self.skills), want["skill"])
+        self.assertEqual(self.ls(self.agents), ["hooks", "planner.md"])
+
+    def test_unknown_skill_installs_nothing(self):
+        rc, out, err = self.install(None, "no-such-thing")
+        self.assertEqual(rc, 2)
+        self.assertIn("switch", out + err)
+        self.assertFalse(os.path.exists(self.skills))
+        self.assertFalse(os.path.exists(self.agents))
+        self.assertFalse(os.path.exists(self.hooks))
+
     def test_full_install_unchanged(self):
         self.seed()
         rc, out, err = self.install(None)
@@ -325,10 +356,12 @@ class InstallerMixin:
 
 @unittest.skipUnless(find_bash(), "bash not available")
 class BashInstallerTest(InstallerMixin, unittest.TestCase):
-    def install(self, wf):
+    def install(self, wf, skill=None):
         args = [find_bash(), os.path.join(ROOT, "scripts", "install-skills.sh").replace("\\", "/")]
         if wf:
             args += ["--workflow", wf]
+        if skill:
+            args += ["--skill", skill]
         p = subprocess.run(args, env=self.env(), capture_output=True, text=True, encoding="utf-8")
         return p.returncode, p.stdout, p.stderr
 
@@ -345,14 +378,27 @@ class BashInstallerTest(InstallerMixin, unittest.TestCase):
         self.assertIn("repo-scrub", self.ls(self.skills))
         self.assertIn("sitrep", self.ls(self.skills))
 
+    def test_list_skills_and_skill_equals(self):
+        sh = os.path.join(ROOT, "scripts", "install-skills.sh").replace("\\", "/")
+        p = subprocess.run([find_bash(), sh, "--list-skills"], env=self.env(), capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0)
+        self.assertIn("spend-guard\thook", p.stdout)
+        self.assertFalse(os.path.exists(self.skills))
+        p = subprocess.run([find_bash(), sh, "--skill=grilling,ponytail", "--skill", "switch"],
+                           env=self.env(), capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.ls(self.skills), ["grilling", "ponytail", "switch"])
+
 
 @unittest.skipUnless(os.name == "nt" and find_powershell(), "Windows PowerShell not available")
 class PowerShellInstallerTest(InstallerMixin, unittest.TestCase):
-    def install(self, wf):
+    def install(self, wf, skill=None):
         args = [find_powershell(), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
                 os.path.join(ROOT, "scripts", "install-skills.ps1")]
         if wf:
             args += ["-Workflow", wf]
+        if skill:
+            args += ["-Skill", skill]
         p = subprocess.run(args, env=self.env(), capture_output=True, text=True)
         return p.returncode, p.stdout, p.stderr
 
