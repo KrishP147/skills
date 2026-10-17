@@ -4,7 +4,14 @@
 
 ## What it does
 
-Gets a repo's working tree ready to be seen: rewrites the README around outcome and demo, prunes stale or internal-only docs, fixes claims the code has quietly outdated, scans for secrets and private names, and proposes GitHub metadata (description, topics, homepage). It never touches git history or repo visibility — it ends by handing off to [`repo-scrub`](../repo-scrub/README.md) for that.
+Gets a repo's working tree ready to be seen.
+
+- Rewrites the README around outcome and demo.
+- Prunes stale or internal-only docs.
+- Fixes claims the code has quietly outdated.
+- Scans for secrets and private names.
+- Proposes GitHub metadata (description, topics, homepage).
+- It never touches git history or repo visibility — it ends by handing off to [`repo-scrub`](../repo-scrub/README.md) for that.
 
 ## When to use
 
@@ -24,13 +31,35 @@ Defaults to the current repo. Model-invocable, so any of the trigger phrases abo
 ## How it works
 
 1. **Ask up front, one batch** — outcome, audience, what to emphasize, each with a recommended default; proceeds on the answers or the defaults.
-2. **Inventory docs** — every tracked doc in the repo into a keep / merge / delete table with a reason per row; untracked docs listed separately as not shipped; nothing deleted or merged without an explicit yes.
-3. **Grep claims against reality** — a missing `LICENSE` is flagged and gated (you choose; it never picks one; a license already declared in `package.json`/`pyproject.toml` counts as your pick, and it offers to add the matching file); every factual claim in the README/docs checked against the actual code, config, and `git log`; contradictions reported as `file:line` (claim) plus `file:line`/commit (evidence).
-4. **Rewrite the README, lean by default** — one-line pitch, result, demo media placeholder(s) the user fills in themselves (never a fabricated screenshot/GIF/metric), quickstart actually run from a clean clone with installs kept in a temp prefix or venv, never global, and never by registry name unless that registry entry's repository URL is this repo (result reported; a step whose toolchain isn't installed on this machine is reported `not run: <tool> missing` and kept, never dropped), architecture only if the audience needs it, credits.
-5. **Scan for secrets and private names** — secrets in tracked files only: key/token/connection-string patterns, un-ignored `.env` files, `gitleaks dir .`. Emails or person names (email grep, then reading comments and docs, including docs about to be deleted) that aren't authors or already public, reported as `file:line`, redacted only on yes. Also emails in commit messages and author/committer identities (`git log --all`), minus your own; for other people's identities you choose rewrite or "author identities stay". Every such string is kept for the hand-off.
+2. **Inventory docs** — every tracked doc in the repo into a keep / merge / delete table with a reason per row.
+   - Untracked docs are listed separately as not shipped.
+   - Nothing deleted or merged without an explicit yes.
+3. **Grep claims against reality**
+   - A missing `LICENSE` is flagged and gated (you choose; it never picks one).
+   - A license already declared in `package.json`/`pyproject.toml` counts as your pick, and it offers to add the matching file.
+   - Every factual claim in the README/docs is checked against the actual code, config, and `git log`.
+   - Contradictions are reported as `file:line` (claim) plus `file:line`/commit (evidence).
+4. **Rewrite the README, lean by default** — the pieces:
+   - One-line pitch.
+   - Result.
+   - Demo media placeholder(s) the user fills in themselves (never a fabricated screenshot/GIF/metric).
+   - Quickstart actually run from a clean clone, with installs kept in a temp prefix or venv, never global, and never by registry name unless that registry entry's repository URL is this repo.
+   - The quickstart result is reported; a step whose toolchain isn't installed on this machine is reported `not run: <tool> missing` and kept, never dropped.
+   - Architecture only if the audience needs it.
+   - Credits.
+5. **Scan for secrets and private names**
+   - Secrets in tracked files only: key/token/connection-string patterns, un-ignored `.env` files, `gitleaks dir .`.
+   - Emails or person names (email grep, then reading comments and docs, including docs about to be deleted) that aren't authors or already public, reported as `file:line`, redacted only on yes.
+   - Also emails in commit messages and author/committer identities (`git log --all`), minus your own; for other people's identities you choose rewrite or "author identities stay".
+   - Every such string is kept for the hand-off.
 6. **Propose GitHub metadata** — description/topics/homepage, shown as the exact `gh repo edit` command, applied only on yes; no GitHub remote means the command is printed and skipped.
-7. **GATE** — shows the diff summary; commits (small, one logical change each) only on yes, on a new branch in a separate worktree, so your checkout, WIP and untracked files are never touched; asks first when a file it changes also holds your WIP; pushes only on a separate yes.
-8. **Hands off to `repo-scrub`** — states plainly that history scanning and the visibility flip happen there, not here, asks you to merge or push its branch first (else repo-scrub's post-push reset rebases it into a conflict), and passes it every personal string found (redacted, from deleted docs, or only in history) and your identity choice, so they are scrubbed from history too (gitleaks doesn't look for names or emails).
+7. **GATE** — shows the diff summary.
+   - Commits (small, one logical change each) only on yes, on a new branch in a separate worktree, so your checkout, WIP and untracked files are never touched.
+   - Asks first when a file it changes also holds your WIP.
+   - Pushes only on a separate yes.
+8. **Hands off to `repo-scrub`** — states plainly that history scanning and the visibility flip happen there, not here.
+   - Asks you to merge or push its branch first (else repo-scrub's post-push reset rebases it into a conflict).
+   - Passes it every personal string found (redacted, from deleted docs, or only in history) and your identity choice, so they are scrubbed from history too (gitleaks doesn't look for names or emails).
 9. **Writes the report** — the doc inventory, contradicted-claims list, and secret/name findings (plus what was done about each) to `skilleddocs/showcase/<local-date>.md`, uncommitted unless asked.
 
 ## Design principles
@@ -57,7 +86,15 @@ Defaults to the current repo. Model-invocable, so any of the trigger phrases abo
 /repo-showcase myorg/tool
 ```
 
-Asks outcome/audience/emphasis, gets "go" (defaults accepted); inventories 6 docs (keeps 4, merges 1, deletes 1 stale plan doc on yes); finds the README claiming "Python 3.8+" against `pyproject.toml`'s `>=3.11`; rewrites the README with a pitch, a screenshot placeholder, and a corrected quickstart; finds no secrets but one teammate's email in a config comment, redacted on yes; proposes a description and two topics, applied on yes; shows the diff, commits on a branch on yes, pushes on a second yes; writes `skilleddocs/showcase/2026-09-26.md`; ends by pointing at `/repo-scrub` for the history scan and visibility flip.
+- Asks outcome/audience/emphasis, gets "go" (defaults accepted).
+- Inventories 6 docs (keeps 4, merges 1, deletes 1 stale plan doc on yes).
+- Finds the README claiming "Python 3.8+" against `pyproject.toml`'s `>=3.11`.
+- Rewrites the README with a pitch, a screenshot placeholder, and a corrected quickstart.
+- Finds no secrets but one teammate's email in a config comment, redacted on yes.
+- Proposes a description and two topics, applied on yes.
+- Shows the diff, commits on a branch on yes, pushes on a second yes.
+- Writes `skilleddocs/showcase/2026-09-26.md`.
+- Ends by pointing at `/repo-scrub` for the history scan and visibility flip.
 
 ## Related
 
