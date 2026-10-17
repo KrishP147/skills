@@ -639,6 +639,15 @@ class LauncherTest(Base):
         self.assertIn("unknown account 'gone'. accounts: main, alt", err)
         self.assertEqual(len(self.log()), 2)  # claude not started
 
+    def test_no_accounts_says_run_setup(self):
+        cs.registry_path().unlink()
+        rc, _, err = self.finish(self.launch())
+        self.assertEqual(rc, 2)
+        self.assertIn("no accounts yet; run setup", err)
+        self.assertIn(" setup --account main=", err)
+        self.assertNotIn("not started by", err)
+        self.assertFalse((self.tmp / "log.jsonl").exists())
+
     def test_add_switches_into_new_account(self):
         rc, _, err = self.finish(self.launch("main", FAKE_ADD="work", FAKE_SESSION=SID))
         self.assertEqual(rc, 0, err)

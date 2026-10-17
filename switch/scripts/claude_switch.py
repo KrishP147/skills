@@ -170,12 +170,16 @@ def resolve_target(reg, name, current, previous):
     return a, None
 
 
+def setup_command():
+    return '"%s" "%s" setup --account main=~/.claude --account <name>=<config dir>' % (
+        sys.executable, Path(__file__).resolve())
+
+
 def setup_steps():
     return (
         "this session was not started by the claude-switch launcher, so it can't switch.\n"
-        "set up once, then start Claude with `claude` or `claude-<name>` from a new shell:\n"
-        '  "%s" "%s" setup --account main=~/.claude --account <name>=<config dir>'
-        % (sys.executable, Path(__file__).resolve())
+        "set up once, then start Claude with `claude` or `claude-<name>` from a new shell:\n  "
+        + setup_command()
     )
 
 
@@ -323,7 +327,7 @@ def child_env(acct, previous):
 def cmd_run(argv):
     reg = load()
     if not reg["accounts"]:
-        print(setup_steps(), file=sys.stderr)
+        print("claude-switch: no accounts yet; run setup once:\n  " + setup_command(), file=sys.stderr)
         return 2
     if argv and not argv[0].startswith("-"):  # wrappers pass '-' or a name first
         name, args = argv[0], list(argv[1:])
