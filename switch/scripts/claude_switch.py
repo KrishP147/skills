@@ -647,7 +647,7 @@ def link_file(src, dst):
     try:
         os.link(str(src), str(dst))
         return ("hardlinked (no symlink rights; turn on Developer Mode for symlinks): "
-                "Claude rewrites settings.json atomically, which splits it off into a separate copy")
+                "a file Claude saves by replacing it (settings.json) then splits off into a separate copy")
     except OSError:
         shutil.copy2(str(src), str(dst))
         return "copied (no symlink or hardlink possible): later edits are not shared"
@@ -806,7 +806,8 @@ def cmd_remove(args):
         for p in links:
             print("  unlink (shared; its target and content are kept): %s -> %s" % (p, os.path.realpath(p)))
         if dirs:
-            print("  delete: %s (%d files, %d dirs, none shared)" % (d, len(files), len(dirs)))
+            print("  delete: %s (%d files, %d dirs; a hardlinked file loses only this name)"
+                  % (d, len(files), len(dirs)))
     if args.dry_run:
         print("dry run: nothing changed")
         return 0
