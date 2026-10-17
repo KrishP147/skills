@@ -820,16 +820,24 @@ def confirm_plan(plan, yes):
                 old.replace("\r\n", "\n").splitlines(True), (new or "").replace("\r\n", "\n").splitlines(True),
                 str(path) if old else "/dev/null", str(path) if new is not None else "/dev/null"):
             sys.stdout.write(line if line.endswith("\n") else line + "\n")  # last line without one: no gluing
-    if yes:
-        return True
-    try:
-        ans = input("Write these changes? [y/N] ")
-    except EOFError:
-        ans = ""
-    if ans.strip().lower() in ("y", "yes"):
+    if yes or ask("Write these changes? [y/N] "):
         return True
     print("nothing written")
     return False
+
+
+def ask(prompt):
+    """[y/N] answer. A PowerShell 5.1 pipe ('y' | python ...) prepends a
+    UTF-8 BOM, read as U+FEFF or, in a cp1252 stdin, as three letters."""
+    try:
+        ans = input(prompt)
+    except EOFError:
+        return False
+    ans = ans.strip()
+    for bom in ("﻿", "ï»¿"):
+        if ans.startswith(bom):
+            ans = ans[len(bom):]
+    return ans.strip().lower() in ("y", "yes")
 
 
 def write_plan(plan):
@@ -1108,14 +1116,9 @@ def cmd_remove(args):
     if args.dry_run:
         print("dry run: nothing changed")
         return 0
-    if (links or dirs) and not args.yes:
-        try:
-            ans = input("Unlink and delete as above? [y/N] ")
-        except EOFError:
-            ans = ""
-        if ans.strip().lower() not in ("y", "yes"):
-            print("nothing changed")
-            return 1
+    if (links or dirs) and not args.yes and not ask("Unlink and delete as above? [y/N] "):
+        print("nothing changed")
+        return 1
     reg["accounts"].remove(acct)
     regen_shells(reg)
     print("removed '%s'" % args.name)
