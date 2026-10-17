@@ -26,7 +26,7 @@ Gets a repo's working tree ready to be seen.
 /repo-showcase [owner/repo]
 ```
 
-Defaults to the current repo. Model-invocable, so any of the trigger phrases above work without the slash.
+Defaults to the current repo. Claude also runs it when you say one of the phrases above.
 
 ## How it works
 
@@ -43,28 +43,28 @@ Defaults to the current repo. Model-invocable, so any of the trigger phrases abo
    - One-line pitch.
    - Result.
    - Demo media placeholder(s) the user fills in themselves (never a fabricated screenshot/GIF/metric).
-   - Quickstart actually run from a clean clone, with installs kept in a temp prefix or venv, never global, and never by registry name unless that registry entry's repository URL is this repo.
+   - Quickstart, actually run from a clean clone. Installs go in a temp prefix or venv, never global, and never by registry name unless that registry entry's repository URL is this repo.
    - The quickstart result is reported; a step whose toolchain isn't installed on this machine is reported `not run: <tool> missing` and kept, never dropped.
    - Architecture only if the audience needs it.
    - Credits.
 5. **Scan for secrets and private names**
    - Secrets in tracked files only: key/token/connection-string patterns, un-ignored `.env` files, `gitleaks dir .`.
-   - Emails or person names (email grep, then reading comments and docs, including docs about to be deleted) that aren't authors or already public, reported as `file:line`, redacted only on yes.
-   - Also emails in commit messages and author/committer identities (`git log --all`), minus your own; for other people's identities you choose rewrite or "author identities stay".
+   - Emails or person names that aren't authors or already public: found with an email grep, then by reading comments and docs (including docs about to be deleted). They are reported as `file:line` and redacted only on yes.
+   - Also emails in commit messages and author/committer identities (`git log --all`), minus your own. For other people's identities you choose: rewrite, or "author identities stay".
    - Every such string is kept for the hand-off.
 6. **Propose GitHub metadata** — description/topics/homepage, shown as the exact `gh repo edit` command, applied only on yes; no GitHub remote means the command is printed and skipped.
-7. **GATE** — shows the diff summary.
+7. **Gate.** Shows the diff summary.
    - Commits (small, one logical change each) only on yes, on a new branch in a separate worktree, so your checkout, WIP and untracked files are never touched.
    - Asks first when a file it changes also holds your WIP.
    - Pushes only on a separate yes.
 8. **Hands off to `repo-scrub`** — states plainly that history scanning and the visibility flip happen there, not here.
-   - Asks you to merge or push its branch first (else repo-scrub's post-push reset rebases it into a conflict).
+   - Asks you to merge or push its branch first (otherwise repo-scrub's post-push reset rebases it into a conflict).
    - Passes it every personal string found (redacted, from deleted docs, or only in history) and your identity choice, so they are scrubbed from history too (gitleaks doesn't look for names or emails).
 9. **Writes the report** — the doc inventory, contradicted-claims list, and secret/name findings (plus what was done about each) to `skilleddocs/showcase/<local-date>.md`, uncommitted unless asked.
 
 ## Design principles
 
-- **Never touches visibility or history.** Those are irreversible-ish and belong to a dedicated, more careful skill (`repo-scrub`); this one only prepares the working tree.
+- **Never touches visibility or history.** Those are hard to undo and belong to a dedicated, more careful skill (`repo-scrub`); this one only prepares the working tree.
 - **Nothing invented.** Demo media, metrics, and architecture diagrams are placeholders for the user to fill in — never fabricated to make the README look more finished than the repo is.
 - **Every outward action gated.** Deletes, redactions, metadata edits, commits, and pushes each need an explicit yes; a diff is always shown first.
 
@@ -76,8 +76,8 @@ Defaults to the current repo. Model-invocable, so any of the trigger phrases abo
 
 ## Tips
 
-- No strong opinions on the §1 questions? Say "go" — the recommended defaults are reasonable starting points, not filler.
-- The contradicted-claims grep (§3) is worth running even if you're not ready to rewrite the README yet — it surfaces drift on its own.
+- No strong opinions on the step 1 questions? Say "go". The recommended defaults are reasonable starting points, not filler.
+- The contradicted-claims grep (step 3) is worth running even if you're not ready to rewrite the README yet — it surfaces drift on its own.
 - Run this before `repo-scrub`, not after — a clean working tree makes the history scan's findings easier to read.
 
 ## Example
@@ -104,4 +104,4 @@ Defaults to the current repo. Model-invocable, so any of the trigger phrases abo
 
 ## Prereqs
 
-`gh` for the metadata proposal step (§6). None otherwise.
+`gh` for the metadata proposal step (step 6). None otherwise.
