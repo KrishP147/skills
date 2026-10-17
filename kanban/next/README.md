@@ -15,13 +15,13 @@ Shows the next 1–3 tasks to work on, pulled from the repo's GitHub kanban boar
 
 ## How to invoke
 
-`/next`, or ask what's next — model-invocable.
+`/next`, or just ask what's next. Claude can also run it itself.
 
 ## How it works
 
 1. **Find the board** (the canonical lookup other kanban skills reuse): `gh project list --owner <owner>`, filtered to the title `<repo> Board` or boards linking this repo's issues.
    - One match → use it; several → asks you.
-   - None → `status:todo` / `status:in-progress` / `status:in-review` / `status:done` labels (created on first use by whichever skill applies one — `gh label create status:<name> --color <hex> --force`, fixed color per label so repeat calls are a no-op).
+   - None → `status:todo` / `status:in-progress` / `status:in-review` / `status:done` labels. Whichever skill applies one first creates it (`gh label create status:<name> --color <hex> --force`); each label has a fixed color, so repeat calls change nothing.
    - None → a roadmap doc (`ROADMAP.md`, `docs/roadmap.md`) whose execution order links issues.
    - Nothing → tells you to run `/kanban-setup`.
 2. **Burning priority:** workflow names come from `gh workflow list --json name -q '.[].name'`.
@@ -31,11 +31,11 @@ Shows the next 1–3 tasks to work on, pulled from the repo's GitHub kanban boar
    - Checked per workflow when there are several.
 3. **Candidates:**
    - In Review items first, tagged "awaiting verification" (Projects: the In Review column; labels: `status:in-review`).
-   - Then Projects Todo/Ready items (cross-checks `gh issue list` if the eventually-consistent `gh project item-list` returns empty), `status:todo` issues, or open issues in roadmap order.
+   - Then Projects Todo/Ready items (it double-checks with `gh issue list` if `gh project item-list`, which can lag, returns empty), `status:todo` issues, or open issues in roadmap order.
    - Issues labelled `wayfinder:*` are skipped (they belong to `/wayfinder`).
    - Within each group (In Review, then Todo), sorted by `priority:*` label (`p0` before `p1`, `high` before `low`), else roadmap order, else oldest first.
    - A repo's `CLAUDE.md`/`AGENTS.md` rules override all of this.
-4. **Present:** top 1–3 with title, number, size (`size:*` label or "unestimated"), suggested model (fast for well-specified, strong for ambiguous/`needs-design`).
+4. **Present:** top 1–3 with title, number, size (`size:*` label or "unestimated"), suggested model (a fast one for well-specified work, a strong one for ambiguous or `needs-design` work).
    - "go" picks the top one.
    - Picking doesn't claim the card; `pair` or `meta-orchestrator` moves it to In Progress when it creates the branch, so a Todo card may have been picked but never started.
 
