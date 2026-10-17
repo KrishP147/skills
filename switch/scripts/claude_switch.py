@@ -6,6 +6,9 @@ live conversation between them. Stdlib only.
   request [name] --session ID  ask the launcher this session runs under to switch
   setup [--account NAME=DIR ...] [--profile SHELL=PATH ...] [--yes]
                                register accounts, write shell wrappers
+  add NAME [--dir DIR]         new account sharing the first one's items
+  remove NAME [--delete-dir] [--yes] [--dry-run]
+  rename OLD NEW | list | migrate
 
 Registry: $CLAUDE_SWITCH_HOME (default ~/.claude-switch)/accounts.json.
 Env for tests: CLAUDE_SWITCH_HOME, CLAUDE_SWITCH_CLAUDE (claude binary: a
@@ -19,6 +22,7 @@ import os
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -509,9 +513,11 @@ def cmd_setup(args):
             shell, sep, p = spec.partition("=")
             if shell not in SHELLS or not p:
                 raise SystemExit("claude-switch: --profile wants SHELL=PATH, SHELL one of %s" % ", ".join(SHELLS))
-            targets[shell] = Path(os.path.expanduser(p))
+            targets[shell] = Path(os.path.expanduser(p)).absolute()
     else:
         targets = default_targets()
+    # remembered, so add/remove/rename/migrate regenerate the same files
+    reg["profiles"] = dict(reg.get("profiles") or {}, **{k: str(v) for k, v in targets.items()})
     plan = plan_setup(reg, targets, sys.executable, Path(__file__).resolve())
     for a in reg["accounts"]:
         if not Path(a["dir"]).is_dir():
@@ -544,6 +550,321 @@ def cmd_setup(args):
     return 0
 
 
+def regen_shells(reg):
+    """Save the registry, then rewrite our block in the shell files setup
+    recorded (default_targets() when none). No prompt: only the marker
+    block changes. Prints each changed path."""
+    save(reg)
+    targets = {k: Path(v) for k, v in (reg.get("profiles") or {}).items()}
+    if not targets:
+        targets = default_targets()
+        reg["profiles"] = {k: str(v) for k, v in targets.items()}
+        save(reg)
+    try:
+        plan = plan_setup(reg, targets, sys.executable, Path(__file__).resolve())
+    except SystemExit as e:
+        print("warning: shell files not updated (%s); fix it and rerun setup" % e)
+        return
+    for path, _, new, bom in plan:
+        if new is None:
+            os.remove(path)
+        else:
+            atomic_write(path, new, bom=bom)
+        if path != registry_path():
+            print("updated %s" % path)
+
+
+# ---------------------------------------------------------------- accounts
+
+SHARED_DIRS = ("skills", "agents", "commands", "plugins", "projects")
+SHARED_FILES = ("settings.json", "CLAUDE.md")  # .credentials.json, .claude.json stay per account
+
+
+def is_link(p):
+    """Symlink or junction, never followed. Before Python 3.12,
+    is_symlink() is False for a junction: check the reparse-point bit."""
+    try:
+        st = os.lstat(p)
+    except OSError:
+        return False
+    if stat.S_ISLNK(st.st_mode):
+        return True
+    return bool(getattr(st, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT) if WINDOWS else False
+
+
+def _same(a, b):
+    return os.path.normcase(os.path.realpath(str(a))) == os.path.normcase(os.path.realpath(str(b)))
+
+
+def _norm(p):
+    return os.path.normcase(os.path.abspath(os.path.expanduser(str(p))))
+
+
+def link_dir(src, dst):
+    if WINDOWS:
+        import _winapi
+        _winapi.CreateJunction(str(src), str(dst))  # no admin or Developer Mode needed
+    else:
+        os.symlink(str(src), str(dst), target_is_directory=True)
+
+
+def link_file(src, dst):
+    """Symlink; Windows without Developer Mode: hardlink, else copy.
+    Returns a warning, or None for a symlink."""
+    try:
+        os.symlink(str(src), str(dst))
+        return None
+    except OSError:
+        if not WINDOWS:
+            raise
+    try:
+        os.link(str(src), str(dst))
+        return ("hardlinked (no symlink rights; turn on Developer Mode for symlinks): "
+                "Claude rewrites settings.json atomically, which splits it off into a separate copy")
+    except OSError:
+        shutil.copy2(str(src), str(dst))
+        return "copied (no symlink or hardlink possible): later edits are not shared"
+
+
+def link_shared(src_dir, dst_dir):
+    for name in SHARED_DIRS + SHARED_FILES:
+        src, dst = Path(src_dir) / name, Path(dst_dir) / name
+        if os.path.lexists(str(dst)):
+            if is_link(dst) and _same(dst, src):
+                print("already linked: %s" % dst)
+            else:
+                print("warning: %s already exists; left as is (not shared)" % dst)
+            continue
+        if name in SHARED_DIRS:
+            if not src.exists():
+                src.mkdir(parents=True)
+                print("created empty %s to share" % src)
+            link_dir(src, dst)
+            print("linked %s -> %s" % (dst, src))
+            continue
+        if not src.is_file():
+            print("note: %s missing; not shared" % src)
+            continue
+        warn = link_file(src, dst)
+        print(("warning: %s %s" % (dst, warn)) if warn else "linked %s -> %s" % (dst, src))
+
+
+def _account_or_exit(reg, name):
+    a = find(reg, name)
+    if not a:
+        raise SystemExit("claude-switch: unknown account '%s'. accounts: %s"
+                         % (name, ", ".join(x["name"] for x in reg["accounts"]) or "none"))
+    return a
+
+
+def _check_new_name(reg, name):
+    if not NAME_RE.match(name):
+        raise SystemExit("claude-switch: bad account name %r (use a-z, 0-9, -, _)" % name)
+    if find(reg, name):
+        raise SystemExit("claude-switch: account '%s' already exists" % name)
+
+
+def cmd_add(args):
+    reg = load()
+    _check_new_name(reg, args.name)
+    if not reg["accounts"]:
+        raise SystemExit("claude-switch: no accounts yet; run setup or migrate first")
+    d = Path(os.path.expanduser(args.dir) if args.dir else Path.home() / (".claude-" + args.name)).absolute()
+    for a in reg["accounts"]:
+        if _norm(a["dir"]) == _norm(d):
+            raise SystemExit("claude-switch: %s is already account '%s'" % (d, a["name"]))
+    first = reg["accounts"][0]
+    d.mkdir(parents=True, exist_ok=True)
+    link_shared(first["dir"], d)
+    upsert(reg, args.name, str(d))
+    regen_shells(reg)
+    print("added '%s' (%s), sharing %s's items" % (args.name, d, first["name"]))
+    launcher = os.environ.get("CLAUDE_SWITCH_LAUNCHER")
+    if launcher:
+        atomic_write(switch_home() / "requests" / ("%s.json" % launcher),
+                     json.dumps({"target": args.name, "session": args.session or ""}))
+        print("switching to '%s': this session ends now and resumes there; log in when Claude asks." % args.name)
+    else:
+        print("start it with claude-%s from a new shell; Claude asks you to log in." % args.name)
+    return 0
+
+
+def scan_tree(root):
+    """(links, files, dirs) under root, never following a link; dirs
+    parents first."""
+    links, files, dirs = [], [], []
+    stack = [str(root)]
+    while stack:
+        d = stack.pop()
+        dirs.append(d)
+        with os.scandir(d) as it:
+            for e in it:
+                if is_link(e.path):
+                    links.append(e.path)
+                elif e.is_dir(follow_symlinks=False):
+                    stack.append(e.path)
+                else:
+                    files.append(e.path)
+    return links, files, dirs
+
+
+def unlink(p):
+    """Remove a link or junction itself, never its target."""
+    if WINDOWS and os.lstat(p).st_file_attributes & stat.FILE_ATTRIBUTE_DIRECTORY:
+        os.rmdir(p)  # junction or directory symlink: removes only the reparse point
+    else:
+        os.unlink(p)
+
+
+def _force_unlink(p):
+    try:
+        os.unlink(p)
+    except PermissionError:
+        os.chmod(p, stat.S_IWRITE)  # Windows read-only file
+        os.unlink(p)
+
+
+def delete_dir(root):
+    """Unlink every link first, then delete what's left. Never rmtree."""
+    if is_link(root):
+        unlink(root)
+        return
+    for p in scan_tree(root)[0]:
+        unlink(p)
+    links, files, dirs = scan_tree(root)
+    if links:  # appeared meanwhile: stop rather than risk a shared target
+        raise SystemExit("claude-switch: new links under %s; nothing more deleted" % root)
+    for p in files:
+        _force_unlink(p)
+    for d in reversed(dirs):
+        os.rmdir(d)
+
+
+def delete_refusal(reg, acct):
+    d = _norm(acct["dir"])
+    if d in (_norm(Path.home()), _norm(Path.home() / ".claude")) or d == os.path.dirname(d):
+        return "%s is not a dir to delete" % acct["dir"]
+    for other in [_norm(a["dir"]) for a in reg["accounts"] if a is not acct] + [_norm(switch_home())]:
+        if other == d or other.startswith(d.rstrip(os.sep) + os.sep) or d.startswith(other.rstrip(os.sep) + os.sep):
+            return "%s overlaps %s" % (acct["dir"], other)
+    return None
+
+
+def cmd_remove(args):
+    reg = load()
+    acct = _account_or_exit(reg, args.name)
+    if args.name == os.environ.get("CLAUDE_SWITCH_ACCOUNT"):
+        raise SystemExit("claude-switch: '%s' is the account you're on; switch away first" % args.name)
+    if len(reg["accounts"]) == 1:
+        raise SystemExit("claude-switch: '%s' is the last account; not removed" % args.name)
+    if acct is reg["accounts"][0]:
+        raise SystemExit("claude-switch: '%s' is the first account and the others link into its dir; "
+                         "remove them first" % args.name)
+    d = Path(acct["dir"])
+    links, files, dirs = [], [], []
+    print("plan for removing '%s':" % args.name)
+    print("  unregister it and regenerate shell files")
+    if not args.delete_dir:
+        print("  keep %s (--delete-dir deletes it)" % d)
+    elif not os.path.lexists(str(d)):
+        print("  %s does not exist; nothing to delete" % d)
+    else:
+        why = delete_refusal(reg, acct)
+        if why:
+            raise SystemExit("claude-switch: won't delete: %s" % why)
+        if is_link(d):
+            links = [str(d)]
+        else:
+            links, files, dirs = scan_tree(d)
+        for p in links:
+            print("  unlink (shared; its target and content are kept): %s -> %s" % (p, os.path.realpath(p)))
+        if dirs:
+            print("  delete: %s (%d files, %d dirs, none shared)" % (d, len(files), len(dirs)))
+    if args.dry_run:
+        print("dry run: nothing changed")
+        return 0
+    if (links or dirs) and not args.yes:
+        try:
+            ans = input("Unlink and delete as above? [y/N] ")
+        except EOFError:
+            ans = ""
+        if ans.strip().lower() not in ("y", "yes"):
+            print("nothing changed")
+            return 1
+    reg["accounts"].remove(acct)
+    regen_shells(reg)
+    print("removed '%s'" % args.name)
+    if links or dirs:
+        delete_dir(d)
+        print("deleted %s (%d links unlinked first)" % (d, len(links)))
+    return 0
+
+
+def cmd_rename(args):
+    reg = load()
+    acct = _account_or_exit(reg, args.old)
+    _check_new_name(reg, args.new)
+    acct["name"] = args.new
+    regen_shells(reg)
+    print("renamed '%s' to '%s'; dir %s not moved. new shells: claude-%s" % (args.old, args.new, acct["dir"], args.new))
+    return 0
+
+
+def cmd_list(args):
+    reg = load()
+    if not reg["accounts"]:
+        print("no accounts; run setup or migrate")
+        return 0
+    current = os.environ.get("CLAUDE_SWITCH_ACCOUNT")
+    tty = sys.stdout.isatty()
+    width = max(len(a["name"]) for a in reg["accounts"])
+    for a in reg["accounts"]:
+        colour = a.get("colour") or "-"
+        swatch = "\x1b[%dm  \x1b[0m " % (ANSI[colour] + 10) if tty and colour in ANSI else ""
+        used = (a.get("last_used") or "")[:16].replace("T", " ")
+        print("%s%-*s  %-7s  %s  last used %s%s" % (swatch, width, a["name"], colour, a["dir"],
+                                                   used + " UTC" if used else "never",
+                                                   "  (current)" if a["name"] == current else ""))
+    return 0
+
+
+def cmd_migrate(args):
+    """Register ~/.claude and ~/.claude-<name> dirs. Only stats them: never
+    writes inside an account dir."""
+    reg = load()
+    home = Path.home()
+    known = {_norm(a["dir"]) for a in reg["accounts"]}
+    found = []
+    if (home / ".claude").is_dir() and _norm(home / ".claude") not in known:
+        found.append(("main", home / ".claude"))
+    for p in sorted(home.iterdir()):
+        n = p.name
+        if (not n.startswith(".claude-") or n == ".claude-switch" or ".stale-" in n
+                or _norm(p) in known or _norm(p) == _norm(switch_home()) or not p.is_dir()):
+            continue
+        suffix = n[len(".claude-"):]
+        if not NAME_RE.match(suffix):
+            print("note: skipped %s: '%s' is not a valid account name" % (p, suffix))
+            continue
+        if not ((p / ".credentials.json").is_file() or (p / ".claude.json").is_file() or (p / "projects").is_dir()):
+            print("note: skipped %s: no .credentials.json, .claude.json or projects/" % p)
+            continue
+        found.append((suffix, p))
+    added = 0
+    for name, p in found:
+        if find(reg, name):
+            print("note: skipped %s: '%s' is already %s" % (p, name, find(reg, name)["dir"]))
+            continue
+        upsert(reg, name, str(p))
+        added += 1
+        print("registered '%s' = %s" % (name, p))
+    if not added:
+        print("nothing new to register")
+        return 0
+    regen_shells(reg)
+    return 0
+
+
 # ---------------------------------------------------------------- main
 
 def main(argv=None):
@@ -561,8 +882,23 @@ def main(argv=None):
     s.add_argument("--profile", action="append", metavar="SHELL=PATH",
                    help="write only these (%s; cmd takes the shim dir)" % ", ".join(SHELLS))
     s.add_argument("--yes", action="store_true", help="write without asking")
+    ad = sub.add_parser("add", help="new account: config dir with shared items linked from the first")
+    ad.add_argument("name")
+    ad.add_argument("--dir", help="config dir (default ~/.claude-NAME)")
+    ad.add_argument("--session", default="", help="session to resume on it when under the launcher")
+    rm = sub.add_parser("remove", help="unregister an account; --delete-dir also deletes its dir")
+    rm.add_argument("name")
+    rm.add_argument("--delete-dir", action="store_true", help="unlink shared links first, then delete the rest")
+    rm.add_argument("--yes", action="store_true", help="delete without asking")
+    rm.add_argument("--dry-run", action="store_true", help="print the plan, change nothing")
+    rn = sub.add_parser("rename", help="rename an account (its dir is not moved)")
+    rn.add_argument("old")
+    rn.add_argument("new")
+    sub.add_parser("list", help="accounts, colour, dir, last used")
+    sub.add_parser("migrate", help="register ~/.claude and ~/.claude-* dirs; reads them only")
     a = p.parse_args(argv)
-    return cmd_request(a) if a.cmd == "request" else cmd_setup(a)
+    return {"request": cmd_request, "setup": cmd_setup, "add": cmd_add, "remove": cmd_remove,
+            "rename": cmd_rename, "list": cmd_list, "migrate": cmd_migrate}[a.cmd](a)
 
 
 if __name__ == "__main__":
