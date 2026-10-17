@@ -119,14 +119,15 @@ class MapValidationTest(unittest.TestCase):
         flat = [n for _g, m in grps for n in m]
         self.assertEqual(sorted(flat), sorted(e["name"] for e in self.entries))
         self.assertEqual([g for g, _m in grps][:6],
-                         ["plan", "implement", "review", "handoff", "board", "repo-hygiene"])
+                         ["plan-and-decide", "build-and-orchestrate", "sessions-and-accounts",
+                          "review-and-report", "repo-and-safety", "kanban-board"])
 
     def test_bad_groups_fail(self):
         r = self.raw()
-        r["plan"].append("nope")
+        r["plan-and-decide"].append("nope")
         self.fails({site_map.META_KEY: r}, "unknown name 'nope'")
         r = self.raw()
-        r["review"].append(r["plan"][0])
+        r["review-and-report"].append(r["plan-and-decide"][0])
         self.fails({site_map.META_KEY: r}, "is in both")
         r = self.raw()
         r["hooks"].remove("smartzone")

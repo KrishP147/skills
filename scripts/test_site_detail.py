@@ -378,7 +378,7 @@ class SectionMappingTest(unittest.TestCase):
         self.assertIn("## not a heading", ordered[1][2])  # fenced '##' is not a split
 
     def test_placeholders_in_readme_stay_literal(self):
-        e = dict(build_site.collect(ROOT)[0], readme="## What it does\n\nUse `{{NAME}}` and {{DATA}}.\n")
+        e = dict(build_site.collect(ROOT)[0], category="plan-and-decide", readme="## What it does\n\nUse `{{NAME}}` and {{DATA}}.\n")
         with contextlib.redirect_stderr(io.StringIO()):  # fixture README has no Example
             pages = site_detail.build_pages(ROOT, [e], {}, "{{BODY}}|{{NAME}}", "[]")
         self.assertIn("<code>{{NAME}}</code> and {{DATA}}", pages[e["name"]])

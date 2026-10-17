@@ -5,12 +5,13 @@ Reuses scripts/lint.py discovery + frontmatter parsing so the site lists
 exactly what lint counts. Output (wiped + recreated every run):
 
   site/dist/index.html          terminal home + server-rendered skill list
+                                (one section per meta.json category)
   site/dist/skills.json         full data (name, description, summary,
-                                group, source, readme)
+                                group, category, source, readme)
   site/dist/<name>/index.html   detail page per skill/agent/hook (site_detail.py)
   site/dist/workflows/index.html  sample workflows from site/data/workflows.json
                                 (site_workflows.py; validated, every skill covered)
-  site/dist/map/index.html      skills map: groups from meta.json "map_groups",
+  site/dist/map/index.html      skills map: categories from meta.json "categories",
                                 edges generated from the docs (site_map.py)
   site/dist/404.html
   site/dist/*.css|*.js|*.svg    copied as text from site/src/
@@ -58,12 +59,22 @@ def first_sentence(text):
     return text
 
 
+def apply_categories(entries, cats):
+    """Set e["category"] from meta.json categories ([(category, [name, ...])],
+    already validated) and sort entries by category order, then name."""
+    cat = {n: (i, c) for i, (c, members) in enumerate(cats) for n in members}
+    for e in entries:
+        e["category"] = cat[e["name"]][1]
+    entries.sort(key=lambda e: (cat[e["name"]][0], e["name"]))
+
+
 def posix_rel(path, root):
     return os.path.relpath(path, root).replace(os.sep, "/")
 
 
 def collect(root):
-    """Return entries sorted by group order then name."""
+    """Return entries sorted by group order then name. The build re-sorts
+    them by category (apply_categories)."""
     entries = []
     for path in lint.find_skill_files(root):
         text = read_text(path)
@@ -180,12 +191,11 @@ def normalize_base(base):
 
 def render_list(entries, base=""):
     out = []
-    for group in GROUPS:
-        items = [e for e in entries if e["group"] == group]
-        if not items:
-            continue
-        out.append('<section class="group" aria-labelledby="g-%s">' % group)
-        out.append('<h2 id="g-%s">%s <span class="n">(%d)</span></h2>' % (group, group, len(items)))
+    for cat in dict.fromkeys(e["category"] for e in entries):  # entries are in category order
+        items = [e for e in entries if e["category"] == cat]
+        out.append('<section class="group" aria-labelledby="g-%s">' % esc(cat))
+        out.append('<h2 id="g-%s">%s <span class="n">(%d)</span></h2>'
+                   % (esc(cat), esc(site_map.group_title(cat)), len(items)))
         out.append('<ul class="skill-list">')
         for e in items:
             out.append(
@@ -267,6 +277,7 @@ def build(root, out, base=""):
     workflows = site_workflows.validate(site_workflows.load(root), entries)
     meta = site_detail.load_meta(root)
     map_groups, map_edges = site_map.build(root, entries, meta, workflows)
+    apply_categories(entries, map_groups)
     site_detail.model_effort(meta, entries)
     site_detail.validate_levels(root, meta, entries)
 

@@ -63,6 +63,11 @@ def esc(s):
     return html.escape(s, quote=True)
 
 
+def category_title(c):
+    """meta.json category key -> display title: \"kanban-board\" -> \"kanban board\"."""
+    return c.replace("-", " ")
+
+
 def norm_heading(text):
     t = strip_inline(text).lower()
     t = re.sub(r"\(.*?\)", " ", t)
@@ -541,7 +546,7 @@ def build_pages(root, entries, meta, template, data_json, site_base="", workflow
             "DATA": data_json,
             "URL": esc(url),
             "NAME": esc(e["name"]),
-            "GROUP": esc(e["group"]),
+            "GROUP": esc(category_title(e["category"])),
             "DESCRIPTION": esc(e["description"]),
         }
         pages[e["name"]] = re.sub(r"\{\{([A-Z]+)\}\}",

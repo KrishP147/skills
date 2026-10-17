@@ -1,8 +1,9 @@
 """Skills map page (/map) for the skills site. Stdlib only.
 
 Nodes are every skill, agent and hook. Groups come from site/data/meta.json
-"map_groups" ({group: [name, ...]}, declaration order): every entry in
-exactly one group; unknown, missing or duplicate names fail the build.
+"categories" ({category: [name, ...]}, declaration order; the same list
+drives the home catalog, page tags and README): every entry in
+exactly one category; unknown, missing or duplicate names fail the build.
 
 Edges are generated from real references, never hand-written:
   related   a markdown link in an entry's Related section (skill README
@@ -31,7 +32,7 @@ import site_detail
 from md_render import slugify, strip_inline
 
 SLUG = "map"  # index page: <out>/map/index.html, URL <base>/map
-META_KEY = "map_groups"
+META_KEY = "categories"
 GROUP_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 RESERVED_GROUPS = {"toc", "key"}  # section ids map-toc, map-key are the page's own
 _LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)\s]+)\)")
@@ -193,8 +194,7 @@ def edges(root, entries, workflows):
 
 # ---- render -----------------------------------------------------------------
 
-def group_title(g):
-    return g.replace("-", " ")
+group_title = site_detail.category_title
 
 
 def flowchart(members, group_edges):

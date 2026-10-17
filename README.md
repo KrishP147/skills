@@ -50,40 +50,74 @@ Each tier builds on the one above: `pair` is one orchestrator loop without the b
 
 ## What's here
 
+### Plan and decide
+
+Think a plan through before you build it.
+
 | Skill | What it does | Prereqs |
 |---|---|---|
-| [`repo-scrub`](repo-scrub/README.md) | Scans a GitHub repo's full git history for secrets and oversized files, lets you pick exactly what to scrub, rewrites history safely, and only then flips the repo private → public. User-invoked only (`/repo-scrub`). | `gh`, [`gitleaks`](https://github.com/gitleaks/gitleaks), [`git-filter-repo`](https://github.com/newren/git-filter-repo) |
 | [`grilling`](grilling/README.md) *(Matt Pocock)* | Interviews you relentlessly, one round of questions at a time with a recommendation attached to each, until a plan or decision is fully stress-tested. | none |
 | [`grill-me`](grill-me/README.md) *(Matt Pocock)* | Short alias for `grilling`. User-invoked only (`/grill-me`); Claude auto-invokes `grilling` instead. | none |
 | [`grill-docs`](grill-docs/README.md) | `grilling` with a paper trail: writes the Q→A transcript to `skilleddocs/grills/` as each round settles and appends every decision to the repo's decisions doc (default `skilleddocs/decisions.md`), so planners, verifiers and teammates can read what was decided and why. | none |
 | [`wayfinder`](wayfinder/README.md) *(adapted from Matt Pocock's `wayfinder`)* | Plans an effort too big for one session: a `wayfinder:map` GitHub issue whose sub-issues are decision tickets (research, prototype, grilling, task), resolved one per session until the way is clear, then handed to `divide` for board issues. Kept off the board (`next`, `planner` and `meta-orchestrator` skip `wayfinder:*`). User-invoked only (`/wayfinder`). | `gh`; `grill-docs` |
-| [`handoff`](handoff/README.md) *(Matt Pocock, save path modified, commit rule added)* | Compacts the current conversation into a handoff document so a fresh session can pick up where it left off; saved under `skilleddocs/handoffs/`. User-invoked only (`/handoff`). | none |
-| [`handoff-auto`](handoff-auto/README.md) *(derived from Pocock's `handoff`; frontmatter, save path and commit rule differ)* | Same document, but callable by the model, so other skills and subagents can end a session unattended. Saved under `skilleddocs/handoffs/`, committed or not per [`TRACKING.md`](handoff-auto/TRACKING.md). Prints the file path as its last line. | none |
+| [`consult-plan`](kanban/consult-plan/README.md) | Grills a new idea or deviation against the existing plan before it goes in | `gh`; `grilling` |
+| [`gap-scan`](gap-scan/README.md) | Surveys one or more repos (sync, README/docs, recent commits, TODOs, tests, open issues, an optional visual pass for UI apps) and returns a ranked, evidence-cited list of gaps, bugs, and extensions as issue-ready items. Read-only: writes one report under `skilleddocs/gaps/`; creating issues needs an explicit yes. | `gh` |
+| [`find-me-a-skill`](find-me-a-skill/README.md) | Suggests which skill or sample workflow fits a task (from the text, the conversation, or the top board tasks), with the model and `/effort` for each step, the points where you decide, and commands to paste. Read-only, runs on Haiku, reads a catalog generated from this repo (`python scripts/site_catalog.py`). | none; `gh` for board mode |
+
+### Build and orchestrate
+
+Run one task, or a whole backlog, with agents.
+
+| Skill | What it does | Prereqs |
+|---|---|---|
 | [`pair`](pair/README.md) | Runs one task in an isolated git worktree: resolves the issue (syncs upstream first on a fork, checks the cited files still exist), spawns the `manager` agent, shows its report, and only then pushes and opens the PR itself. Agents never touch the remote. | `gh`; `manager` + `implementer` agents installed |
 | [`meta-orchestrator`](meta-orchestrator/README.md) | Runs a repo's backlog unattended: spawns `planner` → `manager` (or `implementer` with `shape: flat`, or a swarm of haiku implementers with `shape: swarm`; implementer model by issue size) → `verifier` in a loop, holds the merge gate itself (tests + CI green or no merge), reads `skilleddocs/` for the design record, appends every event to `skilleddocs/orchestrator/ledger.md` (committed in the repo, unless `docs_commit: uncommitted`), and writes `orchestrator-handoff.md` after a budget of merges so `/meta-orchestrator <repo> resume` continues in a fresh session. | `gh`; the four agents installed; a kanban board, `status:*` labels, or a roadmap doc (whatever `next` finds) |
 | [`lanes`](lanes/README.md) | Sets how many issues a `meta-orchestrator` run works on at once: predicts each queued issue's files, groups overlapping issues into the same lane, proposes a count with a token-cost line, and on your yes writes named lanes to `scope.md`. `/lanes <n> \| increase \| decrease`; changes apply at the orchestrator's next loop. | a `meta-orchestrator` run; `gh` |
-| [`progress-report`](progress-report/README.md) | Turns the orchestrator's ledger into a short report covering only what happened since the last one (watermarked, never overlapping): done, what worked, what didn't, concerns, decisions made on your behalf, manual steps for you. Markdown by default, `.docx` on request. | `docx` skill or `python-docx` for the Word option |
-| [`spend-gate`](spend-gate/README.md) | Gates any billable action (GPU pods, paid APIs, paid tiers, cloud credits) behind a cost estimate, a live balance check, and an explicit yes for that specific action — a budget cap is never itself approval. Logs every approval to `skilleddocs/spend.md`. Pairs with the optional [`hooks/spend-guard.py`](hooks/README.md#spend-guardpy--block-billable-commands-without-an-approval) hook. | none |
-| [`pr-watch`](pr-watch/README.md) | Watches your open PRs until merged: pulls bot and human review threads (CodeRabbit, Copilot, maintainers), fixes valid ones via `pair`, replies to or resolves the rest with cited evidence, reports CI (fork `action_required` = needs maintainer approval, not failing). Every push, reply, resolve, and bot re-trigger is gated on an explicit yes. | `gh`; `pair`'s agents for the fix step |
-| [`session-bridge`](session-bridge/README.md) | Coordinates with another running Claude Code session or agent: finds it (`ListAgents`, or its transcript under `~/.claude/projects/`), takes a read-only snapshot, checks for file/branch/issue overlap and proposes a split, then sends a message only on explicit yes. A reply from another session is never treated as your approval. | none; `ListAgents`/`SendMessage` and `gh` used when available |
-| [`sitrep`](sitrep/README.md) | Live, conversational status check in 10 lines or fewer: what's running, git state, open PRs + CI, an asked-vs-done checklist, needs-you items, and a SAFE/NOT SAFE close verdict. Gated stop-and-handoff on explicit "close". Read-only otherwise. | `gh`; background-task tools if available (optional) |
-| [`gap-scan`](gap-scan/README.md) | Surveys one or more repos (sync, README/docs, recent commits, TODOs, tests, open issues, an optional visual pass for UI apps) and returns a ranked, evidence-cited list of gaps, bugs, and extensions as issue-ready items. Read-only: writes one report under `skilleddocs/gaps/`; creating issues needs an explicit yes. | `gh` |
-| [`repo-showcase`](repo-showcase/README.md) | Gets a repo's working tree ready to be seen: rewrites the README around outcome and demo, prunes stale docs, fixes claims the code has outdated, scans for secrets and private names, proposes GitHub metadata. Never touches history or visibility — hands off to `repo-scrub` for that. | `gh` (metadata step only) |
-| [`teammate-brief`](teammate-brief/README.md) | Writes a handoff document for a person joining or picking up a project: setup steps verified by running them, an env/keys table (names only, never values), numbered tasks with a "done when" each, an ownership map, and a don't-touch list. Saved to `skilleddocs/briefs/`; commits and pushes gated separately. | `gh`, optional, for open issues |
 | [`score-loop`](score-loop/README.md) | Pushes one rerunnable numeric score up or down unattended: builds a local harness that mirrors the grader (correctness check, median of N runs, noise margin from baseline runs), commits one hypothesis at a time on `<prefix>score-loop/<slug>`, keeps a commit only when it beats the best by more than the margin and `git revert`s the rest, and logs every experiment to `skilleddocs/experiments.md`. Stops on budget, deadline freeze or plateau; official submissions stay inside a quota you approve, paid ones go through `spend-gate`. | a score you can compute locally |
 | [`ponytail`](ponytail/README.md) *(DietrichGebert)* | Lazy-senior-developer mode for the whole session: the smallest change that fully solves the task, plus a closing line on what was skipped and any risk. Levels `lite`, `full` (default), `ultra`; stays on until "stop ponytail". | none |
+
+### Sessions and accounts
+
+Hand work to a fresh session, check this one, or switch accounts.
+
+| Skill | What it does | Prereqs |
+|---|---|---|
+| [`handoff`](handoff/README.md) *(Matt Pocock, save path modified, commit rule added)* | Compacts the current conversation into a handoff document so a fresh session can pick up where it left off; saved under `skilleddocs/handoffs/`. User-invoked only (`/handoff`). | none |
+| [`handoff-auto`](handoff-auto/README.md) *(derived from Pocock's `handoff`; frontmatter, save path and commit rule differ)* | Same document, but callable by the model, so other skills and subagents can end a session unattended. Saved under `skilleddocs/handoffs/`, committed or not per [`TRACKING.md`](handoff-auto/TRACKING.md). Prints the file path as its last line. | none |
+| [`sitrep`](sitrep/README.md) | Live, conversational status check in 10 lines or fewer: what's running, git state, open PRs + CI, an asked-vs-done checklist, needs-you items, and a SAFE/NOT SAFE close verdict. Gated stop-and-handoff on explicit "close". Read-only otherwise. | `gh`; background-task tools if available (optional) |
+| [`session-bridge`](session-bridge/README.md) | Coordinates with another running Claude Code session or agent: finds it (`ListAgents`, or its transcript under `~/.claude/projects/`), takes a read-only snapshot, checks for file/branch/issue overlap and proposes a split, then sends a message only on explicit yes. A reply from another session is never treated as your approval. | none; `ListAgents`/`SendMessage` and `gh` used when available |
 | [`switch`](switch/README.md) | Runs several Claude Code accounts, one config dir each: `claude` opens the account you used last, `claude-<name>` a named one, and `/switch [name]` ends the session and resumes the same conversation on the previous or named account. A stdlib Python launcher per terminal watches its own request file; `setup` writes wrappers for bash, zsh, fish, PowerShell 5.1 + 7 and cmd after showing the diff; `migrate` registers existing `~/.claude-*` dirs read-only. `/switch add|remove|rename|list|theme` manages accounts (new ones link the first's skills, settings and history; `remove --delete-dir` never deletes through a link). A statusline shows the account in its colour plus session/week usage and time left, and a prompt hook warns at 90%/97% and runs `/switch` with no API call, so it works at 100%. User-invoked only (`/switch`). | Python 3.8+ |
 | [`remind`](remind/README.md) | Reminders tied to your accounts or a time: when an account's session or weekly limit resets (time from `switch`'s usage cache, never guessed), when its usage drops under N%, or at/in a time. Due ones show once at your next prompt on any account via `switch`'s hook; timed ones also get a desktop notification at the exact time (Windows scheduled-task toast, `at` on macOS/Linux). `/remind list`, `/remind cancel <id>`. User-invoked only (`/remind`). | Python 3.8+; `switch` for account reminders |
-| [`find-me-a-skill`](find-me-a-skill/README.md) | Suggests which skill or sample workflow fits a task (from the text, the conversation, or the top board tasks), with the model and `/effort` for each step, the points where you decide, and commands to paste. Read-only, runs on Haiku, reads a catalog generated from this repo (`python scripts/site_catalog.py`). | none; `gh` for board mode |
 
-### [`kanban/`](kanban/) — GitHub-Issues-as-kanban-board workflow
+### Review and report
+
+Watch PRs, write up what happened, brief a teammate.
+
+| Skill | What it does | Prereqs |
+|---|---|---|
+| [`pr-watch`](pr-watch/README.md) | Watches your open PRs until merged: pulls bot and human review threads (CodeRabbit, Copilot, maintainers), fixes valid ones via `pair`, replies to or resolves the rest with cited evidence, reports CI (fork `action_required` = needs maintainer approval, not failing). Every push, reply, resolve, and bot re-trigger is gated on an explicit yes. | `gh`; `pair`'s agents for the fix step |
+| [`progress-report`](progress-report/README.md) | Turns the orchestrator's ledger into a short report covering only what happened since the last one (watermarked, never overlapping): done, what worked, what didn't, concerns, decisions made on your behalf, manual steps for you. Markdown by default, `.docx` on request. | `docx` skill or `python-docx` for the Word option |
+| [`teammate-brief`](teammate-brief/README.md) | Writes a handoff document for a person joining or picking up a project: setup steps verified by running them, an env/keys table (names only, never values), numbered tasks with a "done when" each, an ownership map, and a don't-touch list. Saved to `skilleddocs/briefs/`; commits and pushes gated separately. | `gh`, optional, for open issues |
+
+### Repo and safety
+
+Get a repo ready to share, scrub secrets, gate paid actions.
+
+| Skill | What it does | Prereqs |
+|---|---|---|
+| [`repo-showcase`](repo-showcase/README.md) | Gets a repo's working tree ready to be seen: rewrites the README around outcome and demo, prunes stale docs, fixes claims the code has outdated, scans for secrets and private names, proposes GitHub metadata. Never touches history or visibility — hands off to `repo-scrub` for that. | `gh` (metadata step only) |
+| [`repo-scrub`](repo-scrub/README.md) | Scans a GitHub repo's full git history for secrets and oversized files, lets you pick exactly what to scrub, rewrites history safely, and only then flips the repo private → public. User-invoked only (`/repo-scrub`). | `gh`, [`gitleaks`](https://github.com/gitleaks/gitleaks), [`git-filter-repo`](https://github.com/newren/git-filter-repo) |
+| [`spend-gate`](spend-gate/README.md) | Gates any billable action (GPU pods, paid APIs, paid tiers, cloud credits) behind a cost estimate, a live balance check, and an explicit yes for that specific action — a budget cap is never itself approval. Logs every approval to `skilleddocs/spend.md`. Pairs with the optional [`hooks/spend-guard.py`](hooks/README.md#spend-guardpy--block-billable-commands-without-an-approval) hook. | none |
+
+### Kanban board
+
+Skills in [`kanban/`](kanban/) that use a GitHub board as the task list.
 
 | Skill | What it does |
 |---|---|
 | [`next`](kanban/next/README.md) | Shows the next work-session task(s), pulled from the board. Read-only. |
 | [`session-handoff`](kanban/session-handoff/README.md) | Ends a session: calls `handoff-auto`, records progress against the board, moves the card |
 | [`update-progress`](kanban/update-progress/README.md) | Verifies a handoff's claims, updates docs/board/issue from it |
-| [`consult-plan`](kanban/consult-plan/README.md) | Grills a new idea or deviation against the existing plan before it goes in |
 | [`divide`](kanban/divide/README.md) | Splits an oversized issue into session-sized ones |
 | [`kanban-setup`](kanban/kanban-setup/README.md) | Bootstraps a GitHub Projects board for a repo; can backfill issues from what's already documented. User-invoked only (`/kanban-setup`) because it creates real issues. |
 
