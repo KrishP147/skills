@@ -189,7 +189,7 @@ class RequestTest(Base):
         self.assertEqual(rc, 0)
         self.assertEqual(self.requests(), ["4242.json", "4242.note.md"])
         req = json.loads((self.sw / "requests" / "4242.json").read_text())
-        self.assertEqual(req, {"target": "alt", "session": SID, "rc": False, "transcript": ""})
+        self.assertEqual(req, {"target": "alt", "session": SID, "transcript": ""})
 
 
 class SetupTest(Base):
@@ -737,7 +737,7 @@ def agent_file(d, aid, end_turn, age):
 
 
 class AccountBoundTest(Base):
-    """Remote Control flag, pre-switch check, yes confirm, rc-ok, transcript fallback."""
+    """Pre-switch notes, Remote Control info line, trailing yes, old registries, transcript fallback."""
     def setUp(self):
         super().setUp()
         self.register("main", "alt", "work")
@@ -749,38 +749,28 @@ class AccountBoundTest(Base):
     def req(self):
         return json.loads((self.sw / "requests" / "4242.json").read_text())
 
-    def test_rc_flag_from_env(self):
+    def test_remote_control_info_line_still_switches(self):
         rc, out = self.main("request", "alt", "--session", SID, env=self.env)
-        self.assertEqual((rc, self.req()["rc"]), (0, False))
+        self.assertEqual(rc, 0)
         self.assertNotIn("Remote Control", out)
-        os.remove(self.sw / "requests" / "4242.json")
         rc, out = self.main("request", "alt", "--session", SID,
                             env=dict(self.env, CLAUDE_CODE_BRIDGE_SESSION_ID="b1"))
-        self.assertEqual(rc, cs.NEED_YES)
-        self.assertIn("live: Remote Control is on: this session reappears under alt's Claude apps; "
-                      "a phone signed into main loses it (/switch rc-ok alt on stops this question)", out)
-        self.assertIn("rerun with yes: /switch alt yes", out)
-        self.assertNotIn("4242.json", self.requests())
-        rc, out = self.main("request", "alt", "yes", "--session", SID,
-                            env=dict(self.env, CLAUDE_CODE_BRIDGE_SESSION_ID="b1"))
-        self.assertEqual((rc, self.req()["rc"]), (0, True))
-        self.assertIn("switching to 'alt'", out)
-
-    def test_rc_ok_skips_question(self):
-        rc, out = self.main("rc-ok", "alt", "on")
         self.assertEqual(rc, 0)
-        self.assertIs(cs.find(cs.load(), "alt")["rc_ok"], True)
-        self.assertNotIn("rc_ok", cs.find(cs.load(), "work"))  # missing field: load() and the check cope
-        bridge = dict(self.env, CLAUDE_CODE_BRIDGE_SESSION_ID="b1")
-        rc, out = self.main("request", "alt", "--session", SID, env=bridge)
-        self.assertEqual((rc, self.req()["rc"]), (0, True))
-        self.assertIn("note: Remote Control is on", out)
-        rc, _ = self.main("request", "work", "--session", SID, env=bridge)
-        self.assertEqual(rc, cs.NEED_YES)
-        self.main("rc-ok", "alt", "off")
-        self.assertIs(cs.find(cs.load(), "alt")["rc_ok"], False)
-        with self.assertRaises(SystemExit):
-            self.main("rc-ok", "nope", "on")
+        self.assertIn("  Remote Control ends with this session; run /remote-control on alt if you want it", out)
+        self.assertIn("switching to 'alt'", out)
+        self.assertEqual(self.req(), {"target": "alt", "session": SID, "transcript": str(self.transcript.absolute())})
+
+    def test_old_registry_and_pending_marker(self):
+        reg = json.loads(cs.registry_path().read_text())
+        reg["accounts"][1]["rc_ok"] = True  # written by the version with rc-ok
+        cs.registry_path().write_text(json.dumps(reg))
+        cs.atomic_write(self.sw / "requests" / "4242.pending.json", json.dumps({"name": "alt", "time": 0}))
+        rc, out = self.main("request", "alt", "--session", SID,
+                            env=dict(self.env, CLAUDE_CODE_BRIDGE_SESSION_ID="b1"))
+        self.assertEqual(rc, 0)
+        self.assertIn("switching to 'alt'", out)
+        self.assertEqual(self.req()["target"], "alt")
+        self.assertEqual(self.main("list")[0], 0)
 
     def test_live_agents(self):
         sub = self.transcript.with_suffix("") / "subagents"
@@ -790,13 +780,13 @@ class AccountBoundTest(Base):
         self.assertEqual(cs.live_agents(str(self.transcript)), ["fresh", "stuck"])
         self.assertEqual(cs.live_agents(None), [])
         rc, out = self.main("request", "alt", "--session", SID, env=self.env)
-        self.assertEqual(rc, cs.NEED_YES)
-        self.assertIn("live: 2 subagents (fresh, stuck): paused by the switch; resume each with SendMessage", out)
-        self.assertEqual(self.requests(), [])
+        self.assertEqual(rc, 0)
+        self.assertIn("  2 subagents (fresh, stuck): paused by the switch; resume each with SendMessage", out)
+        self.assertIn("- live subagents: fresh, stuck", (self.sw / "requests" / "4242.note.md").read_text())
 
     def test_check_lines_and_note(self):
         agent_file(self.transcript.with_suffix("") / "subagents", "a1", False, 3600)
-        rc, out = self.main("request", "alt", "yes", "--session", SID, env=self.env)
+        rc, out = self.main("request", "alt", "--session", SID, env=self.env)
         self.assertEqual(rc, 0)
         lines = out.splitlines()
         self.assertEqual(lines[0], "before switching main -> alt:")
@@ -812,22 +802,19 @@ class AccountBoundTest(Base):
                      "Background Bash commands and monitors died", "Explore and Plan agents are one-shot"):
             self.assertIn(want, note)
 
-    def test_nothing_live_switches_at_once(self):
-        agent_file(self.transcript.with_suffix("") / "subagents", "old", True, 3600)
-        rc, out = self.main("request", "--session", SID, env=self.env)
-        self.assertEqual(rc, 0)
-        self.assertIn("before switching main -> ", out)
-        self.assertEqual(self.requests(), ["4242.json", "4242.note.md"])
-
-    def test_split_yes(self):
+    def test_trailing_yes_ignored(self):
+        rc, out = self.main("request", "work", "yes", "--session", SID, env=self.env)
+        self.assertEqual((rc, self.req()["target"]), (0, "work"))
+        rc, out = self.main("request", "yes", "--session", SID, env=dict(self.env, CLAUDE_SWITCH_PREVIOUS="alt"))
+        self.assertEqual((rc, self.req()["target"]), (0, "alt"))  # lone yes, no such account: the default
         reg = cs.load()
-        self.assertEqual(cs.split_yes(reg, []), (None, False))
-        self.assertEqual(cs.split_yes(reg, ["yes"]), (None, True))
-        self.assertEqual(cs.split_yes(reg, ["alt", "yes"]), ("alt", True))
-        self.assertEqual(cs.split_yes(reg, ["alt"]), ("alt", False))
+        self.assertEqual([cs.request_name(reg, w) for w in ([], ["yes"], ["alt", "yes"], ["alt"])],
+                         [None, None, "alt", "alt"])
         cs.upsert(reg, "yes", str(self.tmp / "y"))
-        self.assertEqual(cs.split_yes(reg, ["yes"]), ("yes", False))
-        self.assertEqual(cs.split_yes(reg, ["yes", "yes"]), ("yes", True))
+        self.assertEqual([cs.request_name(reg, w) for w in (["yes"], ["yes", "yes"])], ["yes", "yes"])
+        cs.save(reg)
+        rc, out = self.main("request", "yes", "--session", SID, env=self.env)
+        self.assertEqual((rc, self.req()["target"]), (0, "yes"))
 
     def test_resume_args(self):
         alt = cs.find(cs.load(), "alt")
@@ -869,76 +856,37 @@ class LauncherAccountBoundTest(Base):
     log = LauncherTest.log
 
     def test_remote_control_and_transcript_fallback(self):
-        self.main("rc-ok", "alt", "on")
         rc, _, err = self.finish(self.launch("main", FAKE_SWITCH_TO="alt", FAKE_SESSION=SID,
                                              CLAUDE_CODE_BRIDGE_SESSION_ID="b1"))
         self.assertEqual(rc, 0, err)
         self.assertEqual([(e["account"], e["args"]) for e in self.log()],
-                         [("main", []), ("alt", ["--resume", str(self.transcript.absolute()), "--remote-control"])])
+                         [("main", []), ("alt", ["--resume", str(self.transcript.absolute())])])
         self.assertIn("resume note: ", err)
         self.assertFalse(list((self.sw / "requests").glob("*.note.md")))  # gone when the launcher exits
 
-    def test_no_rc_flag_without_env_and_kept_on_fallback(self):
-        rc, _, err = self.finish(self.launch("main", FAKE_SWITCH_TO="alt", FAKE_SESSION=SID))
-        self.assertEqual(rc, 0, err)
-        self.assertNotIn("--remote-control", self.log()[1]["args"])
-        self.main("rc-ok", "alt", "on")
-        rc, _, err = self.finish(self.launch("main", log="b.jsonl", FAKE_SWITCH_TO="alt", FAKE_SESSION=SID,
+    def test_no_remote_control_flag_on_fallback(self):
+        rc, _, err = self.finish(self.launch("main", FAKE_SWITCH_TO="alt", FAKE_SESSION=SID,
                                              FAKE_RESUME_FAIL="1", CLAUDE_CODE_BRIDGE_SESSION_ID="b1"))
         self.assertEqual(rc, 0, err)
-        self.assertEqual(self.log("b.jsonl")[-1]["args"], ["--continue", "--remote-control"])
+        self.assertEqual(self.log()[-1]["args"], ["--continue"])
 
 
-class TwoAccountsNeverAskTest(Base):
-    """Exactly two accounts: nothing to choose, so /switch never asks."""
-    def setUp(self):
-        super().setUp()
+class TwoAccountsTest(Base):
+    """Exactly two accounts: a bare /switch goes to the other one at once, whatever is running."""
+    def test_bare_switch_with_remote_control_and_subagent(self):
         self.register("main", "alt")
-        self.env = {"CLAUDE_SWITCH_LAUNCHER": "4242", "CLAUDE_SWITCH_ACCOUNT": "main",
-                    "CLAUDE_CODE_BRIDGE_SESSION_ID": "b1"}
-        self.transcript = self.home / ".claude" / "projects" / "p" / (SID + ".jsonl")
-        self.transcript.parent.mkdir(parents=True)
-        self.transcript.write_text("{}\n")
-
-    def req(self):
-        return json.loads((self.sw / "requests" / "4242.json").read_text())
-
-    def test_rc_on_switches_at_once(self):
-        for argv in (("request", "--session", SID), ("request", "alt", "--session", SID)):
-            rc, out = self.main(*argv, env=self.env)
-            self.assertEqual((rc, self.req()["rc"]), (0, True))
-            self.assertIn("note: Remote Control is on", out)
-            self.assertNotIn("live:", out)
-            self.assertNotIn("stops this question", out)
-            self.assertNotIn("rerun with yes", out)
-            self.assertIn("switching to 'alt'", out)
-            self.assertEqual(self.requests(), ["4242.json", "4242.note.md"])
-            os.remove(self.sw / "requests" / "4242.json")
-
-    def test_live_subagent_switches_at_once(self):
-        agent_file(self.transcript.with_suffix("") / "subagents", "a1", False, 3600)
-        rc, out = self.main("request", "alt", "--session", SID, env=self.env)
+        t = self.home / ".claude" / "projects" / "p" / (SID + ".jsonl")
+        t.parent.mkdir(parents=True)
+        t.write_text("{}\n")
+        agent_file(t.with_suffix("") / "subagents", "a1", False, 3600)
+        env = {"CLAUDE_SWITCH_LAUNCHER": "4242", "CLAUDE_SWITCH_ACCOUNT": "main", "CLAUDE_CODE_BRIDGE_SESSION_ID": "b1"}
+        with mock.patch.dict(os.environ, env):
+            rc, msg = cs.make_request(None, SID)
         self.assertEqual(rc, 0)
-        self.assertIn("note: 1 subagent (a1)", out)
-        self.assertIn("- live subagents: a1", (self.sw / "requests" / "4242.note.md").read_text())
-
-    def test_three_accounts_still_ask(self):
-        self.register("main", "alt", "work")
-        rc, out = self.main("request", "alt", "--session", SID, env=self.env)
-        self.assertEqual(rc, cs.NEED_YES)
-        self.assertIn("live: Remote Control is on", out)
-        self.assertEqual(self.requests(), [])
-        self.main("rc-ok", "alt", "on")
-        rc, _ = self.main("request", "alt", "--session", SID, env=self.env)
-        self.assertEqual((rc, self.req()["rc"]), (0, True))
-
-    def test_hook_switches_on_first_try(self):
-        with mock.patch.dict(os.environ, self.env):
-            msg = cs.hook_switch("4242", [], {"session_id": SID, "transcript_path": str(self.transcript)})
+        self.assertIn("1 subagent (a1)", msg)
+        self.assertIn("Remote Control ends with this session", msg)
         self.assertIn("switching to 'alt'", msg)
-        self.assertNotIn("again within", msg)
-        self.assertEqual(self.req()["rc"], True)
-        self.assertNotIn("4242.pending.json", self.requests())
+        self.assertEqual(self.requests(), ["4242.json", "4242.note.md"])
 
 
 if __name__ == "__main__":

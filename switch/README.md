@@ -10,12 +10,12 @@ dir, and moves a live conversation from one to another. Start Claude with
 `/switch` closes it and reopens the same conversation on your previous
 account, `/switch <name>` on a named one. `/switch add|remove|rename|list`
 manages the accounts; new ones share skills, settings and history with
-the first. Before each switch it lists what stays with the old account
-(artifacts, routines) and what is live (Remote Control, running
-subagents), and with three or more accounts asks first when something
-is; with two it never asks. A statusline shows which account you're on
-and how much of its session and weekly limits is used, and warns you near the limit
-with the account that has the most room left.
+the first. Before each switch it prints what stays with the old account
+(artifacts, routines) and what ends or pauses (Remote Control, running
+subagents, background commands); it never asks. A statusline shows
+which account you're on and how much of its session and weekly limits
+is used, and warns you near the limit with the account that has the
+most room left.
 
 ## When to use
 
@@ -50,8 +50,6 @@ Then, in a new shell, `claude` or `claude-alt`, and inside a session:
 /switch rename <old> <new>
 /switch list
 /switch theme <name> [dark|light|...|-]
-/switch rc-ok <name> on|off
-/switch [name] yes
 ```
 
 User-invoked only; Claude never switches on its own. To take the
@@ -78,21 +76,18 @@ statusline and hook back out of `settings.json`:
 3. **`/switch`** runs `claude_switch.py request [name] --session <this
    session id>`. With no name it picks the account this launcher came
    from, else the most recently used other one. It prints the pre-switch
-   check (see "What follows the account"); with three or more accounts,
-   when something there is live it switches nothing until you confirm
-   with `yes`. With two accounts it never asks. Otherwise it writes
-   a resume note to `~/.claude-switch/requests/<launcher pid>.note.md`
-   and the request to `requests/<launcher pid>.json` (target, session,
-   Remote Control on or off, the transcript's absolute path); unknown
-   names list the accounts, a session not started by the launcher gets
-   the setup steps.
+   notes (see "What follows the account"), writes a resume note to
+   `~/.claude-switch/requests/<launcher pid>.note.md` and the request to
+   `requests/<launcher pid>.json` (target, session, the transcript's
+   absolute path). A trailing `yes` (`/switch work yes`) is ignored.
+   Unknown names list the accounts, a session not started by the
+   launcher gets the setup steps.
 4. **Relaunch.** The launcher sees its own request file, ends Claude
    (Windows: the whole process tree, MCP servers included), restores the
    terminal (raw mode, alt screen, bracketed paste, cursor) and starts the
    target account with `--resume <session id>`, or `--resume <absolute
    transcript path>` when the target's `projects/` doesn't hold the
-   session (an account with its own, unshared history), plus
-   `--remote-control` when Remote Control was on. The switch line is
+   session (an account with its own, unshared history). The switch line is
    followed by the resume note's path. If that exits with an
    error within 10 s it prints one line and uses `--continue`. Other
    args you started Claude with (e.g. `--model`) are not carried across
@@ -145,10 +140,8 @@ statusline and hook back out of `settings.json`:
     is out of usage. Claude Code passes a typed skill line to this hook
     as typed, before the skill expands (hooks reference, section
     "UserPromptSubmit input"; blocking per "UserPromptSubmit decision
-    control"). With three or more accounts, when the check finds
-    something live, the first `/switch [name]` shows it and switches nothing; type the same command again
-    within 120 s, or `/switch [name] yes`, to switch. `add`, `remove`,
-    `rename`, `list`, `theme` and `rc-ok` still go through the skill.
+    control"). `add`, `remove`, `rename`, `list` and `theme` still go
+    through the skill.
 12. **Theme and title.** `/switch theme <name> <theme>` gives an account
     its own Claude theme: the launcher passes it as
     `--settings '{"theme":...}'`, merged with a `--settings` you passed
@@ -178,23 +171,19 @@ flowchart TD
 
 Login, settings and transcripts belong to a config dir; some features
 belong to the claude.ai account that is logged in there. Before every
-switch `/switch` prints what each of them does:
+switch `/switch` prints what each of them does; none of it stops the
+switch:
 
-- **Remote Control** (live). A Remote Control session lives on the
-  account of the Claude process. After the switch the launcher starts
-  the target with `--remote-control`, so the session reappears under
-  the target account's Claude apps, and a phone signed into the old
-  account loses it. With three or more accounts `/switch` asks before
-  doing that; `/switch rc-ok <name> on` stops the question for that
-  account. With two accounts it never asks.
-- **Subagents** (live). A subagent whose transcript (under the
+- **Remote Control** ends with the old Claude process. When it was on,
+  `/switch` says so; run `/remote-control` on the target if you want it
+  there.
+- **Subagents**. A subagent whose transcript (under the
   session's `subagents/` folder) has no final reply yet, or changed in
   the last 10 minutes, counts as running. The switch pauses it; after
   the relaunch, `SendMessage` to its id resumes it with its history.
   Explore and Plan agents are one-shot and can't be resumed.
 - **Background Bash commands and monitors** end with the old process
-  and are not resumed. This line is always shown and never asks on its
-  own.
+  and are not resumed.
 - **Artifacts published in this session and routines** stay on the old
   account; republishing an artifact from the new one needs edit rights
   to it.
@@ -202,10 +191,7 @@ switch `/switch` prints what each of them does:
   on the target to connect them there. The **Chrome extension** must be
   signed into the target's organisation.
 
-With three or more accounts, something live (a running subagent, or
-Remote Control without `rc-ok`) means a yes first; otherwise, and always
-with two accounts, it switches straight away. Each switch also
-writes a resume note, `~/.claude-switch/requests/<launcher pid>.note.md`
+Each switch also writes a resume note, `~/.claude-switch/requests/<launcher pid>.note.md`
 (session, working dir, branch, last commit, live subagent ids and what
 to do about them); the launcher prints its path under the switch line
 and deletes it when it exits. Point the resumed conversation at it if
