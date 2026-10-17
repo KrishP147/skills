@@ -52,9 +52,7 @@ Reads/writes no files by itself.
 /grilling move auth from sessions to JWTs
 ```
 
-- Round 1 asks ~4 numbered questions (token lifetime, refresh strategy, revocation, migration of live sessions), each with a recommendation.
-- You answer; round 2 follows up on revocation storage because you chose short-lived tokens.
-- Stops when nothing is left open.
+Round 1 asks ~4 numbered questions (token lifetime, refresh strategy, revocation, migration of live sessions), each with a recommendation. You answer; round 2 follows up on revocation storage because you chose short-lived tokens. Stops when nothing is left open.
 
 ## Related
 
