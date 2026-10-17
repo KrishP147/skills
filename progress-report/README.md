@@ -23,7 +23,7 @@ Turns a run's ledger into a short progress report (1–2 pages) covering **only 
 - `docx` — Word file instead of Markdown (uses the `docx` skill if available, else `python-docx`).
 - `full` — ignore the watermark, cover everything, titled "Full report".
 
-Model-invocable, so asking for "an update doc" works too.
+Claude also runs it when you ask for "an update doc".
 
 ## How it works
 
@@ -53,7 +53,7 @@ Model-invocable, so asking for "an update doc" works too.
    - Never overwrites an earlier report.
    - Reads it back to check.
 6. **Advance the watermark.** Updates `.last-reported`, appends a `report` entry to the ledger.
-   - Commits them with the report only in commit mode on the default branch, or its docs branch when the default is protected ([`TRACKING.md`](../handoff-auto/TRACKING.md)).
+   - In commit mode it commits them with the report: on the default branch, or on its docs branch when the default is protected ([`TRACKING.md`](../handoff-auto/TRACKING.md)).
    - Prints the path and entry range.
 
 Reads: `skilleddocs/orchestrator/ledger.md`, `.last-reported`, git/gh.
