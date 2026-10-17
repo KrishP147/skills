@@ -17,14 +17,26 @@ Puts Claude in "lazy senior developer" mode for the whole session: it solves the
 /ponytail [lite|full|ultra]
 ```
 
-Also model-invocable, so Claude can pick it up from the trigger phrases above. It stays active until you say "stop ponytail" or "normal mode". Switch level any time with `/ponytail lite|full|ultra`. Default is `full`.
+- Also model-invocable, so Claude can pick it up from the trigger phrases above.
+- It stays active until you say "stop ponytail" or "normal mode".
+- Switch level any time with `/ponytail lite|full|ultra`. Default is `full`.
 
 ## How it works
 
-1. Reads the task and the code it touches, and lists every place the change must reach: callers, tests, fixtures, config, exports. Checks what it could break for users. That is the scope; extra features are not.
-2. Takes the first option that fully works: skip it if not needed (and name what was skipped), reuse what the codebase has, use the standard library or a platform feature, use an installed dependency, write one readable line, otherwise the minimum code.
-3. Finishes every part the task needs, including the callers, tests and fixtures the change breaks. For a bug fix it greps every caller first and fixes the root cause once in the shared code.
-4. Leaves one small test or assert-based self-check for new non-trivial logic. A shortcut with a known limit gets a comment: `shortcut: <the limit>, <when to upgrade>`.
+1. Reads the task and the code it touches, and lists every place the change must reach: callers, tests, fixtures, config, exports.
+   - Checks what it could break for users.
+   - That is the scope; extra features are not.
+2. Takes the first option that fully works:
+   - skip it if not needed (and name what was skipped)
+   - reuse what the codebase has
+   - use the standard library or a platform feature
+   - use an installed dependency
+   - write one readable line
+   - otherwise the minimum code
+3. Finishes every part the task needs, including the callers, tests and fixtures the change breaks.
+   - For a bug fix it greps every caller first and fixes the root cause once in the shared code.
+4. Leaves one small test or assert-based self-check for new non-trivial logic.
+   - A shortcut with a known limit gets a comment: `shortcut: <the limit>, <when to upgrade>`.
 5. Ends the reply with what it skipped or did not check, and any risk.
 
 | Level | Behavior |
@@ -50,7 +62,8 @@ Also model-invocable, so Claude can pick it up from the trigger phrases above. I
 - Use `lite` when you want to choose between the full and the smaller option yourself.
 - Use `ultra` when you suspect the request itself is bigger than the need.
 - Scope also covers the docs: if your change makes a README line, usage note or comment wrong, expect it to be updated too (the one line, not a rewrite).
-- `ultra` pushes back and then keeps going: the SKILL does not say to wait, so in practice it states what it will skip and why, and builds the part the need justifies in the same reply. Want to decide before anything is built? Use `lite`, or answer the pushback and ask again.
+- `ultra` pushes back and then keeps going: the SKILL does not say to wait, so in practice it states what it will skip and why, and builds the part the need justifies in the same reply.
+  - Want to decide before anything is built? Use `lite`, or answer the pushback and ask again.
 - It reads its own rules as session-wide, so say "normal mode" before a task where you do want the extras.
 
 ## Example
@@ -60,7 +73,8 @@ Also model-invocable, so Claude can pick it up from the trigger phrases above. I
 > add --json to the CLI, make the output format configurable via a YAML config file, add a formatter plugin registry so CSV can come later, and a progress bar for big files
 ```
 
-Claude pushes back on the YAML config (a new dependency where one flag does it), the plugin registry ("later" is not a need) and the progress bar (counting is instant). It builds `--json` only, with the standard library `json` and one small test, and closes with what it skipped and any risk, for example: "skipped: config, plugins, progress bar; risk: a file literally named `--json` can't be counted".
+- Claude pushes back on the YAML config (a new dependency where one flag does it), the plugin registry ("later" is not a need) and the progress bar (counting is instant).
+- It builds `--json` only, with the standard library `json` and one small test, and closes with what it skipped and any risk, for example: "skipped: config, plugins, progress bar; risk: a file literally named `--json` can't be counted".
 
 ## Related
 

@@ -4,7 +4,11 @@
 
 ## What it does
 
-Pushes one numeric score up (or down) unattended. Claude tries one idea per commit, measures it with a local harness that mirrors the real grader, keeps the commit only when it beats the best by more than the measured noise, and reverts it otherwise. Every experiment, kept or not, lands in a results ledger at `skilleddocs/experiments.md`.
+Pushes one numeric score up (or down) unattended. Claude tries one idea per commit:
+
+- It measures it with a local harness that mirrors the real grader.
+- It keeps the commit only when it beats the best by more than the measured noise, and reverts it otherwise.
+- Every experiment, kept or not, lands in a results ledger at `skilleddocs/experiments.md`.
 
 ## When to use
 
@@ -27,8 +31,14 @@ Pushes one numeric score up (or down) unattended. Claude tries one idea per comm
 
 ## How it works
 
-1. **Setup.** Fills a header in `skilleddocs/experiments.md`: metric and direction, grader and harness commands, submission path, official-submission quota, spend cap, deadline, noise margin (a % of the best), plateau K (default 5), parallel (default 1). Creates the branch `<prefix>score-loop/<slug>`.
-2. **Harness first.** Builds a local harness if there isn't one: a correctness check plus the median of N runs. Makes it defeat caching (fresh inputs or one process per run) and says how the score could be gamed. Runs the baseline N times: margin = spread / median, as a percentage. Calibrates against one official score (skipped when there is no official grader).
+1. **Setup.**
+   - Fills a header in `skilleddocs/experiments.md`: metric and direction, grader and harness commands, submission path, official-submission quota, spend cap, deadline, noise margin (a % of the best), plateau K (default 5), parallel (default 1).
+   - Creates the branch `<prefix>score-loop/<slug>`.
+2. **Harness first.**
+   - Builds a local harness if there isn't one: a correctness check plus the median of N runs.
+   - Makes it defeat caching (fresh inputs or one process per run) and says how the score could be gamed.
+   - Runs the baseline N times: margin = spread / median, as a percentage.
+   - Calibrates against one official score (skipped when there is no official grader).
 3. **One gate.** Shows the header and every outward action; after your one yes it runs unattended.
 4. **Loop.** Picks the most promising idea from the Next ideas list, commits one change, runs the harness:
    - correctness fails → `git revert`, logged `invalid`, doesn't count toward K;
@@ -36,7 +46,11 @@ Pushes one numeric score up (or down) unattended. Claude tries one idea per comm
    - beats it by more than half the margin but not the full margin → **borderline**: reruns the best and the candidate N times each now, interleaved in ABBA order (best, candidate, candidate, best, ...), and keeps the candidate only if its fresh median beats the best's fresh median by more than half the margin, else `git revert`, logged `noise`; the row note logs both fresh medians;
    - beats it by half the margin or less → `git revert`, logged `noise`;
    - worse → `git revert`, logged `revert`.
-5. **Stops** on the spend cap, at the deadline freeze (lead = max(10% of remaining, min(30 min, 50% of remaining)): reruns the best, final submission on your yes; setup refuses when one experiment plus the calibration doesn't fit before it), or after K experiments in a row without a keep. Then writes the summary, kept commits ranked by relative gain.
+5. **Stops**
+   - on the spend cap
+   - at the deadline freeze (lead = max(10% of remaining, min(30 min, 50% of remaining)): reruns the best, final submission on your yes; setup refuses when one experiment plus the calibration doesn't fit before it)
+   - or after K experiments in a row without a keep
+   - Then writes the summary, kept commits ranked by relative gain.
 6. **Rotation.** When its context degrades, writes a `handoff-auto` handoff pointing at `experiments.md` with `/score-loop resume`, and stops.
 
 ## Flow
@@ -89,7 +103,13 @@ flowchart TD
 /score-loop make the parser benchmark faster, deadline Friday 18:00
 ```
 
-Writes a harness that checks the parser output against fixtures and reports the median of 5 runs; baseline 412 ms, spread 9 ms, so the margin is ~2.2% of the best. You say yes to the header (quota 0, no spend). Experiment 1 (precompile the regexes) gives 371 ms and is kept; experiment 2 (bigger read buffer) gives 368 ms, within 2.2% of 371 (8 ms), and is reverted as `noise`; experiment 3 (skip validation) fails the correctness check and is reverted as `invalid`; experiment 4 (lazy token table) gives 364 ms, 1.9% better: borderline (between 1.1% and 2.2%), so it reruns the best and the candidate 5 times each in ABBA order (fresh medians 373 ms and 365 ms), and keeps it, since 365 beats 373 by 2.1%, more than 1.1%. After five more experiments without a keep it stops on plateau and appends a summary: two kept commits, -48 ms (12% faster).
+Writes a harness that checks the parser output against fixtures and reports the median of 5 runs; baseline 412 ms, spread 9 ms, so the margin is ~2.2% of the best. You say yes to the header (quota 0, no spend).
+
+- Experiment 1 (precompile the regexes) gives 371 ms and is kept.
+- Experiment 2 (bigger read buffer) gives 368 ms, within 2.2% of 371 (8 ms), and is reverted as `noise`.
+- Experiment 3 (skip validation) fails the correctness check and is reverted as `invalid`.
+- Experiment 4 (lazy token table) gives 364 ms, 1.9% better: borderline (between 1.1% and 2.2%), so it reruns the best and the candidate 5 times each in ABBA order (fresh medians 373 ms and 365 ms), and keeps it, since 365 beats 373 by 2.1%, more than 1.1%.
+- After five more experiments without a keep it stops on plateau and appends a summary: two kept commits, -48 ms (12% faster).
 
 ## Related
 

@@ -6,9 +6,11 @@
 
 Surveys one or more repos — code, recent commits, docs, open issues, and
 (for a UI app) a visual pass — and hands back a ranked list of gaps, bugs,
-and extension ideas. Every item cites its evidence (a `file:line`, a commit
-SHA, or an issue number); an item with nothing to point at gets dropped
-rather than listed. Read-only: it writes one report file and nothing else.
+and extension ideas.
+
+- Every item cites its evidence (a `file:line`, a commit SHA, or an issue
+  number); an item with nothing to point at gets dropped rather than listed.
+- Read-only: it writes one report file and nothing else.
 
 ## When to use
 
@@ -33,20 +35,24 @@ phrases above work without the slash command.
 
 ## How it works
 
-1. **Sync.** Per repo: if dirty (tracked changes, or untracked files outside
-   `skilleddocs/`, so its own report doesn't count), skip the pull and say
-   so; no upstream or no remote: skip the pull and say so; otherwise
-   `git pull --ff-only` (a diverged history is reported the same as dirty,
-   never force-merged). A fork also fetches `upstream`,
-   reports how far ahead/behind it is, and pulls upstream's own
-   `good first issue`-labeled issues.
-2. **Survey.** README and docs (flagging doc/code drift), the last ~20
-   commits (default; `--commits` overrides), a `TODO`/`FIXME`/`XXX` grep
-   over code, the repo's detected test command (run if it looks cheap,
-   otherwise skipped with a reason), and every open issue — so a gap that's
-   already tracked is marked as such instead of proposed again. If `gh` can't
-   reach the issues (non-GitHub remote, no auth), the summary says `Issues:
-   not checked (why)` and items read `new (issues unchecked)`.
+1. **Sync.** Per repo:
+   - If dirty (tracked changes, or untracked files outside `skilleddocs/`,
+     so its own report doesn't count), skip the pull and say so.
+   - No upstream or no remote: skip the pull and say so.
+   - Otherwise `git pull --ff-only` (a diverged history is reported the same
+     as dirty, never force-merged).
+   - A fork also fetches `upstream`, reports how far ahead/behind it is, and
+     pulls upstream's own `good first issue`-labeled issues.
+2. **Survey.**
+   - README and docs (flagging doc/code drift).
+   - The last ~20 commits (default; `--commits` overrides).
+   - A `TODO`/`FIXME`/`XXX` grep over code.
+   - The repo's detected test command (run if it looks cheap, otherwise
+     skipped with a reason).
+   - Every open issue — so a gap that's already tracked is marked as such
+     instead of proposed again.
+   - If `gh` can't reach the issues (non-GitHub remote, no auth), the summary
+     says `Issues: not checked (why)` and items read `new (issues unchecked)`.
 3. **Optional visual pass.** Only for a web/UI app, using the `run` skill or
    a screenshot capability if this session has one; skipped (with a reason)
    for libraries, CLIs, and backend-only services, or when no such tool is
@@ -165,6 +171,7 @@ No issues were created — that needs an explicit yes (the gate in `SKILL.md`).
 
 ## Prereqs
 
-`git`, `gh`. The `run` skill (or an in-session screenshot capability) is
-optional and only used for the visual/UX pass on web/UI apps — skipped with
-a note when absent.
+- `git`, `gh`.
+- The `run` skill (or an in-session screenshot capability) is optional and
+  only used for the visual/UX pass on web/UI apps — skipped with a note when
+  absent.
