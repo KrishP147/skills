@@ -4,8 +4,8 @@ live conversation between them. Stdlib only.
 
   run [name|-] [claude args]   launcher loop; '-' or no name = most recent
   request [name] --session ID  pre-switch notes, then ask this session's launcher to switch
-  setup [--account NAME=DIR ...] [--profile SHELL=PATH ...] [--yes]
-                               register accounts, write shell wrappers
+  setup [name] [--account NAME=DIR ...] [--profile SHELL=PATH ...] [--yes|--dry-run]
+                               register accounts (name = this config dir), write shell wrappers
   add NAME [--dir DIR]         new account sharing the first one's items
   remove NAME [--delete-dir] [--yes] [--dry-run]
   rename OLD NEW | list | migrate
@@ -36,6 +36,7 @@ import time
 from pathlib import Path
 
 WINDOWS = os.name == "nt"
+MACOS = sys.platform == "darwin"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 COLOURS = ["cyan", "magenta", "yellow", "green", "blue", "red"]
@@ -196,8 +197,8 @@ def setup_command():
 def setup_steps():
     return (
         "this session was not started by the claude-switch launcher, so it can't switch.\n"
-        "set up once, then start Claude with `claude` or `claude-<name>` from a new shell:\n  "
-        + setup_command()
+        "set up once with /switch setup (or from a shell, below), then start Claude with `claude` "
+        "or `claude-<name>` from a new terminal:\n  " + setup_command()
     )
 
 
@@ -675,7 +676,7 @@ def read_text(p):
     """(text, had_bom); missing file = ('', False)."""
     try:
         raw = Path(p).read_bytes()
-    except FileNotFoundError:
+    except (FileNotFoundError, NotADirectoryError):
         return "", False
     bom = raw.startswith(b"\xef\xbb\xbf")
     try:
@@ -741,18 +742,45 @@ def install_copy():
         _retry(lambda: os.replace(tmp, dst))
 
 
+def config_dir():
+    """The config dir this process runs under: $CLAUDE_CONFIG_DIR, else ~/.claude."""
+    return Path(os.environ.get("CLAUDE_CONFIG_DIR") or (Path.home() / ".claude")).absolute()
+
+
+def name_current_dir(reg, name):
+    """setup NAME: register the config dir this runs under as NAME. Refuses
+    to give that dir a second name or to move NAME off another dir."""
+    if not NAME_RE.match(name):
+        raise SystemExit("claude-switch: bad account name %r (use a-z, 0-9, -, _)" % name)
+    d = config_dir()
+    holder = next((a for a in reg["accounts"] if _norm(a["dir"]) == _norm(d)), None)
+    if holder and holder["name"] != name:
+        raise SystemExit("claude-switch: %s is already account '%s'; to rename it: /switch rename %s %s"
+                         % (d, holder["name"], holder["name"], name))
+    a = find(reg, name)
+    if a and not holder:
+        raise SystemExit("claude-switch: account '%s' is already %s; pick another name" % (name, a["dir"]))
+    if not a:
+        upsert(reg, name, str(d))
+
+
 def cmd_setup(args):
-    ensure_home()
-    reg = load()
+    reg = load()  # everything up to the plan is in memory: a refusal or --dry-run writes nothing
     if args.uninstall:
+        if args.name:
+            raise SystemExit("claude-switch: setup --uninstall takes no account name")
+        if not args.dry_run:
+            ensure_home()
         return setup_uninstall(reg, args)
+    if args.name or not (reg["accounts"] or args.account):
+        name_current_dir(reg, args.name or "main")  # first run: the account you're on is main
     for spec in args.account or []:
         name, sep, d = spec.partition("=")
         if not sep or not d:
             raise SystemExit("claude-switch: --account wants NAME=DIR, got %r" % spec)
         upsert(reg, name.strip(), d.strip())
-    if not reg["accounts"]:
-        upsert(reg, "main", str(Path.home() / ".claude"))  # D418
+    if not args.dry_run:
+        ensure_home()
     if args.profile:
         targets = {}
         for spec in args.profile:
@@ -770,9 +798,12 @@ def cmd_setup(args):
         if not Path(a["dir"]).is_dir():
             print("note: %s does not exist yet; claude creates it on first login as '%s'" % (a["dir"], a["name"]))
     if not plan:
-        install_copy()
+        if not args.dry_run:
+            install_copy()
         print("claude-switch: everything is up to date")
         return 0
+    if args.dry_run:
+        return dry_run(plan)
     if not confirm_plan(plan, args.yes):
         return 1
     install_copy()
@@ -783,16 +814,26 @@ def cmd_setup(args):
     return 0
 
 
+def dry_run(plan):
+    show_plan(plan)
+    print("dry run: nothing changed")
+    return 0
+
+
 def confirm_plan(plan, yes):
+    show_plan(plan)
+    if yes or ask("Write these changes? [y/N] "):
+        return True
+    print("nothing written")
+    return False
+
+
+def show_plan(plan):
     for path, old, new, _ in plan:
         for line in difflib.unified_diff(
                 old.replace("\r\n", "\n").splitlines(True), (new or "").replace("\r\n", "\n").splitlines(True),
                 str(path) if old else "/dev/null", str(path) if new is not None else "/dev/null"):
             sys.stdout.write(line if line.endswith("\n") else line + "\n")  # last line without one: no gluing
-    if yes or ask("Write these changes? [y/N] "):
-        return True
-    print("nothing written")
-    return False
 
 
 def ask(prompt):
@@ -829,6 +870,8 @@ def setup_uninstall(reg, args):
     if not plan:
         print("claude-switch: no statusline or hook of ours in %s" % files)
         return 0
+    if args.dry_run:
+        return dry_run(plan)
     if not confirm_plan(plan, args.yes):
         return 1
     write_plan(plan)
@@ -1119,21 +1162,60 @@ def cmd_rename(args):
     return 0
 
 
-def cmd_list(args):
-    reg = load()
+def login_info(d):
+    """(logged in, email) from the account's own files; never the Keychain.
+    Logged in = .credentials.json in its dir; on macOS (login in the
+    Keychain) an oauthAccount in its .claude.json. ~/.claude keeps that
+    file at ~/.claude.json, because the launcher unsets CLAUDE_CONFIG_DIR
+    for it."""
+    d = Path(d)
+    paths = ([Path.home() / ".claude.json"] if is_default_dir(d) else []) + [d / ".claude.json"]
+    cfg = next((c for c in map(_read_json, paths) if c), {})
+    oauth = cfg.get("oauthAccount") if isinstance(cfg.get("oauthAccount"), dict) else None
+    email = (oauth or {}).get("emailAddress")
+    email = email.strip() if isinstance(email, str) and email.strip() else "-"
+    return (d / ".credentials.json").is_file() or (MACOS and oauth is not None), email
+
+
+def usage_cells(name, now):
+    """['session 42% (2h13m left)', 'week -'] from the usage cache the
+    statusline writes; a window past its reset is 0%, as the guard counts it."""
+    data = _read_json(usage_path(name))
+    out = []
+    for (key, span), label in zip(WINDOWS_USAGE, ("session", "week")):
+        pct, r = window_now(data, key, span, now)
+        cell = "%s -" % label if pct is None else "%s %d%%" % (label, round(pct))
+        if pct is not None and r is not None:
+            cell += " (%s left)" % time_left(r - now)
+        out.append(cell)
+    return out
+
+
+def list_lines(reg, now, tty=False):
+    """One aligned line per account: name, colour, login, email, session
+    and week usage, last used, dir, (current). ANSI only with tty."""
     if not reg["accounts"]:
-        print("no accounts; run setup or migrate")
-        return 0
-    current = os.environ.get("CLAUDE_SWITCH_ACCOUNT")
-    tty = sys.stdout.isatty()
-    width = max(len(a["name"]) for a in reg["accounts"])
+        return ["no accounts; run /switch setup, or migrate"]
+    current = current_account(reg)
+    rows = []
     for a in reg["accounts"]:
-        colour = a.get("colour") or "-"
-        swatch = "\x1b[%dm  \x1b[0m " % (ANSI[colour] + 10) if tty and colour in ANSI else ""
+        logged_in, email = login_info(a["dir"])
         used = (a.get("last_used") or "")[:16].replace("T", " ")
-        print("%s%-*s  %-7s  %s  last used %s%s" % (swatch, width, a["name"], colour, a["dir"],
-                                                   used + " UTC" if used else "never",
-                                                   "  (current)" if a["name"] == current else ""))
+        rows.append([a["name"], a.get("colour") or "-", "logged in" if logged_in else "logged out", email]
+                    + usage_cells(a["name"], now) + ["last used " + (used + " UTC" if used else "never"), a["dir"]])
+    widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]) - 1)]
+    out = []
+    for a, row in zip(reg["accounts"], rows):
+        colour = a.get("colour")
+        swatch = "\x1b[%dm  \x1b[0m " % (ANSI[colour] + 10) if tty and colour in ANSI else ""
+        line = "  ".join([c.ljust(w) for c, w in zip(row, widths)] + [row[-1]])
+        out.append(swatch + line + ("  (current)" if a is current else ""))
+    return out
+
+
+def cmd_list(args):
+    for line in list_lines(load(), time.time(), tty=sys.stdout.isatty()):
+        print(line)
     return 0
 
 
@@ -1411,7 +1493,7 @@ def write_settings(path, old, new):
 WINDOWS_USAGE = (("five_hour", 5 * 3600), ("seven_day", 7 * 86400))
 LEVELS = (90, 97)
 SWITCH_RE = re.compile(r"^/(?:[\w.-]+:)?switch(?:\s+(.*))?$", re.S)
-SUBCOMMANDS = ("add", "remove", "rename", "list", "theme")
+SUBCOMMANDS = ("setup", "add", "remove", "rename", "list", "theme")
 
 
 def usage_path(name, suffix=""):
@@ -1447,23 +1529,42 @@ def record_usage(name, rate_limits, now):
         atomic_write(usage_path(name), json.dumps(data) + "\n")
 
 
+def window_now(data, key, span, now):
+    """(pct, resets_at) of one cached window: (None, None) when never seen;
+    0% once past its reset or seen longer ago than the window lasts."""
+    w = data.get(key)
+    if not isinstance(w, dict) or not _num(w.get("pct")):
+        return None, None
+    r, seen = w.get("resets_at"), data.get("seen")
+    if _num(r):
+        if r <= now:
+            return 0.0, None
+    elif not _num(seen) or now - seen > span:
+        return 0.0, None
+    return float(w["pct"]), (r if _num(r) else None)
+
+
 def effective_usage(data, now):
     """(pct, window, resets_at) of the fullest window still current. A
     window past its reset, or seen longer ago than it lasts, counts as 0."""
     best = (0.0, None, None)
     for key, span in WINDOWS_USAGE:
-        w = data.get(key)
-        if not isinstance(w, dict) or not _num(w.get("pct")):
-            continue
-        r, seen = w.get("resets_at"), data.get("seen")
-        if _num(r):
-            if r <= now:
-                continue
-        elif not _num(seen) or now - seen > span:
-            continue
-        if w["pct"] > best[0]:
-            best = (float(w["pct"]), key, r)
+        pct, r = window_now(data, key, span, now)
+        if pct and pct > best[0]:
+            best = (pct, key, r)
     return best
+
+
+def time_left(secs):
+    secs = int(secs)
+    if secs < 60:
+        return "<1m"
+    d, h, m = secs // 86400, secs % 86400 // 3600, secs % 3600 // 60
+    if d:
+        return "%dd%dh" % (d, h)
+    if h:
+        return "%dh%02dm" % (h, m)
+    return "%dm" % m
 
 
 def guard(reg, now):
@@ -1497,25 +1598,28 @@ def guard(reg, now):
 def cmd_hook():
     """UserPromptSubmit. `/switch` or `/switch <name>` under a launcher: write
     the request and block the prompt, so nothing reaches the API (works at
-    100% usage). Otherwise the usage guard. Never fails the prompt."""
+    100% usage). `/switch list` is answered here too, launcher or not.
+    Otherwise the usage guard. Never fails the prompt."""
     try:
         # utf-8-sig: PowerShell 5.1 piping into the command can prepend a BOM
         data = json.loads(sys.stdin.buffer.read().decode("utf-8-sig", "replace").strip() or "{}")
         if not isinstance(data, dict):
             return 0
         m = SWITCH_RE.match(str(data.get("prompt") or "").strip())
-        launcher = os.environ.get("CLAUDE_SWITCH_LAUNCHER")
-        if m and launcher:
-            words = (m.group(1) or "").split()
-            if not words or words[0] not in SUBCOMMANDS:  # subcommands go through the skill
-                name, msg = request_name(load(), words)
-                if not msg:
-                    _, msg = make_request(name, str(data.get("session_id") or ""),
-                                          transcript=data.get("transcript_path") or None, cwd=data.get("cwd") or None)
-                print(json.dumps({"decision": "block", "reason": msg,
-                                  "hookSpecificOutput": {"hookEventName": HOOK_EVENT,
-                                                         "suppressOriginalPrompt": True}}))
-                return 0
+        words = (m.group(1) or "").split() if m else []
+        msg = None
+        if m and words == ["list"]:  # read-only, needs no launcher: answered here, so it works at 100% too
+            msg = "\n".join(list_lines(load(), time.time()))
+        elif m and os.environ.get("CLAUDE_SWITCH_LAUNCHER") and (not words or words[0] not in SUBCOMMANDS):
+            name, msg = request_name(load(), words)  # other subcommands go through the skill
+            if not msg:
+                _, msg = make_request(name, str(data.get("session_id") or ""),
+                                      transcript=data.get("transcript_path") or None, cwd=data.get("cwd") or None)
+        if msg:
+            print(json.dumps({"decision": "block", "reason": msg,
+                              "hookSpecificOutput": {"hookEventName": HOOK_EVENT,
+                                                     "suppressOriginalPrompt": True}}))
+            return 0
         try:
             warn = guard(load(), time.time())
         except Exception as e:
@@ -1577,7 +1681,11 @@ def main(argv=None):
     r.add_argument("words", nargs="*", metavar="name", help="account (default: the previous one)")
     r.add_argument("--session", default="")
     s = sub.add_parser("setup", help="register accounts and write shell wrappers")
+    s.add_argument("name", nargs="?",
+                   help="account name for the config dir you're on ($CLAUDE_CONFIG_DIR, else ~/.claude); "
+                        "first run default: main")
     s.add_argument("--account", action="append", metavar="NAME=DIR")
+    s.add_argument("--dry-run", action="store_true", help="print the diff, write nothing")
     s.add_argument("--profile", action="append", metavar="SHELL=PATH",
                    help="write only these (%s; cmd takes the shim dir)" % ", ".join(SHELLS))
     s.add_argument("--yes", action="store_true", help="write without asking")
@@ -1595,7 +1703,7 @@ def main(argv=None):
     rn = sub.add_parser("rename", help="rename an account (its dir is not moved)")
     rn.add_argument("old")
     rn.add_argument("new")
-    sub.add_parser("list", help="accounts, colour, dir, last used")
+    sub.add_parser("list", help="accounts: colour, login, email, cached usage, last used, dir")
     sub.add_parser("migrate", help="register ~/.claude and ~/.claude-* dirs; links nothing")
     sub.add_parser("hook", help="UserPromptSubmit hook (stdin JSON): /switch without the API, usage guard")
     th = sub.add_parser("theme", help="show or set an account's Claude theme ('-' clears)")

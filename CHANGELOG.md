@@ -6,6 +6,8 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 
 ## [0.1.0] - 2026-10-15
 
+- `/switch setup [name]` (#234) runs first-time setup from inside Claude: it shows the profile and settings diff (`setup --dry-run`, new), asks in chat, then writes with `--yes` and says to open a new terminal. `name` names the config dir you're on (`$CLAUDE_CONFIG_DIR`, else `~/.claude`; `main` by default) and is refused when that dir or name is already registered differently. Falls back to `python` when `python3` is the Windows Store stub. The README's first-time steps lead with it; the shell command stays as the fallback.
+- `/switch list` (#230) shows per account whether it is logged in (`.credentials.json`, or on macOS an `oauthAccount` in `.claude.json`; never the Keychain), its email, and the last seen session and weekly usage with time left (`-` without a cache, `0%` past a reset). The hook answers `/switch list` itself, launcher or not, so it makes no API call and works at 100%.
 - Workflows `unattended-backlog`, `climb-a-score` and `safe-to-close` gain `/switch` and `/remind` steps for usage limits (#235).
 - Skills split into categories (#227): Plan and decide, Build and orchestrate, Sessions and accounts, Review and report, Repo and safety, Kanban board, plus agents and hooks. One list in `site/data/meta.json` (`categories`, was `map_groups`) drives the site home, `/map`, each page's tag and the README "What's here" tables; a test fails if they drift.
 - skill pages: more spacing, bullets
