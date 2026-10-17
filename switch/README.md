@@ -8,7 +8,9 @@ Runs several Claude Code accounts side by side, each with its own config
 dir, and moves a live conversation from one to another. Start Claude with
 `claude` (the account you used last) or `claude-<name>`; inside a session,
 `/switch` closes it and reopens the same conversation on your previous
-account, `/switch <name>` on a named one.
+account, `/switch <name>` on a named one. `/switch add|remove|rename|list`
+manages the accounts; new ones share skills, settings and history with
+the first.
 
 ## When to use
 
@@ -16,9 +18,8 @@ account, `/switch <name>` on a named one.
   the same conversation on another.
 - You keep a work and a personal login and want one command per account
   instead of exporting `CLAUDE_CONFIG_DIR` by hand.
-- Not for sharing skills, settings or history between accounts: part 1
-  only switches config dirs. Linking shared items and add/remove/rename
-  come in part 2 (#211).
+- You want a new account that sees the same skills, settings and
+  conversation history as your first one.
 
 ## How to invoke
 
@@ -29,10 +30,17 @@ One-time setup from a shell (use the installed copy, e.g.
 python3 claude_switch.py setup --account main=~/.claude --account alt=~/.claude-alt
 ```
 
+Already have `~/.claude-<name>` dirs? `python3 claude_switch.py migrate`
+registers them (and `~/.claude` as `main`) without touching their contents.
+
 Then, in a new shell, `claude` or `claude-alt`, and inside a session:
 
 ```
 /switch [name]
+/switch add <name> [--dir DIR]
+/switch remove <name> [--delete-dir]
+/switch rename <old> <new>
+/switch list
 ```
 
 User-invoked only; Claude never switches on its own.
@@ -65,6 +73,27 @@ User-invoked only; Claude never switches on its own.
    error within 10 s it prints one line and uses `--continue`.
 5. When Claude exits without a request, the launcher exits with its code.
    Ctrl+C goes to Claude, never the launcher.
+6. **`add <name>`** creates `~/.claude-<name>` (or `--dir`) and links the
+   first account's `skills/`, `agents/`, `commands/`, `plugins/`,
+   `projects/` (a missing one is created empty there first),
+   `settings.json` and `CLAUDE.md` into it. `.credentials.json` and
+   `.claude.json` stay per account, so Claude asks the new one to log in.
+   Dirs are junctions on Windows and symlinks elsewhere; files are
+   symlinks. An item already in the new dir is left as is. It picks a
+   free colour, regenerates the shell files setup wrote and, inside a
+   launched session, moves this conversation to the new account.
+7. **`remove <name>`** unregisters it and regenerates the shell files;
+   the dir stays unless you pass `--delete-dir` and confirm. The skill
+   always shows the `--dry-run` plan first: which links get unlinked
+   (their shared targets are kept) and what gets deleted. Deleting
+   unlinks every link and junction first and never walks through one.
+   It refuses the account you're on, the last one, and the first one
+   while others link into it.
+8. **`rename <old> <new>`** changes the name and the shell commands;
+   the dir is not moved. **`list`** shows each account's colour, dir,
+   last use and which one you're on. **`migrate`** registers `~/.claude`
+   and every `~/.claude-<name>` dir holding `.credentials.json`,
+   `.claude.json` or `projects/`; it only reads them and links nothing.
 
 ## Flow
 
@@ -88,22 +117,34 @@ flowchart TD
 - **Shells stay thin.** Every shell gets a generated one-line wrapper per
   account that calls the same stdlib Python launcher with an absolute
   interpreter path; all logic lives in one script you can test.
-- **Show before writing.** Setup prints the exact profile diff and asks.
+- **Show before writing.** Setup prints the exact profile diff and asks;
+  later account commands only rewrite the marked block in the files setup
+  recorded, and print each path they change.
+- **Deleting never follows a link.** Shared history lives behind every
+  account's `projects/` link, so a delete that recursed through one would
+  wipe it for all accounts.
 
 ## Use cases
 
 - Out of usage on one account: `/switch` and keep going in the same
   conversation on the other.
 - Two terminals, two accounts, both switching back and forth all day.
+- A new login that should see your skills and history from the start:
+  `/switch add work`, log in, carry on.
 - A cmd or PowerShell user who wants the same `claude-<name>` commands as
   a bash user.
 
 ## Tips
 
 - Resuming needs the conversation's transcript under the target's config
-  dir. Until shared items are linked (part 2), a resume across accounts
-  usually fails and falls back to `--continue` (the target's own latest
-  conversation in that folder); symlink `projects/` yourself meanwhile.
+  dir. Accounts made with `add` share `projects/`, so it is there; for
+  accounts registered by `setup` or `migrate` it isn't, and a resume
+  falls back to `--continue` (the target's own latest conversation).
+- Windows without Developer Mode can't make file symlinks: `add`
+  hardlinks `settings.json` and `CLAUDE.md` instead (or copies across
+  drives) and warns. Claude rewrites `settings.json` by replacing the
+  file, which splits a hardlink into a separate copy; turn on Developer
+  Mode (Settings, System, For developers) before `add` to keep it shared.
 - bash on macOS reads `~/.bash_profile` for login shells; source
   `~/.bashrc` from it, or pass `--profile bash=~/.bash_profile`.
 - cmd: put `~/.claude-switch/bin` first on `PATH`. The launcher never
