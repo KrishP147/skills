@@ -133,6 +133,23 @@ def dangling_links(dest):
     return out
 
 
+def spawned_agents(dest):
+    """(owner, agent) for each subagent_type="[krish:]agent" in an installed
+    .md file; owner is the skill dir name or the agent file's name."""
+    out = []
+    for base, _dirs, files in os.walk(dest):
+        for f in files:
+            if not f.endswith(".md"):
+                continue
+            p = os.path.join(base, f)
+            parts = os.path.relpath(p, dest).split(os.sep)
+            owner = parts[1] if parts[0] == "skills" else os.path.splitext(f)[0]
+            with open(p, encoding="utf-8-sig") as fh:
+                for a in re.findall(r'subagent_type="(?:krish:)?([\w-]+)"', fh.read()):
+                    out.append((owner, a))
+    return out
+
+
 class NamesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -177,6 +194,21 @@ class NamesTest(unittest.TestCase):
                 self.assertEqual(lines[4], want, "%s/README.md line 5" % n)
             elif k == "agent":
                 self.assertIn("\n## %s\n\n%s\n" % (n, want), agents_md, n)
+
+    def test_manager_spawns_implementer(self):
+        for n in ("manager", "pair"):
+            self.assertIn("implementer", self.g.resolve(names=[n])["agent"], n)
+
+    def test_every_spawned_agent_installed(self):
+        # each agent an installed .md names via subagent_type="..." is in the
+        # closure, unless OPTIONAL says its owner only suggests it
+        for n in self.g.kinds:
+            with self.subTest(n), tempfile.TemporaryDirectory() as tmp:
+                r = self.g.resolve(names=[n])
+                copy_like_installer(self.g, r, tmp)
+                for owner, a in spawned_agents(tmp):
+                    if self.g.kinds.get(a) == "agent" and a not in workflow_deps.OPTIONAL.get(owner, ()):
+                        self.assertIn(a, r["agent"], "%s: %s spawns %s" % (n, owner, a))
 
     def test_dangling_links_detects(self):
         with tempfile.TemporaryDirectory() as tmp:

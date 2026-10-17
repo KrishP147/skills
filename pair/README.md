@@ -2,7 +2,7 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
-Needs: `handoff-auto`, `manager` (installed with it).
+Needs: `handoff-auto`, `kanban-setup`, `next`, `session-handoff`, `implementer`, `manager` (installed with it).
 
 ## What it does
 

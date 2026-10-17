@@ -26,11 +26,13 @@ each --skill name):
             its own SKILL.md (agent: its .md) as `name`, /name or name/.
             Related links alone pull in most of the repo; this keeps the
             ones the source actually calls.
+  spawns    an agent the source's own SKILL.md (agent: its .md) passes as
+            subagent_type="name" or "krish:name" (manager -> implementer).
   files     a relative link in any non-README .md of a selected skill that
             points into another skill's dir (e.g. ../next/BOARD.md), so
             no installed skill links to a file that isn't there.
 Hooks come only from workflow steps or --skill, never from edges.
-OPTIONAL lists "calls" edges whose source works without the target (it
+OPTIONAL lists "calls"/"spawns" edges whose source works without the target (it
 only suggests it, or has a fallback); they are not followed.
 """
 import glob
@@ -48,6 +50,7 @@ import site_workflows  # noqa: E402
 
 ROOT = os.path.dirname(HERE)
 _FILE_LINK_RE = re.compile(r"\]\(((?:\.\./)+[^)\s#]*)")
+_SPAWN_RE = re.compile(r'subagent_type="(?:krish:)?([\w-]+)"')
 
 # hooks/<name>.py -> (event, matcher or None, command suffix); per hooks/README.md
 HOOK_WIRING = {
@@ -58,7 +61,8 @@ HOOK_WIRING = {
 
 # src -> targets it names but works without; see each source's SKILL.md
 OPTIONAL = {
-    "find-me-a-skill": {"meta-orchestrator", "next", "pair"},  # suggests, runs nothing
+    "find-me-a-skill": {"implementer", "manager", "meta-orchestrator", "next", "pair", "planner",
+                        "verifier"},  # suggests, runs nothing
     "gap-scan": {"divide", "grill-docs", "kanban-setup"},  # offers, doesn't run
     "handoff-auto": {"handoff"},  # credit line only
     "pr-watch": {"pair"},  # fixes inline without it
@@ -133,8 +137,15 @@ class Graph:
                 if _names(texts[src], dst) and dst not in OPTIONAL.get(src, ()):
                     self.deps[src].append(dst)
         for e in self.entries:
-            if self.kinds[e["name"]] == "skill":
-                self.deps[e["name"]].extend(_file_links(root, e, by_dir))
+            n, k = e["name"], self.kinds[e["name"]]
+            if k == "skill":
+                self.deps[n].extend(_file_links(root, e, by_dir))
+            if k in ("skill", "agent"):
+                if n not in texts:
+                    texts[n] = _read(_source_md(root, e, k))
+                for a in _SPAWN_RE.findall(texts[n]):
+                    if self.kinds.get(a) == "agent" and a != n and a not in OPTIONAL.get(n, ()):
+                        self.deps[n].append(a)
 
     def names(self):
         return [wf["name"] for wf in self.workflows]

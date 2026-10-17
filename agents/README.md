@@ -59,7 +59,7 @@ Needs: `divide`, `next` (installed with it).
 
 ## manager
 
-Needs: `handoff-auto` (installed with it).
+Needs: `handoff-auto`, `kanban-setup`, `next`, `session-handoff`, `implementer` (installed with it).
 
 - **Role:** owns one task end to end in a worktree.
   - Never implements itself: briefs an implementer, then reviews its work as if it didn't trust it.
