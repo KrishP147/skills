@@ -4,7 +4,14 @@
 
 ## What it does
 
-Works through a repo's backlog unattended. Claude becomes the **orchestrator**: it never implements, it loops `planner` → `manager` (or `implementer`, or a swarm of `haiku` implementers) → merge gate → `verifier`, holds the merge gate itself (tests + CI green or no merge), logs every event to a ledger, and hands off to a fresh orchestrator session after a budget of merges. Almost every behaviour is a setting you pick on the first run.
+Works through a repo's backlog unattended. Claude becomes the **orchestrator**: it never implements.
+
+- It loops `planner` → `manager` (or `implementer`, or a swarm of `haiku` implementers) → merge gate → `verifier`.
+- It holds the merge gate itself (tests + CI green or no merge).
+- It logs every event to a ledger.
+- It hands off to a fresh orchestrator session after a budget of merges.
+
+Almost every behaviour is a setting you pick on the first run.
 
 ## When to use
 
@@ -25,7 +32,11 @@ Works through a repo's backlog unattended. Claude becomes the **orchestrator**: 
 
 ## How it works
 
-0. **Setup** ([`SETUP.md`](SETUP.md)). Read-only recon (contributing guide, `skilleddocs/`, branches, PRs, CI, merge style). Resolves defaults in layers: built-ins → your saved `~/.claude/orchestrator-defaults.md` → the repo's `AGENTS.md`/`CLAUDE.md` → arguments. Shows the resulting contract and asks **"Use these, or customize?"**. Customize walks four short rounds (multiple choice, recommended option first):
+0. **Setup** ([`SETUP.md`](SETUP.md)).
+   - Read-only recon (contributing guide, `skilleddocs/`, branches, PRs, CI, merge style).
+   - Resolves defaults in layers: built-ins → your saved `~/.claude/orchestrator-defaults.md` → the repo's `AGENTS.md`/`CLAUDE.md` → arguments.
+   - Shows the resulting contract and asks **"Use these, or customize?"**.
+   - Customize walks four short rounds (multiple choice, recommended option first):
 
    | Round | You choose |
    |---|---|
@@ -35,12 +46,33 @@ Works through a repo's backlog unattended. Claude becomes the **orchestrator**: 
    | Models and pacing | implementer model (by size unless pinned), review model, handoff budget, push notifications |
 
    Writes **`skilleddocs/orchestrator/scope.md`** (a yaml block of every key), commits it, and offers to save your choices as personal defaults so the next repo starts from them.
-1. **Agents.** `planner` → kickoff brief with the issue's size (a `size:*` label wins over its rating) and a recommended shape; then by `shape` ([`SKILL.md`](SKILL.md) §2): `pair` (default) runs a `manager` per issue, `flat` an `implementer` directly, `swarm` one `haiku` implementer per trivial item, each in its own worktree off one batch branch, one `parallel` slot each, merged into the batch branch, then one opus review at the merge gate and one PR; `auto` takes the planner's pick per brief. Implementer model by size: trivial → haiku, small/medium → sonnet, large or risky → opus, unless the brief or `implementer_model` says otherwise. `verifier`; mechanical chores go to `general-purpose` on `haiku`, never judgment or the merge gate. Each step is a fresh Agent call. Agents run code review inline (nested fan-out stalls). An **INTERIM** report is not a result, nor is a manager handback missing its Branch, Tests or Rounds section (asked once, then rerun).
-2. **Loop:** `planner → manager | implementer | swarm → merge gate → verifier → repeat`; parallel issues each get their own worktree. With `parallel > 1`, [`lanes`](../lanes/) groups the queue into file-disjoint lanes, each working its issues in order; `/lanes` changes them mid-run.
-3. **Merge gate (orchestrator only).** Tests/CI green for the head SHA; diff skimmed for scope creep, secrets, drift and anything on your pause list; push, then merge per your `merge` setting; worktree torn down links-first; ledger entry.
-4. **Autonomy.** One retry per failure, then split or park, never loop. `decisions: assume` lets agents pick their recommendation for calls with no written answer (unlike `interview: answer`, which answers from the written plan) and log an open `A-n` for you to confirm; listed in every handoff and report. The `guard-git.py` hook blocks agents from pushing default or merging.
+1. **Agents.**
+   - `planner` → kickoff brief with the issue's size (a `size:*` label wins over its rating) and a recommended shape; then by `shape` ([`SKILL.md`](SKILL.md) §2):
+     - `pair` (default) runs a `manager` per issue
+     - `flat` an `implementer` directly
+     - `swarm` one `haiku` implementer per trivial item, each in its own worktree off one batch branch, one `parallel` slot each, merged into the batch branch, then one opus review at the merge gate and one PR
+     - `auto` takes the planner's pick per brief
+   - Implementer model by size: trivial → haiku, small/medium → sonnet, large or risky → opus, unless the brief or `implementer_model` says otherwise.
+   - `verifier`; mechanical chores go to `general-purpose` on `haiku`, never judgment or the merge gate.
+   - Each step is a fresh Agent call.
+   - Agents run code review inline (nested fan-out stalls).
+   - An **INTERIM** report is not a result, nor is a manager handback missing its Branch, Tests or Rounds section (asked once, then rerun).
+2. **Loop:** `planner → manager | implementer | swarm → merge gate → verifier → repeat`.
+   - Parallel issues each get their own worktree.
+   - With `parallel > 1`, [`lanes`](../lanes/) groups the queue into file-disjoint lanes, each working its issues in order; `/lanes` changes them mid-run.
+3. **Merge gate (orchestrator only).**
+   - Tests/CI green for the head SHA.
+   - Diff skimmed for scope creep, secrets, drift and anything on your pause list.
+   - Push, then merge per your `merge` setting.
+   - Worktree torn down links-first; ledger entry.
+4. **Autonomy.**
+   - One retry per failure, then split or park, never loop.
+   - `decisions: assume` lets agents pick their recommendation for calls with no written answer (unlike `interview: answer`, which answers from the written plan) and log an open `A-n` for you to confirm; listed in every handoff and report.
+   - The `guard-git.py` hook blocks agents from pushing default or merging.
 5. **Ledger.** Append-only `skilleddocs/orchestrator/ledger.md`, local timestamps, committed per entry (unless you chose uncommitted docs).
-6. **Rotation** ([`ROTATION.md`](ROTATION.md)). After `handoff_budget` merges or a smart-zone warning (with lanes, once every in-flight lane has merged or parked): writes `orchestrator-handoff.md`, logs it, optionally runs a progress report, stops. `resume` picks up from there.
+6. **Rotation** ([`ROTATION.md`](ROTATION.md)).
+   - After `handoff_budget` merges or a smart-zone warning (with lanes, once every in-flight lane has merged or parked): writes `orchestrator-handoff.md`, logs it, optionally runs a progress report, stops.
+   - `resume` picks up from there.
 7. **Done** when every in-scope issue is closed or parked with a reason (or `stop` is reached), default is green, every merge has a verify entry.
 
 ## Flow
@@ -151,4 +183,5 @@ in full, then the rotation after the tenth merge:
 
 ## Prereqs
 
-`gh` (authenticated); the four agents installed (`scripts/install-skills.*`); a board, `status:*` labels, or a roadmap doc for `next` to read. Push notifications need the PushNotification tool.
+- `gh` (authenticated); the four agents installed (`scripts/install-skills.*`); a board, `status:*` labels, or a roadmap doc for `next` to read.
+- Push notifications need the PushNotification tool.

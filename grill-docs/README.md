@@ -20,10 +20,19 @@ Runs the `grilling` interview on a plan or decision and leaves a paper trail in 
 
 1. Creates `skilleddocs/grills/<YYYY-MM-DD>-<slug>.md` (or `grills/` beside a tracked register when `skilleddocs/` is untracked) with a header (`Status: in progress`) before the first round.
 2. Asks rounds exactly as `grilling` does (numbered questions, one recommendation each, then waits).
-3. After each answered round, appends a `### Q<n>` block (topic / asked / recommended / answer / why) to the transcript, and one `| D<k> | date | decision | why | source |` row to the decisions doc (created with a header if missing). `Q<n>` counts across the whole session. The heading is bare `### Q<n>` so the register's `grills/<file>#q<n>` source resolves on GitHub (anchors are lowercase). Delegated answers ("go with your recs") are recorded as `(delegated)`.
+3. After each answered round, appends:
+   - a `### Q<n>` block (topic / asked / recommended / answer / why) to the transcript
+   - one `| D<k> | date | decision | why | source |` row to the decisions doc (created with a header if missing)
+   - `Q<n>` counts across the whole session.
+   - The heading is bare `### Q<n>` so the register's `grills/<file>#q<n>` source resolves on GitHub (anchors are lowercase).
+   - Delegated answers ("go with your recs") are recorded as `(delegated)`.
 4. When the frontier is empty and you confirm: sets `Status: settled`, adds `## Summary` and `## Open`, prints both paths. Nothing is committed unless you ask.
 
-Writes: `skilleddocs/grills/<date>-<slug>.md` and the decisions doc: the one `AGENTS.md` / `CLAUDE.md` names, else an existing `docs/decisions.md`, else an ADR folder (`docs/adr/`, `doc/adr/`, `docs/decisions/`), else `skilleddocs/decisions.md` (the same rule `consult-plan` uses). The transcript header's `Register:` field says which. In an ADR folder, a new ADR that reverses or narrows an old one also marks the old one `Superseded by NNNN` / `Amended by NNNN`.
+Writes `skilleddocs/grills/<date>-<slug>.md` and the decisions doc:
+
+- The decisions doc is the one `AGENTS.md` / `CLAUDE.md` names, else an existing `docs/decisions.md`, else an ADR folder (`docs/adr/`, `doc/adr/`, `docs/decisions/`), else `skilleddocs/decisions.md` (the same rule `consult-plan` uses).
+- The transcript header's `Register:` field says which.
+- In an ADR folder, a new ADR that reverses or narrows an old one also marks the old one `Superseded by NNNN` / `Amended by NNNN`.
 
 ## Design principles
 

@@ -31,27 +31,34 @@ uses the conversation's goal, then the board.
 
 ## How it works
 
-1. **Task.** The text after the command; else the goal of the conversation
-   so far; else the top 1-3 tasks on the repo's board, found the way
-   [`next`](../kanban/next/) does (its `BOARD.md`). No repo or no board: it
-   asks what the task is.
+1. **Task.**
+   - The text after the command.
+   - Else the goal of the conversation so far.
+   - Else the top 1-3 tasks on the repo's board, found the way
+     [`next`](../kanban/next/) does (its `BOARD.md`).
+   - No repo or no board: it asks what the task is.
 2. **Candidates.** Every skill Claude can see in this session (this
    collection, plugins, built-ins) plus the entries and sample workflows in
    [`CATALOG.md`](CATALOG.md).
-3. **Options, at most 3.** The primary pick is the best fit from
-   everything installed. When an entry or workflow from this collection
-   fits and isn't already the pick, it adds that too. Any option from the
-   catalog is labelled "from your collection"; one that isn't in this
-   session's skill list and isn't in `~/.claude/skills/<name>/` or the
-   plugin's install dir (that check is skipped, and said so, when the
-   plugin isn't installed) is labelled "not installed" with the install
-   command (user-only skills never show in that list, installed or not), and plugin installs get the `krish:` prefix on commands. Nothing fits: it says so, names the nearest option and
-   suggests doing the task directly.
-4. **Model and effort per step.** From `CATALOG.md`'s defaults, adjusted
-   for a large or risky task: effort goes up first, the model only once
-   effort is at `max`; the reverse for a small one. A skill
-   that isn't in the catalog shows its origin (plugin or built-in) and an
-   `estimate` label.
+3. **Options, at most 3.**
+   - The primary pick is the best fit from everything installed.
+   - When an entry or workflow from this collection fits and isn't already
+     the pick, it adds that too.
+   - Any option from the catalog is labelled "from your collection"; one that
+     isn't in this session's skill list and isn't in
+     `~/.claude/skills/<name>/` or the plugin's install dir (that check is
+     skipped, and said so, when the plugin isn't installed) is labelled "not
+     installed" with the install command (user-only skills never show in
+     that list, installed or not).
+   - Plugin installs get the `krish:` prefix on commands.
+   - Nothing fits: it says so, names the nearest option and suggests doing
+     the task directly.
+4. **Model and effort per step.**
+   - From `CATALOG.md`'s defaults, adjusted for a large or risky task: effort
+     goes up first, the model only once effort is at `max`; the reverse for a
+     small one.
+   - A skill that isn't in the catalog shows its origin (plugin or built-in)
+     and an `estimate` label.
 5. **Reply.** Per option: why it fits, the steps with model and effort,
    the points where you decide, then `/model`, `/effort` and the invocation
    for option 1, ready to paste.

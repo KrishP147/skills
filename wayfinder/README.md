@@ -21,14 +21,24 @@ User-invoked only (`disable-model-invocation: true`):
 
 ## How it works
 
-1. **Chart**: reads the baseline (open issues, roadmap, decisions doc) as grilling context; if an open issue already covers the effort, asks whether to turn it into the map (off the board, `status:*` removed) or close it pointing at the map. Then grills you to name the destination, then grills breadth-first for the open decisions. Creates the map issue (Destination, Notes, Decisions so far, Not yet specified, Out of scope), creates the tickets it can phrase now as sub-issues, then wires blocking with GitHub's issue-dependencies API (`Blocked by: #n` body lines if that API is unavailable). Fires one `general-purpose` subagent per research ticket.
+1. **Chart**:
+   - Reads the baseline (open issues, roadmap, decisions doc) as grilling context.
+   - If an open issue already covers the effort, asks whether to turn it into the map (off the board, `status:*` removed) or close it pointing at the map.
+   - Then grills you to name the destination, then grills breadth-first for the open decisions.
+   - Creates the map issue (Destination, Notes, Decisions so far, Not yet specified, Out of scope), creates the tickets it can phrase now as sub-issues, then wires blocking with GitHub's issue-dependencies API (`Blocked by: #n` body lines if that API is unavailable).
+   - Fires one `general-purpose` subagent per research ticket.
 2. **Work**: loads the map, picks the first open, unblocked, unassigned ticket (a ticket you name that is claimed by someone else or blocked: it asks first), assigns it to you (the claim), and resolves it by type:
    - `wayfinder:research`: a subagent with web search; findings go in the resolution comment (long ones split over several comments, or a committed file if the repo tracks it; a gist only on your yes naming its content and destination; never a link to an untracked file).
    - `wayfinder:prototype`: a rough artifact you react to, inline in the comment or a committed file (a gist only on your yes; one needing its own branch: it asks you).
    - `wayfinder:grilling`: runs `grill-docs`; transcript where `grill-docs` puts it, linked only once committed.
    - `wayfinder:task`: the manual work a decision waits on. If it needs you, you get a checklist; the ticket stays claimed and open until you report it done.
-3. **Record**: resolution comment (canonical), close the ticket, one line in the map's Decisions so far, plus a decisions-doc row when the repo has one (grilling tickets skip it: `grill-docs` already wrote theirs, citing the ticket). New questions become tickets; fog that sharpened graduates; anything past the destination is closed as out of scope.
-4. **Hand off**: when no tickets or fog remain, offers `divide` on the map, passing it the decision rows and resolution comments as detail. A roadmap line for the map or the old issue gets the children. The new board issues link back to the map, the map gets a `## Handed off` list and closes immediately (this replaces `divide`'s "offer to close the parent later").
+3. **Record**:
+   - Resolution comment (canonical), close the ticket, one line in the map's Decisions so far, plus a decisions-doc row when the repo has one (grilling tickets skip it: `grill-docs` already wrote theirs, citing the ticket).
+   - New questions become tickets; fog that sharpened graduates; anything past the destination is closed as out of scope.
+4. **Hand off**:
+   - When no tickets or fog remain, offers `divide` on the map, passing it the decision rows and resolution comments as detail.
+   - A roadmap line for the map or the old issue gets the children.
+   - The new board issues link back to the map, the map gets a `## Handed off` list and closes immediately (this replaces `divide`'s "offer to close the parent later").
 
 ## Design principles
 
@@ -58,7 +68,9 @@ User-invoked only (`disable-model-invocation: true`):
 /wayfinder move the site from static HTML to a framework
 ```
 
-Grills you to a destination ("a decision record naming the framework, with a migration outline divide can split"), then creates map #120 with tickets: "Which frameworks keep the slash prompt working?" (research), "Get a preview deploy for the top pick" (task, blocked by the research), and "Pick the framework" (grilling, blocked by both). A subagent resolves the research ticket in the same session. Next session, `/wayfinder 120` claims the task ticket.
+- Grills you to a destination ("a decision record naming the framework, with a migration outline divide can split"), then creates map #120 with tickets: "Which frameworks keep the slash prompt working?" (research), "Get a preview deploy for the top pick" (task, blocked by the research), and "Pick the framework" (grilling, blocked by both).
+- A subagent resolves the research ticket in the same session.
+- Next session, `/wayfinder 120` claims the task ticket.
 
 ## Related
 
