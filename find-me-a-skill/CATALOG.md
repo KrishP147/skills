@@ -129,7 +129,7 @@ human-in-the-loop points: nothing continues without you.
 1. you: Label issues size:XS to size:XL if you know their size, and pick shape auto (or pin pair, swarm or flat) in the meta-orchestrator setup.
 2. /meta-orchestrator (skill, opus · high): Reads shape from scope.md (an old execution key counts as shape) and runs each brief in the shape it names.
 3. planner (agent, opus · medium): Rates size (a size label wins), recommends a shape and the implementer model, and batches trivial, file-disjoint, exact-spec issues into one swarm brief.
-4. implementer (agent, sonnet · medium): Swarm: one haiku implementer per item, each in its own worktree off the batch branch, at most parallel at once; flat: one per issue on the model its size calls for.
+4. implementer (agent, sonnet · medium): Swarm: one haiku implementer per item, each in its own worktree off the batch branch, one parallel slot each; flat: one per issue on the model its size calls for.
 5. manager (agent, opus · high): Pair, the default: picks the implementer model by size (trivial haiku, small or medium sonnet, large or risky opus) and reviews every round; also takes the fix brief when a swarm batch's review finds a problem.
 6. verifier (agent, opus · high): Checks the merged issue or batch against git, tests and CI; skips its own code review after pair or swarm, which were already reviewed.
 7. you: With merge=ask, approve each PR: one per pair or flat issue, one per swarm batch closing all its items.
