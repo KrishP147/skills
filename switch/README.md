@@ -23,7 +23,20 @@ Runs several Claude Code accounts side by side, each with its own config dir, an
 
 ## How to invoke
 
-One-time setup from a shell (use the installed copy, e.g.
+**First time**, start to finish:
+
+1. Install the skills: `scripts/install-skills.sh` (on Windows, `scripts/install-skills.ps1`).
+2. Name the account you already use: `python3 ~/.claude/skills/switch/scripts/claude_switch.py setup --account work=~/.claude` (on Windows, `python`).
+   - It shows the profile and settings diff and writes only after you type `y`.
+   - Without `--account` (and with no accounts registered yet) it registers `~/.claude` as `main`. Rename it later with `/switch rename main work`.
+3. Open a new terminal, because shell profiles only load in new shells (or reload with `source ~/.bashrc` / `. $PROFILE`). Then run `claude` (or `claude-work`).
+4. Inside that session, run `/switch add personal`.
+   - It creates `~/.claude-personal`, links your first account's skills, settings and history into it, and reopens this conversation there.
+   - Claude asks you to log in to the new account once.
+   - This switch-in only happens when Claude was started by the launcher (`claude` or `claude-<name>`). Otherwise it only adds the account and tells you to start it with `claude-personal` from a new shell.
+5. From then on, `/switch` flips back to the other account, `claude-personal` starts on it directly, and `/switch list` shows both.
+
+To register two accounts in one go, run this from a shell (use the installed copy, e.g.
 `~/.claude/skills/switch/scripts/claude_switch.py`). On Windows type
 `python` (or `py`) wherever these examples say `python3`: there
 `python3` is usually the Microsoft Store stub.
@@ -36,7 +49,7 @@ Already have `~/.claude-<name>` dirs? `python3 claude_switch.py migrate`
 (Windows: `python claude_switch.py migrate`) registers them (and
 `~/.claude` as `main`) without touching their contents.
 
-Then, in a new shell, `claude` or `claude-personal`, and inside a session:
+Then, in a new shell, run `claude` or `claude-personal`. Inside a session you have:
 
 ```
 /switch [name]
