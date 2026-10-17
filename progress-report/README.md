@@ -31,9 +31,10 @@ Claude also runs it when you ask for "an update doc".
 
 1. **Find the source.** Reports folder (default the repo's `skilleddocs/reports/`); ledger at `skilleddocs/orchestrator/ledger.md`.
    - No ledger → reconstructs one from `git log`, merged PRs, issues and the conversation, and says so.
-2. **Watermark.** `.last-reported` holds `<NNN> <report filename> <entry NNN's timestamp>`, NNN = last reported ledger entry.
-   - The new report covers `watermark + 1 … latest` (a restarted ledger, numbered from 001 again, is caught by the timestamp and covered from 001).
-   - It also covers any commits or merged PRs since the watermark with no ledger entry, marked "not in ledger" (the reporting commits themselves are skipped).
+2. **Watermark.** `.last-reported` records where the last report stopped: `<NNN> <report filename> <entry NNN's timestamp>`, where NNN is the last reported ledger entry.
+   - The new report covers entries `NNN + 1` through the latest.
+   - If a new run restarted the ledger at 001, the stored timestamp no longer matches, so the report covers the ledger from 001.
+   - It also covers commits or merged PRs since the watermark that have no ledger entry, marked "not in ledger". The reporting commits themselves are skipped.
    - Earlier items only reappear under "Revisions to earlier reports" if they changed (revert, reversed decision, broken "done").
 3. **Fixed sections.** Empty → "none".
    - Header (report number, date, time range in your local zone, ledger range).
@@ -55,7 +56,7 @@ Claude also runs it when you ask for "an update doc".
    - Never overwrites an earlier report.
    - Reads it back to check.
 6. **Advance the watermark.** Updates `.last-reported`, appends a `report` entry to the ledger.
-   - In commit mode it commits them with the report: on the default branch, or on its docs branch when the default is protected ([`TRACKING.md`](../handoff-auto/TRACKING.md)).
+   - In commit mode it commits them with the report, on the default branch. If the default branch is protected, it commits on a docs branch instead ([`TRACKING.md`](../handoff-auto/TRACKING.md)).
    - Prints the path and entry range.
 
 Reads: `skilleddocs/orchestrator/ledger.md`, `.last-reported`, git/gh.
@@ -91,7 +92,7 @@ Writes: the report, `.last-reported`, a ledger entry.
 Watermark says 5; ledger is at 22.
 
 - Writes `skilleddocs/reports/002-2026-09-23-auth-and-export.md` covering entries 6–22 (Done table with 4 merged PRs, one flaky-CI item under "What didn't", two decisions made on your behalf).
-- Sets `.last-reported` to `022 002-2026-09-23-auth-and-export.md`.
+- Sets `.last-reported` to `022 002-2026-09-23-auth-and-export.md` plus entry 022's timestamp.
 - Appends a `report` ledger entry.
 - Prints the path.
 

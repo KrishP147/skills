@@ -21,10 +21,9 @@ and extension ideas.
 - Starting cold on a repo you (or someone else) haven't touched in a while
   and want a prioritized starting point instead of reading everything by
   hand.
-- Not for picking the next task off an existing board — that's
-  [`kanban/next`](../kanban/next/) reading the board this skill's output can
-  seed. Not for watching an open PR to merge — that's
-  [`pr-watch`](../pr-watch/).
+- Not for picking the next task off an existing board: that's
+  [`kanban/next`](../kanban/next/). This skill's output can seed that board.
+  Not for watching an open PR to merge: that's [`pr-watch`](../pr-watch/).
 
 ## How to invoke
 
@@ -43,8 +42,8 @@ phrases above work without the slash command.
    - No upstream or no remote: skip the pull and say so.
    - Otherwise `git pull --ff-only` (a diverged history is reported the same
      as dirty, never force-merged).
-   - A fork also fetches `upstream`, reports how far ahead/behind it is, and
-     pulls upstream's own `good first issue`-labeled issues.
+   - A fork also fetches `upstream`, reports how far ahead or behind it is,
+     and lists upstream's open `good first issue` issues.
 2. **Survey.**
    - README and docs (flagging doc/code drift).
    - The last ~20 commits (default; `--commits` overrides).
@@ -59,9 +58,9 @@ phrases above work without the slash command.
    a screenshot capability if this session has one; skipped (with a reason)
    for libraries, CLIs, and backend-only services, or when no such tool is
    available.
-4. **Rank and tag.** Every surviving candidate gets a value/effort
-   trade-off, an `S`/`L` size tag, and mandatory evidence — no evidence, no
-   listing. A secret is cited by `file:line` or SHA, never by its value.
+4. **Rank and tag.** Each candidate is ranked by value against effort and
+   tagged `S` or `L` for size. Each needs evidence; without it, it isn't
+   listed. A secret is cited by `file:line` or SHA, never by its value.
 5. **Write.** One file, `skilleddocs/gaps/<local-date>.md` — the only write
    this skill makes. Never committed unless asked; `skilleddocs/` is excluded
    per [`TRACKING.md`](../handoff-auto/TRACKING.md).
@@ -80,8 +79,8 @@ skill. Writes: `skilleddocs/gaps/<local-date>.md` only.
 - **Evidence or it doesn't exist.** A ranked list that can't be traced back
   to a line, a commit, or an issue is just opinion; this skill would rather
   under-report than pad the list.
-- **Don't re-litigate the board.** Cross-checking open issues before
-  ranking means the output adds to a backlog instead of duplicating it.
+- **Don't repeat the board.** It checks open issues before ranking, so the
+  output adds to a backlog instead of duplicating it.
 - **Report, then stop.** Surveying and proposing is the whole job; turning
   a proposal into an issue or a PR is a separate, explicitly gated step
   (or another skill's, via the hand-offs at the end of the report).
