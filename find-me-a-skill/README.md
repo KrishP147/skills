@@ -46,19 +46,19 @@ uses the conversation's goal, then the board.
    - The primary pick is the best fit from everything installed.
    - When an entry or workflow from this collection fits and isn't already
      the pick, it adds that too.
-   - Any option from the catalog is labelled "from your collection"; one that
-     isn't in this session's skill list and isn't in
-     `~/.claude/skills/<name>/` or the plugin's install dir (that check is
-     skipped, and said so, when the plugin isn't installed) is labelled "not
-     installed" with the install command (user-only skills never show in
-     that list, installed or not).
+   - Any option from the catalog is labelled "from your collection".
+   - A catalog option is labelled "not installed", with the install command,
+     when it isn't in this session's skill list, in
+     `~/.claude/skills/<name>/` or in the plugin's install dir. With no
+     plugin installed, that last check is skipped and the reply says so.
+     User-only skills never show in the session's list, installed or not.
    - Plugin installs get the `krish:` prefix on commands.
    - Nothing fits: it says so, names the nearest option and suggests doing
      the task directly.
 4. **Model and effort per step.**
-   - From `CATALOG.md`'s defaults, adjusted for a large or risky task: effort
-     goes up first, the model only once effort is at `max`; the reverse for a
-     small one.
+   - Starts from `CATALOG.md`'s defaults. For a large or risky task, effort
+     goes up first, and the model only once effort is at `max`. A small task
+     works the same way in reverse.
    - A skill that isn't in the catalog shows its origin (plugin or built-in)
      and an `estimate` label.
 5. **Reply.** Per option: why it fits, the steps with model and effort,
@@ -73,8 +73,8 @@ Writes: nothing.
 - **Suggest, don't run.** It runs on Haiku at low effort, so it must not
   start heavy work by accident; you start it by pasting the commands.
 - **One generated catalog.** `CATALOG.md` is generated from the repo
-  (`python scripts/site_catalog.py`) and a test fails when it drifts, so
-  the skill works offline in any repo and its defaults match the site's
+  (`python scripts/site_catalog.py`), and a test fails when it drifts. So
+  the skill works offline in any repo, and its defaults match the site's
   "suggested model · effort" chips.
 - **Broad first, own collection second.** The best tool for the task wins
   even when it's a plugin or built-in; this collection gets a second slot

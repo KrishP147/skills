@@ -25,8 +25,8 @@ Claude can call it: another skill uses the Skill tool with `handoff-auto`. The o
 
 1. Summarises the conversation into a document under the repo's **`skilleddocs/handoffs/`** (OS temp dir only when there is no repo).
    - Committed or left untracked per [`TRACKING.md`](TRACKING.md).
-   - Commit only if the repo already tracks `skilleddocs/` (or the `AGENTS.md` handoff folder) or opts in, never on a fork.
-2. Records the git state and adds a "suggested skills" section.
+   - Committed only if the repo already tracks `skilleddocs/` (or the handoff folder `AGENTS.md` sets), or its `AGENTS.md`/`CLAUDE.md` opts in. Never on a fork.
+2. Adds a "suggested skills" section and records the git state:
    - Branch.
    - Base SHA (`git merge-base <default> HEAD`; on the default branch itself, the upstream or the parent of the session's first commit).
    - Head SHA.
@@ -39,7 +39,7 @@ Claude can call it: another skill uses the Skill tool with `handoff-auto`. The o
 ## Design principles
 
 - **An ending a program can read.** The absolute path is always the very last line, so a calling skill or orchestrator never has to guess.
-- **Same document as `handoff`.** Only the frontmatter, save location, tracking sentence, a git-state line (branch, base SHA, head SHA) and the final path line differ from the original, so a manual and an unattended handoff read the same.
+- **Same document as `handoff`.** Only five things differ from the original: the frontmatter, the save location, the tracking sentence, a git-state line (branch, base SHA, head SHA) and the final path line. So a manual and an unattended handoff read the same.
 - **Shared tracking rule.** Commit or not comes from [`TRACKING.md`](TRACKING.md), the single source for every file under `skilleddocs/`.
 
 ## Use cases

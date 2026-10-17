@@ -52,13 +52,13 @@ Almost every behaviour is a setting you pick on the first run.
    - `planner` → kickoff brief with the issue's size (a `size:*` label wins over its rating) and a recommended shape; then by `shape` ([`SKILL.md`](SKILL.md) §2):
      - `pair` (default) runs a `manager` per issue
      - `flat` an `implementer` directly
-     - `swarm` one `haiku` implementer per trivial item, each in its own worktree off one batch branch, one `parallel` slot each, merged into the batch branch, then one opus review at the merge gate and one PR
+     - `swarm` runs one `haiku` implementer per trivial item. Each item gets its own worktree off one batch branch and takes one `parallel` slot, and is merged into the batch branch. The batch then gets one opus review at the merge gate and one PR
      - `auto` takes the planner's pick per brief
    - Implementer model by size: trivial → haiku, small/medium → sonnet, large or risky → opus, unless the brief or `implementer_model` says otherwise.
-   - `verifier`; mechanical chores go to `general-purpose` on `haiku`, never judgment or the merge gate.
+   - Then `verifier`. Mechanical chores go to `general-purpose` on `haiku`; judgment calls and the merge gate never do.
    - Each step is a fresh Agent call.
-   - Agents run code review inline (nested fan-out stalls).
-   - An **INTERIM** report is not a result, nor is a manager handback missing its Branch, Tests or Rounds section (asked once, then rerun).
+   - Agents run code review inline, because agents spawning their own reviewers stall.
+   - An **INTERIM** report is not a result. Neither is a manager handback missing its Branch, Tests or Rounds section: the orchestrator asks once for the full report, then reruns.
 2. **Loop:** `planner → manager | implementer | swarm → merge gate → verifier → repeat`.
    - Parallel issues each get their own worktree.
    - With `parallel > 1`, [`lanes`](../lanes/) groups the queue into file-disjoint lanes, each working its issues in order; `/lanes` changes them mid-run.
@@ -66,14 +66,14 @@ Almost every behaviour is a setting you pick on the first run.
    - Tests/CI green for the head SHA.
    - Diff skimmed for scope creep, secrets, drift and anything on your pause list.
    - Push, then merge per your `merge` setting.
-   - Worktree torn down links-first; ledger entry.
+   - Worktree torn down, unlinking dependency links before removing it; ledger entry.
 4. **Autonomy.**
    - One retry per failure, then split or park, never loop.
-   - `decisions: assume` lets agents pick their recommendation for calls with no written answer (unlike `interview: answer`, which answers from the written plan) and log an open `A-n` for you to confirm; listed in every handoff and report.
-   - The `guard-git.py` hook blocks agents from pushing default or merging.
+   - `decisions: assume` covers calls the written plan doesn't answer. Agents pick their own recommendation and log it as an open `A-n` for you to confirm. Open `A-n` items are listed in every handoff and report. (`interview: answer` is different: it answers only from the written plan.)
+   - The `guard-git.py` hook blocks agents from pushing to the default branch or merging.
 5. **Ledger.** Append-only `skilleddocs/orchestrator/ledger.md`, local timestamps, committed per entry (unless you chose uncommitted docs).
 6. **Rotation** ([`ROTATION.md`](ROTATION.md)).
-   - After `handoff_budget` merges or a smart-zone warning (with lanes, once every in-flight lane has merged or parked): writes `orchestrator-handoff.md`, logs it, optionally runs a progress report, stops.
+   - After `handoff_budget` merges, or a smart-zone warning that its context is getting full (with lanes, once every in-flight lane has merged or parked): writes `orchestrator-handoff.md`, logs it, optionally runs a progress report, stops.
    - `resume` picks up from there.
 7. **Done** when every in-scope issue is closed or parked with a reason (or `stop` is reached), default is green, every merge has a verify entry.
 
