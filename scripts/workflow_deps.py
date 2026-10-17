@@ -195,10 +195,12 @@ def listing(g):
 def needs_line(g, name):
     """The README line saying what installing `name` alone brings along."""
     r = g.resolve(names=[name])
-    others = [n for k in ("skill", "agent", "hook") for n in r[k] if n != name]
+    others = ["`%s`" % n for k in ("skill", "agent", "hook") for n in r[k] if n != name]
+    if r["agent"]:  # any agent install also copies agents/hooks/guard-git.py
+        others.append("the `guard-git` hook")
     if not others:
         return "Works on its own."
-    return "Needs: %s (installed with it)." % ", ".join("`%s`" % n for n in others)
+    return "Needs: %s (installed with it)." % ", ".join(others)
 
 
 def name_listing(g):

@@ -2,7 +2,7 @@
 
 *`SKILL.md` is the prompt Claude follows; `SETUP.md` (first-run interview + every option) and `ROTATION.md` (handoff / resume) are loaded only when needed. This file is for you.*
 
-Needs: `consult-plan`, `divide`, `handoff-auto`, `kanban-setup`, `lanes`, `next`, `pair`, `progress-report`, `session-handoff`, `update-progress`, `implementer`, `manager`, `planner`, `verifier` (installed with it).
+Needs: `consult-plan`, `divide`, `handoff-auto`, `kanban-setup`, `lanes`, `next`, `pair`, `progress-report`, `session-handoff`, `update-progress`, `implementer`, `manager`, `planner`, `verifier`, the `guard-git` hook (installed with it).
 
 ## What it does
 
