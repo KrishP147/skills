@@ -770,8 +770,8 @@ def cmd_setup(args):
         targets = default_targets()
     # remembered, so add/remove/rename/migrate regenerate the same files
     reg["profiles"] = dict(reg.get("profiles") or {}, **{k: str(v) for k, v in targets.items()})
-    sp = plan_settings(reg, install=True)  # before plan_setup: it records the original statusLine
-    plan = plan_setup(reg, targets, sys.executable, stable_script()) + ([sp + ("settings",)] if sp else [])
+    sp = plan_settings(reg, install=True)  # before plan_setup: it records the original statusLines
+    plan = plan_setup(reg, targets, sys.executable, stable_script()) + sp
     for a in reg["accounts"]:
         if not Path(a["dir"]).is_dir():
             print("note: %s does not exist yet; claude creates it on first login as '%s'" % (a["dir"], a["name"]))
@@ -828,16 +828,17 @@ def write_plan(plan):
 def setup_uninstall(reg, args):
     """Take our statusLine (the recorded one comes back) and hook out of
     settings.json. Shell wrappers and the accounts stay."""
+    files = ", ".join(str(p) for p in settings_files(reg))
     sp = plan_settings(reg, install=False)
     plan = plan_setup(reg, {}, sys.executable, stable_script()) if registry_path().is_file() else []
-    plan += [sp + ("settings",)] if sp else []
+    plan += sp
     if not plan:
-        print("claude-switch: no statusline or hook of ours in %s" % settings_path(reg))
+        print("claude-switch: no statusline or hook of ours in %s" % files)
         return 0
     if not confirm_plan(plan, args.yes):
         return 1
     write_plan(plan)
-    print("statusline and hook removed from %s" % settings_path(reg))
+    print("statusline and hook removed from %s" % (", ".join(str(p[0]) for p in sp) or files))
     return 0
 
 
@@ -898,7 +899,11 @@ def is_link(p):
 
 
 def _same(a, b):
-    return os.path.normcase(os.path.realpath(str(a))) == os.path.normcase(os.path.realpath(str(b)))
+    """Same file: samefile catches a hardlink; realpath a link to a missing file."""
+    try:
+        return os.path.samefile(str(a), str(b))
+    except (OSError, ValueError):
+        return os.path.normcase(os.path.realpath(str(a))) == os.path.normcase(os.path.realpath(str(b)))
 
 
 def _norm(p):
@@ -981,8 +986,9 @@ def cmd_add(args):
     first = reg["accounts"][0]
     d.mkdir(parents=True, exist_ok=True)
     link_shared(first["dir"], d)
-    upsert(reg, args.name, str(d))
+    acct = upsert(reg, args.name, str(d))
     regen_shells(reg)
+    sync_settings(reg, True, [acct])  # its own settings.json: left as is, or a copy
     print("added '%s' (%s), sharing %s's items" % (args.name, d, first["name"]))
     launcher = os.environ.get("CLAUDE_SWITCH_LAUNCHER")
     if launcher:
@@ -1096,6 +1102,7 @@ def cmd_remove(args):
         return 1
     reg["accounts"].remove(acct)
     regen_shells(reg)
+    sync_settings(reg, False, [acct], keep=settings_files(reg))  # a file another account uses stays
     print("removed '%s'" % args.name)
     if links or dirs:
         delete_dir(d)
@@ -1137,8 +1144,8 @@ def cmd_list(args):
 
 
 def cmd_migrate(args):
-    """Register ~/.claude and ~/.claude-<name> dirs. Only stats them: never
-    writes inside an account dir."""
+    """Register ~/.claude and ~/.claude-<name> dirs. Links nothing; writes
+    only the statusline and hook into their settings.json, once setup has."""
     reg = load()
     home = Path.home()
     known = {_norm(a["dir"]) for a in reg["accounts"]}
@@ -1158,18 +1165,18 @@ def cmd_migrate(args):
             print("note: skipped %s: no .credentials.json, .claude.json or projects/" % p)
             continue
         found.append((suffix, p))
-    added = 0
+    added = []
     for name, p in found:
         if find(reg, name):
             print("note: skipped %s: '%s' is already %s" % (p, name, find(reg, name)["dir"]))
             continue
-        upsert(reg, name, str(p))
-        added += 1
+        added.append(upsert(reg, name, str(p)))
         print("registered '%s' = %s" % (name, p))
     if not added:
         print("nothing new to register")
         return 0
     regen_shells(reg)
+    sync_settings(reg, True, added)
     return 0
 
 
@@ -1181,11 +1188,44 @@ HOOK_TIMEOUT = 10
 HOOK_EVENT = "UserPromptSubmit"
 
 
-def settings_path(reg):
-    """The shared settings.json: the first account's (the one `add` links
-    from), else ~/.claude. Resolved, so a symlink is written through."""
-    d = reg["accounts"][0]["dir"] if reg.get("accounts") else Path.home() / ".claude"
-    return Path(os.path.realpath(str(Path(d) / "settings.json")))
+def settings_files(reg, accounts=None):
+    """Each distinct settings.json of these accounts (default: all), resolved
+    so a symlink is written through; a hardlinked or symlinked file counts
+    once. An account whose dir doesn't exist is skipped, except the first
+    (no accounts: ~/.claude)."""
+    first = reg["accounts"][0] if reg.get("accounts") else {"dir": str(Path.home() / ".claude")}
+    out = []
+    for a in (reg.get("accounts") or [first]) if accounts is None else accounts:
+        if a is not first and not Path(a["dir"]).is_dir():
+            continue
+        p = Path(os.path.realpath(str(Path(a["dir"]) / "settings.json")))
+        if not any(_same(p, q) for q in out):
+            out.append(p)
+    return out
+
+
+def settings_states(reg):
+    """reg["settings"]: {settings.json path: {"statusline_original": ...}}.
+    The old one-file format becomes the first account's entry."""
+    s = reg.get("settings")
+    if not isinstance(s, dict):
+        return {}
+    if "statusline_original" in s or "installed" in s:
+        return {str(settings_files(reg)[0]): {"statusline_original": s.get("statusline_original")}}
+    return dict(s)
+
+
+def _state_key(states, path):
+    return next((k for k in states if _same(k, path)), str(path))
+
+
+def statusline_original(reg):
+    """The statusLine recorded for the settings.json this session reads."""
+    acct = current_account(reg)
+    d = acct["dir"] if acct else os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude"
+    states = settings_states(reg)
+    path = os.path.realpath(str(Path(d) / "settings.json"))
+    return (states.get(_state_key(states, path)) or {}).get("statusline_original")
 
 
 def _short_path(s):
@@ -1293,7 +1333,7 @@ def apply_settings(settings, state, install):
         else:
             _strip_our_hooks(s)
             s.setdefault("hooks", {}).setdefault(HOOK_EVENT, []).append({"hooks": [entry]})
-        return s, {"installed": True, "statusline_original": original}
+        return s, {"statusline_original": original}
     if is_our_statusline(cur):
         original = state.get("statusline_original")
         if isinstance(original, dict) and not is_our_statusline(original):
@@ -1304,27 +1344,54 @@ def apply_settings(settings, state, install):
     return s, None
 
 
-def plan_settings(reg, install):
-    """(path, old_text, new_text) when settings.json changes, else None.
-    Updates reg["settings"] (the recorded original statusLine). A
-    settings.json that isn't a JSON object is left alone."""
-    path = settings_path(reg)
-    old, _ = read_text(path)
-    try:
-        cur = json.loads(old) if old.strip() else {}
-    except ValueError:
-        cur = None
-    if not isinstance(cur, dict):
-        print("warning: %s is not a JSON object; statusline and hooks not changed" % path)
-        return None
-    new, state = apply_settings(cur, reg.get("settings"), install)
-    if state is None:
-        reg.pop("settings", None)
+def plan_settings(reg, install, accounts=None, keep=()):
+    """[(path, old_text, new_text, "settings")] for each of these accounts'
+    settings.json (settings_files) that changes; one of `keep` is left out.
+    Updates reg["settings"] (each file's original statusLine). A file that
+    isn't a UTF-8 JSON object is left alone."""
+    states = settings_states(reg)
+    plan = []
+    for path in settings_files(reg, accounts):
+        if any(_same(path, k) for k in keep):
+            continue
+        try:
+            old, _ = read_text(path)
+            cur = json.loads(old) if old.strip() else {}
+        except (SystemExit, ValueError):
+            cur = None
+        if not isinstance(cur, dict):
+            print("warning: %s is not a JSON object; statusline and hooks not changed" % path)
+            continue
+        key = _state_key(states, path)
+        new, state = apply_settings(cur, states.get(key), install)
+        if state is None:
+            states.pop(key, None)
+        else:
+            states[key] = state
+        if new != cur:
+            plan.append((path, old, json.dumps(new, indent=2) + "\n", "settings"))
+    if states:
+        reg["settings"] = states
     else:
-        reg["settings"] = state
-    if new == cur:
-        return None
-    return path, old, json.dumps(new, indent=2) + "\n"
+        reg.pop("settings", None)
+    return plan
+
+
+def sync_settings(reg, install, accounts, keep=()):
+    """add/migrate/remove, once setup has installed them: the statusline and
+    hook into (or out of) these accounts' own settings.json, no prompt.
+    Saves the registry; prints each changed path."""
+    if not reg.get("settings"):
+        return
+    try:
+        plan = plan_settings(reg, install, accounts, keep)
+    except SystemExit as e:  # "hooks" not the documented shape: left alone
+        print("warning: %s" % e)
+        return
+    save(reg)
+    write_plan(plan)
+    for path, _, _, _ in plan:
+        print("updated %s" % path)
 
 
 def write_settings(path, old, new):
@@ -1509,7 +1576,7 @@ def main(argv=None):
     rn.add_argument("old")
     rn.add_argument("new")
     sub.add_parser("list", help="accounts, colour, dir, last used")
-    sub.add_parser("migrate", help="register ~/.claude and ~/.claude-* dirs; reads them only")
+    sub.add_parser("migrate", help="register ~/.claude and ~/.claude-* dirs; links nothing")
     sub.add_parser("hook", help="UserPromptSubmit hook (stdin JSON): /switch without the API, usage guard")
     th = sub.add_parser("theme", help="show or set an account's Claude theme ('-' clears)")
     th.add_argument("name")

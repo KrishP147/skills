@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """claude-switch statusline. Claude Code runs it with the session JSON on
-stdin (setup puts it in the shared settings.json as `statusLine`). Prints
+stdin (setup puts it in each account's settings.json as `statusLine`). Prints
 
   <account in its colour>  session 42% · 2h13m left  week 18% · 4d6h left
 
@@ -102,7 +102,7 @@ def render(data, reg, raw, now):
     parts = [cs.paint(acct, acct["name"], force=True)] if acct else []
     parts += [window(label, rl.get(key), now) for key, label in LABELS]
     line = "  ".join(parts)
-    theirs = run_original((reg.get("settings") or {}).get("statusline_original"), raw)
+    theirs = run_original(cs.statusline_original(reg), raw)
     if theirs:
         first, _, rest = theirs.partition("\n")
         line += "  " + first + ("\n" + rest if rest else "")
