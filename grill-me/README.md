@@ -12,7 +12,8 @@ When you want to type something short to start a grilling session.
 
 ## How to invoke
 
-`/grill-me <plan or idea>`. User-invoked only (`disable-model-invocation: true`): Claude never picks it on its own; it auto-invokes `grilling` instead.
+- `/grill-me <plan or idea>`
+- User-invoked only (`disable-model-invocation: true`): Claude never picks it on its own; it auto-invokes `grilling` instead.
 
 ## How it works
 
