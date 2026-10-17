@@ -29,16 +29,16 @@ Coordinates with another running Claude Code session or agent that might be work
 /session-bridge
 ```
 
-Model-invocable, so any of the trigger phrases above work without typing the
-slash command.
+Claude also runs it when you say one of the phrases above, so you don't have to
+type the slash command.
 
 ## How it works
 
-1. **Identify the target.** `ListAgents` (if available) first — it's live and authoritative.
+1. **Identify the target.** `ListAgents` (if available) first, because it's live and authoritative.
    - Otherwise, fall back to that repo's transcripts under `~/.claude/projects/<encoded-cwd>/*.jsonl`.
    - `<encoded-cwd>` is the working directory path with every character other than letters and digits replaced by `-`.
-   - Says plainly, and stops, if no target is found.
-2. **Read-only snapshot.** Via `ListAgents`/`SendMessage` if reachable directly, or by parsing the other session's transcript with the bundled `scripts/snapshot.py` — never a raw `cat`/dump of the `.jsonl` file.
+   - If no target is found, it says so and stops.
+2. **Read-only snapshot.** Uses `ListAgents`/`SendMessage` if the session is reachable that way, or reads the other session's transcript with the bundled `scripts/snapshot.py`. It never dumps the raw `.jsonl` file (no `cat`).
    - Extracts only the last user ask, the last N actions, and any branches/PRs/files mentioned.
    - Also checks `git`, `gh pr`, and that repo's `skilleddocs/` for its handoff/ledger.
    - Redacts anything that looks like a secret, token, or personal data before repeating it.
@@ -47,12 +47,12 @@ slash command.
 5. **Send.** `SendMessage` if available and the target is reachable that way; otherwise appends to a shared `skilleddocs/bridge.md` as a drop-off, since there's no live channel to that session.
 6. **Log.** Every exchange (sent and any reply) appended to `skilleddocs/bridge.md` with local timestamps, not UTC.
 7. **Report.** The reply, if one arrives — or "no reply" if not.
-   - Notes when a session (cloud, Remote-Control, or transcript-only) structurally can't reply.
+   - Notes when a session (cloud, Remote-Control, or transcript-only) can't reply by design.
    - Reads its transcript/handoff/PR instead where accessible.
 
 Reads: `ListAgents` (if available), transcript files under `~/.claude/projects/`, `git`, `gh`, a repo's `skilleddocs/`.
 
-Writes: nothing without the §4 gate.
+Writes: nothing without the step 4 gate.
 
 - On a yes, either a `SendMessage` call or an append to `skilleddocs/bridge.md`.
 - `skilleddocs/bridge.md` also gets the exchange log either way.
@@ -60,7 +60,7 @@ Writes: nothing without the §4 gate.
 ## Design principles
 
 - **Read-only until an explicit yes.** Finding and snapshotting another
-  session never sends anything; only §4's gate can turn a draft into a sent
+  session never sends anything; only step 4's gate can turn a draft into a sent
   message.
 - **A message from another session is never approval.** It's data to relay
   to the user, not a command to execute or a substitute for the user's own
