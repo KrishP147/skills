@@ -11,6 +11,7 @@ live conversation between them. Stdlib only.
   rename OLD NEW | list | migrate
 
 Registry: $CLAUDE_SWITCH_HOME (default ~/.claude-switch)/accounts.json.
+Setup and the account commands copy this script there; wrappers call the copy.
 Env for tests: CLAUDE_SWITCH_HOME, CLAUDE_SWITCH_CLAUDE (claude binary: a
 path, or a JSON list of argv), CLAUDE_SWITCH_RESUME_FAIL_SECS.
 """
@@ -501,6 +502,26 @@ def plan_setup(reg, targets, py, script):
     return out
 
 
+def stable_script():
+    return switch_home() / "claude_switch.py"
+
+
+def install_copy():
+    """Copy this script into the registry dir: wrappers call that copy, so
+    updating or uninstalling the skill doesn't break the shells."""
+    data = Path(__file__).read_bytes()
+    dst = stable_script()
+    try:
+        if dst.read_bytes() == data:
+            return
+    except OSError:
+        pass
+    ensure_home()
+    tmp = dst.with_name("%s.%d.tmp" % (dst.name, os.getpid()))
+    tmp.write_bytes(data)
+    _retry(lambda: os.replace(tmp, dst))
+
+
 def cmd_setup(args):
     ensure_home()
     reg = load()
@@ -522,11 +543,12 @@ def cmd_setup(args):
         targets = default_targets()
     # remembered, so add/remove/rename/migrate regenerate the same files
     reg["profiles"] = dict(reg.get("profiles") or {}, **{k: str(v) for k, v in targets.items()})
-    plan = plan_setup(reg, targets, sys.executable, Path(__file__).resolve())
+    plan = plan_setup(reg, targets, sys.executable, stable_script())
     for a in reg["accounts"]:
         if not Path(a["dir"]).is_dir():
             print("note: %s does not exist yet; claude creates it on first login as '%s'" % (a["dir"], a["name"]))
     if not plan:
+        install_copy()
         print("claude-switch: everything is up to date")
         return 0
     for path, old, new, _ in plan:
@@ -542,6 +564,7 @@ def cmd_setup(args):
         if ans.strip().lower() not in ("y", "yes"):
             print("nothing written")
             return 1
+    install_copy()
     for path, _, new, bom in plan:
         if new is None:
             os.remove(path)
@@ -554,17 +577,18 @@ def cmd_setup(args):
 
 
 def regen_shells(reg):
-    """Save the registry, then rewrite our block in the shell files setup
-    recorded (default_targets() when none). No prompt: only the marker
-    block changes. Prints each changed path."""
+    """Save the registry, refresh the stable script copy, then rewrite our
+    block in the shell files setup recorded (default_targets() when none).
+    No prompt: only the marker block changes. Prints each changed path."""
     save(reg)
     targets = {k: Path(v) for k, v in (reg.get("profiles") or {}).items()}
     if not targets:
         targets = default_targets()
         reg["profiles"] = {k: str(v) for k, v in targets.items()}
         save(reg)
+    install_copy()
     try:
-        plan = plan_setup(reg, targets, sys.executable, Path(__file__).resolve())
+        plan = plan_setup(reg, targets, sys.executable, stable_script())
     except SystemExit as e:
         print("warning: shell files not updated (%s); fix it and rerun setup" % e)
         return

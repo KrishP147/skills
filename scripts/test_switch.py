@@ -213,7 +213,9 @@ class SetupTest(Base):
         rc, out = self.setup("main=%s" % (self.home / ".claude"), "alt=%s" % alt)
         self.assertEqual(rc, 0, out)
         p = self.profiles()
-        py, script = sys.executable, str(SCRIPT)
+        py, script = sys.executable, str(self.sw / "claude_switch.py")  # stable copy, not the skill's
+        self.assertEqual(Path(script).read_bytes(), SCRIPT.read_bytes())
+        self.assertNotIn(str(SCRIPT), p["bash"].read_text() + p["powershell"].read_text(encoding="utf-8-sig"))
         sh = lambda s: Path(s).as_posix() if os.name == "nt" else s
         bash = p["bash"].read_text()
         self.assertIn("claude() { '%s' '%s' run - \"$@\"; }" % (sh(py), sh(script)), bash)
@@ -394,7 +396,10 @@ class AccountsTest(Base):
         reg = cs.load()
         self.assertEqual([a["name"] for a in reg["accounts"]], ["main", "work"])
         self.assertNotEqual(reg["accounts"][0]["colour"], reg["accounts"][1]["colour"])
-        self.assertIn("claude-work()", self.bashrc.read_text())
+        bash = self.bashrc.read_text()
+        self.assertIn("claude-work()", bash)
+        self.assertIn(cs._sh_path(self.sw / "claude_switch.py"), bash)  # wrappers call the stable copy
+        self.assertEqual((self.sw / "claude_switch.py").read_bytes(), SCRIPT.read_bytes())
         self.assertIn("updated %s" % self.bashrc, out)
         self.assertIn("start it with claude-work", out)
         self.assertEqual(self.requests(), [])
