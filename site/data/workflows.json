@@ -46,7 +46,7 @@
       {"kind": "human", "why": "Answer each round yourself, one ticket per session, until no tickets or fog remain."},
       {"kind": "skill", "name": "divide", "why": "Proposes 2+ session-sized issues from the map, each with a done-when; creates nothing yet."},
       {"kind": "human", "why": "Say yes to the split: the issues go on the board at Todo, the map gets a Handed off list and closes."},
-      {"kind": "skill", "name": "meta-orchestrator", "why": "Loops planner, manager or implementer, its own merge gate and verifier per issue, logging each step to the ledger."}
+      {"kind": "skill", "name": "meta-orchestrator", "why": "For each issue, runs the planner, then a manager or implementer, its own merge gate and the verifier, logging each step to the ledger."}
     ]
   },
   {
@@ -68,7 +68,7 @@
       {"kind": "human", "why": "Start /meta-orchestrator on the repo and answer the setup interview that writes the scope contract."},
       {"kind": "skill", "name": "lanes", "why": "Groups the queued issues into file-disjoint lanes and proposes them with a cost line."},
       {"kind": "human", "why": "Confirm the lanes with an explicit yes, or pin, rename or move issues first."},
-      {"kind": "skill", "name": "meta-orchestrator", "why": "Loops planner, manager or implementer, its own merge gate and verifier per issue, logging each step to the ledger."},
+      {"kind": "skill", "name": "meta-orchestrator", "why": "For each issue, runs the planner, then a manager or implementer, its own merge gate and the verifier, logging each step to the ledger."},
       {"kind": "agent", "name": "planner", "why": "Runs next, picks exactly one issue and returns a kickoff brief of at most 40 lines."},
       {"kind": "agent", "name": "manager", "why": "Briefs an implementer, reviews every round inline and reruns the tests itself, for up to 3 rounds."},
       {"kind": "agent", "name": "implementer", "why": "Implements on its branch, commits small, watches the tests pass and ends with session-handoff."},
@@ -99,7 +99,7 @@
       {"kind": "human", "why": "Label issues size:XS to size:XL if you know their size, and pick shape auto (or pin pair, swarm or flat) in the meta-orchestrator setup."},
       {"kind": "skill", "name": "meta-orchestrator", "why": "Reads shape from scope.md (an old execution key counts as shape) and runs each brief in the shape it names."},
       {"kind": "agent", "name": "planner", "why": "Rates size (a size label wins), recommends a shape and the implementer model, and batches trivial, file-disjoint, exact-spec issues into one swarm brief."},
-      {"kind": "agent", "name": "implementer", "why": "Swarm: one haiku implementer per item, each in its own worktree off the batch branch, one parallel slot each; flat: one per issue on the model its size calls for."},
+      {"kind": "agent", "name": "implementer", "why": "Swarm: one haiku implementer per item, each in its own worktree off the batch branch and using one parallel slot. Flat: one implementer per issue, on the model its size calls for."},
       {"kind": "agent", "name": "manager", "why": "Pair, the default: picks the implementer model by size (trivial haiku, small or medium sonnet, large or risky opus) and reviews every round; also takes the fix brief when a swarm batch's review finds a problem."},
       {"kind": "agent", "name": "verifier", "why": "Checks the merged issue or batch against git, tests and CI; skips its own code review after pair or swarm, which were already reviewed."},
       {"kind": "human", "why": "With merge=ask, approve each PR: one per pair or flat issue, one per swarm batch closing all its items."}
@@ -203,7 +203,7 @@
       {"kind": "human", "why": "Run claude_switch.py setup (or migrate for existing ~/.claude-<name> dirs) once, then start Claude with claude or claude-<name> so a launcher watches the session."},
       {"kind": "skill", "name": "switch", "why": "/switch add <name> makes a new account that shares the first one's skills, settings and history and moves you into it to log in; remove, rename and list manage the rest."},
       {"kind": "human", "why": "The statusline shows the account and its session and weekly use; near the limit a warning names the account with the most room. Type /switch or /switch <name>; it is user-only, so Claude can't start it."},
-      {"kind": "skill", "name": "switch", "why": "A prompt hook writes a request for this terminal's launcher only, with no API call so it works at 100%; the launcher ends the session and resumes it on the target account (--continue when --resume fails)."},
+      {"kind": "skill", "name": "switch", "why": "A prompt hook writes a switch request for this terminal's launcher only. It makes no API call, so it works even at 100% usage. The launcher ends the session and resumes it on the target account (with --continue if --resume fails)."},
       {"kind": "skill", "name": "sitrep", "why": "On the new account, lists what was running and asked vs done, so nothing from before the move is lost."},
       {"kind": "skill", "name": "remind", "why": "/remind when <old account>'s session limit resets takes the reset time from the usage cache and pops a toast then; the next prompt on any account says it once."},
       {"kind": "human", "why": "Carry on; /switch with no name goes back to the account you came from."}
