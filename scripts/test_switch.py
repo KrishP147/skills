@@ -305,6 +305,19 @@ class SetupTest(Base):
         self.assertIn(b"+claude() {", raw.getvalue())
         self.assertIn("# a → b\n", p.read_text(encoding="utf-8"))
 
+    def test_piped_yes_with_bom(self):
+        # PowerShell 5.1: 'y' | python ... arrives as BOM + y (U+FEFF, or cp1252 mojibake)
+        for ans in ("﻿y", "ï»¿y", " Y "):
+            with mock.patch("builtins.input", return_value=ans):
+                self.assertTrue(cs.ask("? "), ans)
+        for ans in ("﻿n", "", "yy"):
+            with mock.patch("builtins.input", return_value=ans):
+                self.assertFalse(cs.ask("? "), ans)
+        with mock.patch("builtins.input", return_value="﻿y"):
+            rc, out = self.setup("alt=%s" % self.tmp, yes=False)
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(cs.registry_path().exists())
+
     def test_no_yes_writes_nothing(self):
         with mock.patch("builtins.input", side_effect=EOFError):
             rc, out = self.setup("alt=%s" % self.tmp, yes=False)
