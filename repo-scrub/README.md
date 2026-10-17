@@ -23,7 +23,7 @@ Scans a GitHub repo's **full git history** for secrets and oversized files.
 /repo-scrub [owner/repo]
 ```
 
-Defaults to the current repo. User-invoked only (`disable-model-invocation: true`) because it rewrites history and force-pushes.
+Defaults to the current repo. Only you can run it (`disable-model-invocation: true`), because it rewrites history and force-pushes.
 
 ## How it works
 
@@ -36,12 +36,14 @@ Defaults to the current repo. User-invoked only (`disable-model-invocation: true
 3. **Scan (throwaway clone #1)**
    - `gitleaks git --log-opts="--all -m"` (or `detect --source` pre-8.19) over all history, merge commits included (a secret added only in a conflict resolution is invisible without `-m`).
    - Other remotes' branches fetched in, `git filter-repo --analyze`.
-   - [`scripts/summarize_findings.py`](scripts/summarize_findings.py) merges them into `findings.json` — written to a work dir *outside* the clone — with IDs `S1…` (secrets, deduped by rule + value, or by location when the value is empty; fingerprint only, no raw value on disk) and `L1…` (large blobs, sized by bytes accumulated across all versions of that path in history).
+   - [`scripts/summarize_findings.py`](scripts/summarize_findings.py) merges them into `findings.json`, written to a work dir *outside* the clone.
+     Secrets get IDs `S1…`: deduped by rule + value, or by location when the value is empty; fingerprint only, no raw value on disk.
+     Large blobs get IDs `L1…`: sized by bytes accumulated across all versions of that path in history.
    - Personal strings handed over by `repo-showcase` (or named by you) get a `git log --all -m -S'<string>'` and `--grep` check each, since gitleaks has no rule for names or emails; hits become `P1…`.
    - Emails in commit messages and author/committer identities other than yours are found the same way (`git log --all --format=…`).
    - Signed commits and tags are counted: a rewrite drops every signature.
    - The clone is then discarded.
-4. **Report** — table of every finding (no raw secret values, just fingerprints) + summary line.
+4. **Report** — a table of every finding (no raw secret values, just fingerprints) and a summary line.
 5. **Select** — you pick per ID or in bulk; Claude echoes back scrub vs keep lists.
 6. **Gates before any rewrite** — both are hard gates.
    - **Rotate first (mandatory)**: rotate/revoke every selected secret at its source; a rewrite doesn't un-leak a secret that was ever pushed.
@@ -49,7 +51,7 @@ Defaults to the current repo. User-invoked only (`disable-model-invocation: true
    - Then **collaborator / open-PR safety**: lists collaborators, invitations, open PRs, fork count; drafts a re-clone notice.
 7. **Rewrite (fresh clone #2)**
    - [`scripts/build_replace_text.py`](scripts/build_replace_text.py) re-derives each secret's value from the gitleaks report by fingerprint and writes `expressions.txt` without ever echoing a value.
-   - One `git filter-repo` call, `--replace-text`/`--path …--invert-paths` each included only if that category was actually selected.
+   - One `git filter-repo` call. `--replace-text` and `--path …--invert-paths` are each included only if that category was selected.
    - A selected `P` finding adds a `literal:<string>==>REDACTED` rule (`--replace-message` too for message hits).
    - A selected author identity goes through `--mailmap` to the replacement you pick, and one you keep is recorded as "author identities stay".
    - For large files you choose: strip entirely, or strip history and re-add the current version.
@@ -74,10 +76,10 @@ Defaults to the current repo. User-invoked only (`disable-model-invocation: true
       - Re-create the stashes and check each against its saved patch.
       - Delete a branch or tag only on your yes.
       - Then expire the reflog and `gc`; never `git pull`.
-    - Finally it warns about every branch or tag you kept as is (or didn't answer for: still the old history, secret included, never push it).
+    - Finally it warns about every branch or tag you kept as is, or didn't answer for. It still holds the old history, secret included; never push it.
     - It offers to delete the save folder, showing its path and size; it deletes only on your yes, else tells you the folder still holds the old secret.
     - Lists PRs that must be recreated.
-    - Notes that old commits can still be reachable on GitHub via `refs/pull/*`/cached views until GitHub Support GCs them.
+    - Notes that old commits can still be reachable on GitHub via `refs/pull/*`/cached views until GitHub Support garbage-collects them.
 11. **Visibility flip** — `gh repo edit --visibility public …` after a separate gate explaining the consequences; verifies `isPrivate`.
 12. **Cleanup** — deletes the work dir (gitleaks report, findings.json, expressions.txt) and leftover clones.
 
