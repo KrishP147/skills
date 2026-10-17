@@ -1,6 +1,6 @@
 # kanban
 
-General-purpose versions of a roadmap-driven workflow originally built for one project's own `docs/roadmap.md` / `docs/STATUS.md` / `docs/decisions.md` files, rebuilt to run against **GitHub Issues + a GitHub Projects (v2) board** — so it works on any repo.
+These skills run a roadmap-driven workflow on **GitHub Issues + a GitHub Projects (v2) board**, so they work on any repo. It was first built for one project's own `docs/roadmap.md` / `docs/STATUS.md` / `docs/decisions.md` files.
 
 Each skill folder has a `SKILL.md` (the prompt Claude follows) and a `README.md` (how to use it and how it works, for you).
 
