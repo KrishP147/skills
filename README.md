@@ -380,7 +380,7 @@ Several things here come from [mattpocock/skills](https://github.com/mattpocock/
 
 `merge` just appends with a timestamped separator; it won't dedupe against your existing file, so skim the result afterward.
 
-Pass `--prefix <p>` (sh) / `-Prefix <p>` (ps1) to fill in the branch-prefix placeholder as it's written — e.g. the author's own value: `./scripts/setup-claude-md.sh merge --prefix krish` or `.\scripts\setup-claude-md.ps1 -Mode merge -Prefix krish`. Without it, `<your-prefix>` is left in place and the script prints a hint.
+Pass `--prefix <p>` (sh) / `-Prefix <p>` (ps1) to fill in the branch-prefix placeholder as it's written — e.g. `./scripts/setup-claude-md.sh merge --prefix alex` or `.\scripts\setup-claude-md.ps1 -Mode merge -Prefix alex`. Without it, `<your-prefix>` is left in place and the script prints a hint.
 
 ## Author
 
