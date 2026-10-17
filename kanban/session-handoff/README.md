@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you. Loop overview: [`kanban/README.md`](../README.md).*
 
+Needs: `handoff-auto`, `kanban-setup`, `next` (installed with it).
+
 ## What it does
 
 Ends an implementation session tied to a GitHub issue: writes the handoff document (via `handoff-auto`), adds a `## Board status` section, and moves the issue's card to reflect reality.

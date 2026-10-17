@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you. Loop overview: [`kanban/README.md`](../README.md).*
 
+Needs: `next` (installed with it).
+
 ## What it does
 
 Takes a handoff document, **verifies** its claims (git log, tests, code review), then updates the repo's docs, the board and the issue to match what actually happened.

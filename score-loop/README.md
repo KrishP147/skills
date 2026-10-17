@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Needs: `handoff-auto`, `spend-gate` (installed with it).
+
 ## What it does
 
 Pushes one numeric score up (or down) unattended. Claude tries one idea per commit:

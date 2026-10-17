@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you. Loop overview: [`kanban/README.md`](../README.md).*
 
+Needs: `next` (installed with it).
+
 ## What it does
 
 Splits an issue (or a described task) that's too big for one session into two or more session-sized issues (about the ~75K-token smart zone, one PR).

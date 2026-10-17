@@ -2,6 +2,8 @@
 
 *By Matt Pocock (MIT), included verbatim. `SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Works on its own.
+
 ## What it does
 
 Interviews you, one round at a time, until a plan or decision has no unexamined branches left. Every question comes with Claude's recommended answer, so you can just say "yes" to most.

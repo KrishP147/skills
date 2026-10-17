@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Needs: `handoff-auto`, `next` (installed with it).
+
 ## What it does
 
 Surveys one or more repos — code, recent commits, docs, open issues, and

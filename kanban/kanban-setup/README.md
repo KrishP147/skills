@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you. Loop overview: [`kanban/README.md`](../README.md).*
 
+Needs: `next` (installed with it).
+
 ## What it does
 
 Creates a GitHub Projects (v2) board for a repo if it has none, then backfills issues from work already documented in the repo: planned work, already-done work (created and immediately closed, for history), or both.

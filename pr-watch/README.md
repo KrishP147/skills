@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Needs: `handoff-auto` (installed with it).
+
 ## What it does
 
 Watches your open pull requests (your own repo, or a fork against its upstream) until they merge.

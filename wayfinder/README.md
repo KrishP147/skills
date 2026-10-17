@@ -2,6 +2,8 @@
 
 *Adapted from Matt Pocock's `wayfinder` (MIT): GitHub Issues only, our ticket types, smart-zone ticket size, and a hand-off to `divide`. `SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Needs: `consult-plan`, `grill-docs`, `handoff-auto`, `next` (installed with it).
+
 ## What it does
 
 Plans an effort too big for one session. It charts a **map** (a GitHub issue labelled `wayfinder:map`) of **decision tickets** (its sub-issues), then resolves one ticket per session until nothing is left to decide. When the way is clear it hands off to `divide`, which turns the destination into board issues.

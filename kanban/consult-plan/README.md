@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you. Loop overview: [`kanban/README.md`](../README.md).*
 
+Needs: `next` (installed with it).
+
 ## What it does
 
 Grills a proposed change, deviation or new idea against the repo's existing plan (open issues, board, roadmap doc), then records the outcome where the repo already keeps decisions.

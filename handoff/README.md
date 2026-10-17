@@ -2,6 +2,8 @@
 
 *By Matt Pocock (MIT); one sentence modified so the file saves under `skilleddocs/handoffs/`, one added for whether to commit it. `SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Needs: `handoff-auto` (installed with it).
+
 ## What it does
 
 Turns this conversation into a handoff document. A fresh session can pick up the work from it, without the old context.

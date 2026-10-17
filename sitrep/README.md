@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Needs: `handoff-auto` (installed with it).
+
 ## What it does
 
 Answers "how's it going" in **10 lines or fewer**. It's a live, spoken answer, not a document.

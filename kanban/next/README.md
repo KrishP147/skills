@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you. Loop overview: [`kanban/README.md`](../README.md).*
 
+Works on its own.
+
 ## What it does
 
 Shows the next 1–3 tasks to work on, pulled from the repo's GitHub kanban board, with a size and a suggested model for each.

@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Needs: `handoff-auto`, `manager` (installed with it).
+
 ## What it does
 
 Runs **one task** (a GitHub issue or free text) through a `manager` subagent in an isolated git worktree. The manager spawns and reviews an `implementer`, retrying up to 3 rounds. You stay in one interactive session; only your session pushes and opens the PR, at the end.

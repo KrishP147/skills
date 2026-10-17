@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Needs: `handoff-auto` (installed with it).
+
 ## What it does
 
 Turns a run's ledger into a short progress report (1–2 pages) covering **only what happened since the last report** — never overlapping.

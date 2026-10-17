@@ -2,6 +2,8 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
+Works on its own.
+
 ## What it does
 
 Runs several Claude Code accounts side by side, each with its own config dir, and moves a live conversation from one to another.
