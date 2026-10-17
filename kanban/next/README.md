@@ -4,7 +4,9 @@
 
 ## What it does
 
-Shows the next 1–3 tasks to work on, pulled from the repo's GitHub kanban board, with a size and a suggested model for each. Read-only (Edit/Write disallowed).
+Shows the next 1–3 tasks to work on, pulled from the repo's GitHub kanban board, with a size and a suggested model for each.
+
+- Read-only (Edit/Write disallowed).
 
 ## When to use
 
@@ -17,10 +19,25 @@ Shows the next 1–3 tasks to work on, pulled from the repo's GitHub kanban boar
 
 ## How it works
 
-1. **Find the board** (the canonical lookup other kanban skills reuse): `gh project list --owner <owner>`, filtered to the title `<repo> Board` or boards linking this repo's issues. One match → use it; several → asks you. None → `status:todo` / `status:in-progress` / `status:in-review` / `status:done` labels (created on first use by whichever skill applies one — `gh label create status:<name> --color <hex> --force`, fixed color per label so repeat calls are a no-op). None → a roadmap doc (`ROADMAP.md`, `docs/roadmap.md`) whose execution order links issues. Nothing → tells you to run `/kanban-setup`.
-2. **Burning priority:** workflow names come from `gh workflow list --json name -q '.[].name'`; the most recent *completed* run on the default branch, red only if its conclusion is `failure` (an old, since-fixed failure doesn't count; `cancelled`/`timed_out` aren't treated as red; checked per workflow when there are several).
-3. **Candidates:** In Review items first, tagged "awaiting verification" (Projects: the In Review column; labels: `status:in-review`), then Projects Todo/Ready items (cross-checks `gh issue list` if the eventually-consistent `gh project item-list` returns empty), `status:todo` issues, or open issues in roadmap order. Issues labelled `wayfinder:*` are skipped (they belong to `/wayfinder`). Within each group (In Review, then Todo), sorted by `priority:*` label (`p0` before `p1`, `high` before `low`), else roadmap order, else oldest first. A repo's `CLAUDE.md`/`AGENTS.md` rules override all of this.
-4. **Present:** top 1–3 with title, number, size (`size:*` label or "unestimated"), suggested model (fast for well-specified, strong for ambiguous/`needs-design`). "go" picks the top one. Picking doesn't claim the card; `pair` or `meta-orchestrator` moves it to In Progress when it creates the branch, so a Todo card may have been picked but never started.
+1. **Find the board** (the canonical lookup other kanban skills reuse): `gh project list --owner <owner>`, filtered to the title `<repo> Board` or boards linking this repo's issues.
+   - One match → use it; several → asks you.
+   - None → `status:todo` / `status:in-progress` / `status:in-review` / `status:done` labels (created on first use by whichever skill applies one — `gh label create status:<name> --color <hex> --force`, fixed color per label so repeat calls are a no-op).
+   - None → a roadmap doc (`ROADMAP.md`, `docs/roadmap.md`) whose execution order links issues.
+   - Nothing → tells you to run `/kanban-setup`.
+2. **Burning priority:** workflow names come from `gh workflow list --json name -q '.[].name'`.
+   - The most recent *completed* run on the default branch, red only if its conclusion is `failure`.
+   - An old, since-fixed failure doesn't count.
+   - `cancelled`/`timed_out` aren't treated as red.
+   - Checked per workflow when there are several.
+3. **Candidates:**
+   - In Review items first, tagged "awaiting verification" (Projects: the In Review column; labels: `status:in-review`).
+   - Then Projects Todo/Ready items (cross-checks `gh issue list` if the eventually-consistent `gh project item-list` returns empty), `status:todo` issues, or open issues in roadmap order.
+   - Issues labelled `wayfinder:*` are skipped (they belong to `/wayfinder`).
+   - Within each group (In Review, then Todo), sorted by `priority:*` label (`p0` before `p1`, `high` before `low`), else roadmap order, else oldest first.
+   - A repo's `CLAUDE.md`/`AGENTS.md` rules override all of this.
+4. **Present:** top 1–3 with title, number, size (`size:*` label or "unestimated"), suggested model (fast for well-specified, strong for ambiguous/`needs-design`).
+   - "go" picks the top one.
+   - Picking doesn't claim the card; `pair` or `meta-orchestrator` moves it to In Progress when it creates the branch, so a Todo card may have been picked but never started.
 
 ## Design principles
 
@@ -67,4 +84,5 @@ Had the latest `main` run failed, the failing workflow would be listed first as 
 
 ## Prereqs
 
-`gh`, authenticated, `origin` on GitHub (otherwise it stops and says so). Projects v2 boards need the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)).
+- `gh`, authenticated, `origin` on GitHub (otherwise it stops and says so).
+- Projects v2 boards need the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)).
