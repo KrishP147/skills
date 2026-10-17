@@ -228,6 +228,18 @@ The lint step needs a real Python 3 on `PATH` (`python`, `python3`, or — on Wi
 
 If a directory with the same name as one of this repo's skills already exists under `~/.claude/skills/` but has no `.from-krishp147-skills` marker (i.e. you didn't get it from here), the install leaves it untouched, warns, and exits non-zero at the end so you notice. Pass `--force` (sh) / `-Force` (ps1) to replace it anyway. Upgrading from an install made before the marker existed? Every old skill dir looks foreign, so run once with `--force` / `-Force`.
 
+#### Install one skill
+
+Want just one skill, agent or hook, like `switch`? Name it:
+
+```bash
+./scripts/install-skills.sh --list-skills                    # every name and its kind
+./scripts/install-skills.sh --skill switch                   # repeat --skill for more
+.\scripts\install-skills.ps1 -Skill switch,planner           # Windows PowerShell
+```
+
+Anything it needs comes with it, and its README says what that is on the line under the title ("Works on its own." or "Needs: ..."). `--skill` and `--workflow` can be combined; you get both. Everything below about partial installs applies to `--skill` too.
+
 #### Install one workflow
 
 To take only what one [sample workflow](https://www.krishpunjabi.com/skills/workflows) uses instead of everything:
