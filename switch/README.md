@@ -114,16 +114,20 @@ statusline and hook back out of `settings.json`:
    the dir is not moved. **`list`** shows each account's colour, dir,
    last use and which one you're on. **`migrate`** registers `~/.claude`
    and every `~/.claude-<name>` dir holding `.credentials.json`,
-   `.claude.json` or `projects/`; it only reads them and links nothing.
+   `.claude.json` or `projects/`; it links nothing, and once setup has
+   run it adds the statusline and hook to each one's `settings.json`.
    Renaming the account you're on is fine: the launcher looks it up by
    its dir at the next switch.
 9. **Statusline.** Setup also writes a `statusLine` (refreshed every 60
-   s) into the shared `settings.json`, the first account's, which `add`
-   links into the others. It prints the account name in its colour, then
+   s), and the hook below, into every account's `settings.json`; one
+   linked between accounts is written once, and an account whose dir
+   doesn't exist yet is skipped (rerun setup after its first login).
+   `add` and `migrate` do the same for a new account with its own file;
+   `remove` takes them out of a file no other account uses. It prints the account name in its colour, then
    `session 42% · 2h13m left  week 18% · 4d6h left` from Claude Code's
    `rate_limits.five_hour` / `seven_day` fields (`-` until Claude reports
    them; they only exist for Pro and Max plans). A statusline you had
-   before is never overwritten: setup records it in the registry, the
+   before is never overwritten: setup records it per file in the registry, the
    new one runs it with the same input and puts its output on the same
    line, and `setup --uninstall` puts it back. Settings are backed up to
    `~/.claude-switch/backups/` and written in place, so a linked
@@ -151,8 +155,8 @@ statusline and hook back out of `settings.json`:
 
 Launcher-only: the switch itself, the theme, the tab title and the
 rename pickup need Claude started with `claude` or `claude-<name>`.
-The statusline and the guard work in any session that reads the shared
-`settings.json`; `/switch` outside a launcher prints the setup steps.
+The statusline and the guard work in any session on a registered
+account; `/switch` outside a launcher prints the setup steps.
 
 ## Flow
 
@@ -260,9 +264,10 @@ you need it.
   "Windows configuration"). Setup writes them with forward slashes and
   short (8.3) names for paths with spaces, so the same line works in
   both.
-- An account registered by `setup` or `migrate` with its own
-  `settings.json` (not linked from the first) doesn't get the statusline
-  or the hook; only the first account's file is written.
+- An account with its own `settings.json` (registered by `setup` or
+  `migrate`, or an existing file `add` left as is) gets the statusline
+  and the hook in that file too, so `/switch` from it needs no API call
+  either.
 - Theme names are Claude Code's: `dark`, `light`, `dark-daltonized`,
   `light-daltonized`, `dark-ansi`, `light-ansi`. `-` clears it.
 
