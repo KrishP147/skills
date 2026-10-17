@@ -545,10 +545,10 @@ def resume_args(target, sid, transcript):
     if not UUID_RE.match(sid):
         return ["--continue"]
     if transcript and Path(transcript).is_file() and not find_transcript(sid, target["dir"]):
-        t = str(Path(transcript).absolute())
-        if WINDOWS and " " in t:
-            t = _short_path(t)
-        return ["--resume", t]
+        t = Path(transcript).absolute()
+        if WINDOWS and " " in str(t.parent):  # dir only: the file's own 8.3 name loses .jsonl
+            t = Path(_short_path(str(t.parent))) / t.name
+        return ["--resume", str(t)]
     return ["--resume", sid]
 
 

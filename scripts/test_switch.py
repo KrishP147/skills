@@ -833,8 +833,12 @@ class AccountBoundTest(Base):
         spaced = self.tmp / "with space" / (SID + ".jsonl")
         spaced.parent.mkdir()
         spaced.write_text("{}\n")
-        with mock.patch.object(cs, "WINDOWS", True), mock.patch.object(cs, "_short_path", lambda s: "SHORT~1"):
-            self.assertEqual(cs.resume_args(alt, SID, str(spaced)), ["--resume", "SHORT~1"])
+        seen = []
+        with mock.patch.object(cs, "WINDOWS", True), \
+                mock.patch.object(cs, "_short_path", lambda s: seen.append(s) or "SHORT~1"):
+            self.assertEqual(cs.resume_args(alt, SID, str(spaced)),
+                             ["--resume", str(Path("SHORT~1") / (SID + ".jsonl"))])
+        self.assertEqual(seen, [str(spaced.parent.absolute())])  # the dir, never the file (8.3 drops .jsonl)
 
 
 class LauncherAccountBoundTest(Base):
