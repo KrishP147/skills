@@ -530,11 +530,10 @@ def cmd_setup(args):
         print("claude-switch: everything is up to date")
         return 0
     for path, old, new, _ in plan:
-        sys.stdout.writelines(difflib.unified_diff(
-            old.replace("\r\n", "\n").splitlines(True), (new or "").replace("\r\n", "\n").splitlines(True),
-            str(path) if old else "/dev/null", str(path) if new is not None else "/dev/null"))
-        if old and not old.endswith("\n"):
-            sys.stdout.write("\n")
+        for line in difflib.unified_diff(
+                old.replace("\r\n", "\n").splitlines(True), (new or "").replace("\r\n", "\n").splitlines(True),
+                str(path) if old else "/dev/null", str(path) if new is not None else "/dev/null"):
+            sys.stdout.write(line if line.endswith("\n") else line + "\n")  # last line without one: no gluing
     if not args.yes:
         try:
             ans = input("Write these changes? [y/N] ")

@@ -276,6 +276,16 @@ class SetupTest(Base):
         self.assertIn("not UTF-8", str(e.exception))
         self.assertEqual(p.read_bytes(), b"# caf\xe9\r\n")
 
+    def test_diff_no_trailing_newline(self):
+        p = self.profiles()["bash"]
+        p.parent.mkdir(parents=True)
+        p.write_text("export A=1")
+        with mock.patch("builtins.input", side_effect=EOFError):
+            rc, out = self.main("setup", "--profile=bash=%s" % p)
+        self.assertEqual(rc, 1)
+        self.assertIn("\n-export A=1\n+export A=1\n", out)
+        self.assertEqual(p.read_text(), "export A=1")
+
     def test_cp1252_console_diff(self):
         p = self.profiles()["bash"]
         p.parent.mkdir(parents=True)
