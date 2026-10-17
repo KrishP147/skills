@@ -18,23 +18,28 @@ Every `key` below is a field of that contract. Respect the repo's `skilleddocs/`
 
 | Step | Agent | You pass | You get back |
 |---|---|---|---|
-| Plan | `planner` | repo path + scope.md + issues in flight + `decisions` | ≤40-line kickoff brief (with `lanes:`, one per lane whose head isn't in flight), model rec, divide?, assumptions needed |
-| Implement (`execution: pair`) | `manager` | working dir + brief verbatim + prefix + protected branch + `max_rounds=3` + `decisions` + `first A-id` and `register header` (§4) + "never push or merge" | branch, commits, tests it reran, review findings, rounds, assumed `A-n`, `skilleddocs/HANDOFF.md` if unfinished |
-| Implement (`execution: flat`) | `implementer` | brief verbatim + prefix + protected branch + `decisions` + `first A-id` and `register header` (§4) | handoff (cites assumed `A-n`), path as its last line |
-| Verify | `verifier` | handoff or manager-report path + `interview` + `decisions` + `first A-id` (§4) + user-answered `D<k>` + `review-done=<yes in pair / no in flat>` | verified-by, fixes, decided-for-you, assumed `A-n`, manual steps, next |
+| Plan | `planner` | repo path + scope.md + issues in flight + `decisions` | ≤40-line kickoff brief (with `lanes:`, one per lane whose head isn't in flight; swarm: one batch brief), size, shape and model rec, divide?, assumptions needed |
+| Implement (`shape: pair`) | `manager` | working dir + brief verbatim + prefix + protected branch + `max_rounds=3` + `decisions` + `first A-id` and `register header` (§4) + "never push or merge" | branch, commits, tests it reran, review findings, rounds, assumed `A-n`, `skilleddocs/HANDOFF.md` if unfinished |
+| Implement (`shape: flat`) | `implementer` | brief verbatim + prefix + protected branch + `decisions` + `first A-id` and `register header` (§4) | handoff (cites assumed `A-n`), path as its last line |
+| Implement (`shape: swarm`) | `implementer` on `haiku`, one per item | its item line + the brief's other sections + its working dir + prefix + protected branch + `decisions=ask` + "already on your branch, based on the batch branch; a call with no written answer → stop, say so in the handoff" | handoff, path as its last line |
+| Verify | `verifier` | handoff, manager-report or batch-report path + `interview` + `decisions` + `first A-id` (§4) + user-answered `D<k>` + `review-done=<yes in pair and swarm / no in flat>` | verified-by, fixes, decided-for-you, assumed `A-n`, manual steps, next |
 | Chores | `general-purpose` on `haiku` | exact commands + expected output | its report; check it (`gh` read, diff skim) before relying on it |
 
 Each agent is `<name>` (e.g. `manager`), or `krish:<name>` (e.g. `krish:manager`) when installed as the plugin; pass that as `subagent_type`.
 
-Models: `review_model` for planner/manager/verifier; `implementer_model` for the implementer (default: the planner's recommendation). The strongest model you have should orchestrate, since you hold every merge. `haiku` only for mechanical no-judgment chores (board moves, filing a pre-written issue, labels, CI log triage, read-only recon, doc count/link fixes, a spelled-out conflict resolution) or an implementer the planner rates trivial; never for design calls, assumed decisions, code review, verifier, manager or the merge gate.
+Models: `review_model` for planner/manager/verifier. Implementer by size (D416): trivial → `haiku`, small/medium → `sonnet`, large or risky → `opus`; the brief or `implementer_model` (other than `size`) overrides. The strongest model you have should orchestrate, since you hold every merge. `haiku` only for mechanical no-judgment chores (board moves, filing a pre-written issue, labels, CI log triage, read-only recon, doc count/link fixes, a spelled-out conflict resolution) or a trivial implementer (swarm items included); never for design calls, assumed decisions, code review, verifier, manager or the merge gate.
 
 ## 2. Loop
 
 ```
-planner → manager | implementer → merge gate (you) → verifier → repeat
+planner → manager | implementer | swarm → merge gate (you) → verifier → repeat
 ```
 
-- Each arrow is a **fresh** Agent call. In pair mode save the manager's report to `skilleddocs/orchestrator/reports/`; that report or the handoff is the only bridge to the verifier.
+- **Shape** (scope `shape`; `auto` → the planner's per brief; an `execution:` key reads as `shape:`, D419):
+  - `pair` (default): a manager per issue.
+  - `flat`: the implementer directly; the verifier reviews.
+  - `swarm` (D420): one batch brief, one batch branch, one PR. Batch worktree on the brief's Branch (`pair` §2); per item a worktree and `pair` §2 branch based on the batch branch, one `haiku` implementer each, ≤`parallel` at once. An item with green tests merges into the batch branch (`git -C <batch wt> merge --no-ff <item branch>`), then its worktree comes down as §3 step 4. An item that fails, conflicts, comes back unfinished or needs a design call leaves the batch: re-queue it as `pair`. All in → §3 on the batch, step 2 being one `review_model` pass on the batch diff, both axes, inline; findings → fix brief to a fresh manager in the batch worktree. Save a batch report (item handoffs, review, tests) to `skilleddocs/orchestrator/reports/`; the PR closes every item. Pinned `swarm`: items that don't qualify (planner step 2) run as `pair`.
+- Each arrow is a **fresh** Agent call. In pair shape save the manager's report to `skilleddocs/orchestrator/reports/`; that report or the handoff is the only bridge to the verifier.
 - `parallel > 1` → one worktree per manager (`../_worktrees/<repo>-<slug>`, set up as `pair` §2 does, branch = the planner brief's Branch verbatim). Never two managers on one checkout.
 - Lanes: each lane in scope.md `lanes:` works its issues in order. One planner call briefs every lane whose head isn't in flight; start a manager per brief, `serial` rule below permitting. [`/lanes`](../lanes/SKILL.md) changes them; apply at your next loop. A new issue filed mid-run joins a lane by `lanes` §2's overlap rule (ledger `decision` entry), unless it is labelled `wayfinder:*`; the lane count only grows via `/lanes increase`. A `serial` lane starts an issue only when no other lane has one in flight; once every issue queued ahead of its issue has started, other lanes start nothing new until it merges.
 - **Board writes are yours** (managers and implementers get read-only `gh` + `gh pr create`): when you start an issue, move its card to In Progress and comment "Started on branch `<b>`" (the `next` skill's `BOARD.md`); do any card move or comment a handoff lists; the verifier does the rest.
