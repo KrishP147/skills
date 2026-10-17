@@ -1288,7 +1288,8 @@ def cmd_hook():
     the request and block the prompt, so nothing reaches the API (works at
     100% usage). Otherwise the usage guard. Never fails the prompt."""
     try:
-        data = json.loads(sys.stdin.buffer.read().decode("utf-8", "replace") or "{}")
+        # utf-8-sig: PowerShell 5.1 piping into the command can prepend a BOM
+        data = json.loads(sys.stdin.buffer.read().decode("utf-8-sig", "replace").strip() or "{}")
         if not isinstance(data, dict):
             return 0
         m = SWITCH_RE.match(str(data.get("prompt") or "").strip())

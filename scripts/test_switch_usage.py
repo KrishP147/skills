@@ -112,6 +112,9 @@ class StatuslineTest(Base):
         self.assertIn("session 10%", lines[0])
         self.assertTrue(lines[0].endswith("left  theirs %s" % SID), lines[0])
         self.assertEqual(lines[1], "second line")
+        r = self.run_script(b"\xef\xbb\xbf" + json.dumps(rate(10, 20)).encode())  # PowerShell 5.1 pipe
+        self.assertIn("session 10%", r.stdout.decode("utf-8"))
+        self.assertIn("theirs %s" % SID, r.stdout.decode("utf-8"))  # theirs gets it without the BOM
 
     def test_own_command_never_run_as_original(self):
         reg = cs.load()
@@ -213,6 +216,10 @@ class HookTest(Base):
         self.assertTrue(out["hookSpecificOutput"]["suppressOriginalPrompt"])
         self.assertEqual(json.loads((self.sw / "requests" / "4242.json").read_text()),
                          {"target": "alt", "session": SID})
+
+    def test_bom_stdin(self):
+        raw = b"\xef\xbb\xbf" + json.dumps({"session_id": SID, "prompt": "/switch alt"}).encode()
+        self.assertEqual(self.hook(None, self.env, raw=raw)["decision"], "block")
 
     def test_bare_and_namespaced(self):
         out = self.hook("  /switch  ", dict(self.env, CLAUDE_SWITCH_PREVIOUS="work"))

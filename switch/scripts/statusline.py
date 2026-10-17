@@ -113,6 +113,8 @@ def main():
     out = ""
     try:
         raw = sys.stdin.buffer.read()
+        if raw.startswith(b"\xef\xbb\xbf"):  # PowerShell 5.1 piping into the command can prepend one
+            raw = raw[3:]
         try:
             data = json.loads(raw.decode("utf-8", "replace"))
         except ValueError:
