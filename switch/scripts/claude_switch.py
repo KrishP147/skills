@@ -9,9 +9,13 @@ live conversation between them. Stdlib only.
   add NAME [--dir DIR]         new account sharing the first one's items
   remove NAME [--delete-dir] [--yes] [--dry-run]
   rename OLD NEW | list | migrate
+  theme NAME [THEME|-]         Claude theme for one account (launcher --settings)
+  setup --uninstall [--yes]    take the statusline and hooks out of settings.json
+  hook                         UserPromptSubmit hook: /switch without the API, usage guard
 
 Registry: $CLAUDE_SWITCH_HOME (default ~/.claude-switch)/accounts.json.
-Setup and the account commands copy this script there; wrappers call the copy.
+Setup and the account commands copy this script (and statusline.py) there;
+wrappers, the statusline and the hook call the copies.
 Env for tests: CLAUDE_SWITCH_HOME, CLAUDE_SWITCH_CLAUDE (claude binary: a
 path, or a JSON list of argv), CLAUDE_SWITCH_RESUME_FAIL_SECS.
 """
@@ -143,11 +147,22 @@ def is_default_dir(d):
         return False
 
 
-def paint(acct, text):
+def paint(acct, text, force=False):
     code = ANSI.get(acct.get("colour") or "")
-    if not code or not sys.stderr.isatty():
+    if not code or not (force or sys.stderr.isatty()):
         return text
     return "\x1b[1;%dm%s\x1b[0m" % (code, text)
+
+
+def current_account(reg):
+    """The account this process runs under: CLAUDE_SWITCH_ACCOUNT if it is
+    registered, else the one whose dir is CLAUDE_CONFIG_DIR (unset = ~/.claude).
+    The dir match also catches an account renamed mid-session."""
+    a = find(reg, os.environ.get("CLAUDE_SWITCH_ACCOUNT") or "")
+    if a:
+        return a
+    d = _norm(os.environ.get("CLAUDE_CONFIG_DIR") or (Path.home() / ".claude"))
+    return next((x for x in reg["accounts"] if _norm(x["dir"]) == d), None)
 
 
 # ---------------------------------------------------------------- request
@@ -184,22 +199,28 @@ def setup_steps():
     )
 
 
-def cmd_request(args):
+def make_request(name, session):
+    """Write this launcher's request file. Returns (rc, message); rc 2 = not
+    under a launcher."""
     launcher = os.environ.get("CLAUDE_SWITCH_LAUNCHER")
     if not launcher:
-        print(setup_steps())
-        return 2
+        return 2, setup_steps()
     reg = load()
-    current = os.environ.get("CLAUDE_SWITCH_ACCOUNT")
-    target, msg = resolve_target(reg, args.name, current, os.environ.get("CLAUDE_SWITCH_PREVIOUS"))
+    current = current_account(reg)
+    current = current["name"] if current else os.environ.get("CLAUDE_SWITCH_ACCOUNT")
+    target, msg = resolve_target(reg, name, current, os.environ.get("CLAUDE_SWITCH_PREVIOUS"))
     if not target:
-        print(msg)
-        return 0 if args.name and args.name == current else 1
+        return (0 if name and name == current else 1), msg
     ensure_home()
     atomic_write(switch_home() / "requests" / ("%s.json" % launcher),
-                 json.dumps({"target": target["name"], "session": args.session or ""}))
-    print("switching to '%s': this session ends now and resumes there." % target["name"])
-    return 0
+                 json.dumps({"target": target["name"], "session": session or ""}))
+    return 0, "switching to '%s': this session ends now and resumes there." % target["name"]
+
+
+def cmd_request(args):
+    rc, msg = make_request(args.name, args.session)
+    print(msg)
+    return rc
 
 
 # ---------------------------------------------------------------- launcher
@@ -325,6 +346,60 @@ def child_env(acct, previous):
     return env
 
 
+def _settings_value(v):
+    """A --settings value (inline JSON or a file path) as a dict, else None."""
+    try:
+        if v.lstrip().startswith("{"):
+            d = json.loads(v)
+        else:
+            d = json.loads(Path(os.path.expanduser(v)).read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return None
+    return d if isinstance(d, dict) else None
+
+
+def with_theme(acct, args):
+    """Adds the account's theme as a --settings overlay. A --settings the
+    user passed is merged into the same JSON (their keys win)."""
+    theme = acct.get("theme")
+    if not theme:
+        return list(args)
+    out, user = [], {}
+    i = 0
+    while i < len(args):
+        a = args[i]
+        val = None
+        if a == "--settings" and i + 1 < len(args):
+            val, i = args[i + 1], i + 2
+        elif a.startswith("--settings="):
+            val, i = a[len("--settings="):], i + 1
+        else:
+            out.append(a)
+            i += 1
+            continue
+        d = _settings_value(val)
+        if d is None:  # unreadable: pass theirs through untouched, skip the theme
+            print("claude-switch: can't read --settings %s; theme not applied" % val, file=sys.stderr)
+            return list(args)
+        user.update(d)
+    return ["--settings", json.dumps(dict({"theme": theme}, **user), separators=(",", ":"))] + out
+
+
+def set_title(acct):
+    """OSC 0: tab/window title names the account."""
+    for stream in (sys.stdout, sys.stderr):
+        if stream.isatty():
+            stream.write("\x1b]0;claude: %s\x07" % acct["name"])
+            stream.flush()
+            return
+
+
+def refresh(acct):
+    """Same account re-read by dir, so a rename mid-session shows up."""
+    reg = load()
+    return next((a for a in reg["accounts"] if _norm(a["dir"]) == _norm(acct["dir"])), acct)
+
+
 def cmd_run(argv):
     reg = load()
     if not reg["accounts"]:
@@ -350,10 +425,12 @@ def cmd_run(argv):
     old = signal.signal(signal.SIGINT, lambda *_: None)  # a function, not SIG_IGN: exec resets it for the child
     try:
         while True:
+            acct = refresh(acct)
             touch(acct["name"])
+            set_title(acct)
             started = time.monotonic()
             try:
-                child = subprocess.Popen(claude + args, env=child_env(acct, previous))
+                child = subprocess.Popen(claude + with_theme(acct, args), env=child_env(acct, previous))
             except OSError as e:
                 print("claude-switch: can't start %s: %s" % (claude, e), file=sys.stderr)
                 return 127
@@ -381,7 +458,7 @@ def cmd_run(argv):
                 return 1
             term.restore()
             sid = str(req.get("session") or "")
-            previous, acct = acct["name"], target
+            previous, acct = refresh(acct)["name"], target
             args = ["--resume", sid] if UUID_RE.match(sid) else ["--continue"]
             resuming = args[0] == "--resume"
             print(paint(acct, ">> claude-switch: %s -> %s" % (previous, acct["name"])), file=sys.stderr)
@@ -507,24 +584,32 @@ def stable_script():
 
 
 def install_copy():
-    """Copy this script into the registry dir: wrappers call that copy, so
-    updating or uninstalling the skill doesn't break the shells."""
-    data = Path(__file__).read_bytes()
-    dst = stable_script()
-    try:
-        if dst.read_bytes() == data:
-            return
-    except OSError:
-        pass
-    ensure_home()
-    tmp = dst.with_name("%s.%d.tmp" % (dst.name, os.getpid()))
-    tmp.write_bytes(data)
-    _retry(lambda: os.replace(tmp, dst))
+    """Copy this script and statusline.py into the registry dir: wrappers,
+    the statusline and the hook call those copies, so updating or
+    uninstalling the skill doesn't break them."""
+    here = Path(__file__).resolve().parent
+    for name in ("claude_switch.py", "statusline.py"):
+        src = here / name
+        if not src.is_file():
+            continue
+        data = src.read_bytes()
+        dst = switch_home() / name
+        try:
+            if dst.read_bytes() == data:
+                continue
+        except OSError:
+            pass
+        ensure_home()
+        tmp = dst.with_name("%s.%d.tmp" % (dst.name, os.getpid()))
+        tmp.write_bytes(data)
+        _retry(lambda: os.replace(tmp, dst))
 
 
 def cmd_setup(args):
     ensure_home()
     reg = load()
+    if args.uninstall:
+        return setup_uninstall(reg, args)
     for spec in args.account or []:
         name, sep, d = spec.partition("=")
         if not sep or not d:
@@ -543,7 +628,8 @@ def cmd_setup(args):
         targets = default_targets()
     # remembered, so add/remove/rename/migrate regenerate the same files
     reg["profiles"] = dict(reg.get("profiles") or {}, **{k: str(v) for k, v in targets.items()})
-    plan = plan_setup(reg, targets, sys.executable, stable_script())
+    sp = plan_settings(reg, install=True)  # before plan_setup: it records the original statusLine
+    plan = plan_setup(reg, targets, sys.executable, stable_script()) + ([sp + ("settings",)] if sp else [])
     for a in reg["accounts"]:
         if not Path(a["dir"]).is_dir():
             print("note: %s does not exist yet; claude creates it on first login as '%s'" % (a["dir"], a["name"]))
@@ -551,28 +637,57 @@ def cmd_setup(args):
         install_copy()
         print("claude-switch: everything is up to date")
         return 0
+    if not confirm_plan(plan, args.yes):
+        return 1
+    install_copy()
+    write_plan(plan)
+    print("written. open a new shell, then `claude` (most recent account) or `claude-<name>`.")
+    if "cmd" in targets:
+        print("cmd: put %s first on PATH so its claude.cmd shims are found" % targets["cmd"])
+    return 0
+
+
+def confirm_plan(plan, yes):
     for path, old, new, _ in plan:
         for line in difflib.unified_diff(
                 old.replace("\r\n", "\n").splitlines(True), (new or "").replace("\r\n", "\n").splitlines(True),
                 str(path) if old else "/dev/null", str(path) if new is not None else "/dev/null"):
             sys.stdout.write(line if line.endswith("\n") else line + "\n")  # last line without one: no gluing
-    if not args.yes:
-        try:
-            ans = input("Write these changes? [y/N] ")
-        except EOFError:
-            ans = ""
-        if ans.strip().lower() not in ("y", "yes"):
-            print("nothing written")
-            return 1
-    install_copy()
-    for path, _, new, bom in plan:
-        if new is None:
+    if yes:
+        return True
+    try:
+        ans = input("Write these changes? [y/N] ")
+    except EOFError:
+        ans = ""
+    if ans.strip().lower() in ("y", "yes"):
+        return True
+    print("nothing written")
+    return False
+
+
+def write_plan(plan):
+    for path, old, new, kind in plan:
+        if kind == "settings":
+            write_settings(path, old, new)
+        elif new is None:
             os.remove(path)
         else:
-            atomic_write(path, new, bom=bom)
-    print("written. open a new shell, then `claude` (most recent account) or `claude-<name>`.")
-    if "cmd" in targets:
-        print("cmd: put %s first on PATH so its claude.cmd shims are found" % targets["cmd"])
+            atomic_write(path, new, bom=kind)
+
+
+def setup_uninstall(reg, args):
+    """Take our statusLine (the recorded one comes back) and hook out of
+    settings.json. Shell wrappers and the accounts stay."""
+    sp = plan_settings(reg, install=False)
+    plan = plan_setup(reg, {}, sys.executable, stable_script()) if registry_path().is_file() else []
+    plan += [sp + ("settings",)] if sp else []
+    if not plan:
+        print("claude-switch: no statusline or hook of ours in %s" % settings_path(reg))
+        return 0
+    if not confirm_plan(plan, args.yes):
+        return 1
+    write_plan(plan)
+    print("statusline and hook removed from %s" % settings_path(reg))
     return 0
 
 
@@ -848,6 +963,11 @@ def cmd_rename(args):
     _check_new_name(reg, args.new)
     acct["name"] = args.new
     regen_shells(reg)
+    for suffix in ("", ".warned"):  # usage cache follows the name
+        try:
+            os.replace(usage_path(args.old, suffix), usage_path(args.new, suffix))
+        except OSError:
+            pass
     print("renamed '%s' to '%s'; dir %s not moved. new shells: claude-%s" % (args.old, args.new, acct["dir"], args.new))
     return 0
 
@@ -907,6 +1027,300 @@ def cmd_migrate(args):
     return 0
 
 
+# ---------------------------------------------------------------- settings.json: statusline + hook
+
+MARK = "--claude-switch"  # extra argv in our commands: how we tell them from the user's
+REFRESH_SECS = 60
+HOOK_TIMEOUT = 10
+HOOK_EVENT = "UserPromptSubmit"
+
+
+def settings_path(reg):
+    """The shared settings.json: the first account's (the one `add` links
+    from), else ~/.claude. Resolved, so a symlink is written through."""
+    d = reg["accounts"][0]["dir"] if reg.get("accounts") else Path.home() / ".claude"
+    return Path(os.path.realpath(str(Path(d) / "settings.json")))
+
+
+def _short_path(s):
+    """Windows 8.3 name for a path with spaces, so commands need no quotes
+    (a quoted first word is a string, not a command, in PowerShell)."""
+    try:
+        import ctypes
+        buf = ctypes.create_unicode_buffer(1024)
+        if ctypes.windll.kernel32.GetShortPathNameW(s, buf, 1024):
+            return buf.value
+    except (OSError, AttributeError):
+        pass
+    return s
+
+
+def command_line(*parts):
+    """One command string for Git Bash, PowerShell or sh: forward slashes on
+    Windows, quotes only when a part still has spaces or shell characters."""
+    out = []
+    for p in parts:
+        s = str(p)
+        if WINDOWS:
+            if " " in s and os.path.exists(s):
+                s = _short_path(s)
+            s = s.replace("\\", "/")
+        if re.search(r"[\s'\"$`;&|()<>]", s):
+            s = '"%s"' % s.replace('"', '\\"')
+        out.append(s)
+    return " ".join(out)
+
+
+def statusline_command():
+    return command_line(sys.executable, switch_home() / "statusline.py", MARK)
+
+
+def hook_command():
+    return command_line(sys.executable, stable_script(), "hook", MARK)
+
+
+def is_our_statusline(sl):
+    cmd = sl.get("command") if isinstance(sl, dict) else None
+    return isinstance(cmd, str) and MARK in cmd and "statusline.py" in cmd
+
+
+def is_our_hook(h):
+    cmd = h.get("command") if isinstance(h, dict) else None
+    return isinstance(cmd, str) and MARK in cmd and " hook" in cmd
+
+
+def _strip_our_hooks(settings):
+    """Remove our hook entries; drop only the groups, lists or dict that
+    became empty because of it. User hooks are never touched."""
+    hooks = settings.get("hooks")
+    if not isinstance(hooks, dict):
+        return
+    changed = False
+    for event in list(hooks):
+        groups = hooks[event]
+        if not isinstance(groups, list):
+            continue
+        kept, ours = [], False
+        for g in groups:
+            hs = g.get("hooks") if isinstance(g, dict) else None
+            if isinstance(hs, list) and any(is_our_hook(h) for h in hs):
+                ours = changed = True
+                g = dict(g, hooks=[h for h in hs if not is_our_hook(h)])
+                if not g["hooks"]:
+                    continue
+            kept.append(g)
+        if ours:
+            if kept:
+                hooks[event] = kept
+            else:
+                del hooks[event]
+    if changed and not hooks:
+        del settings["hooks"]
+
+
+def apply_settings(settings, state, install):
+    """(new settings, new registry state). Install: our statusLine wraps
+    whatever was there (recorded once, never our own command) and our hook
+    is there exactly once. Uninstall: the recorded statusLine comes back
+    (or none), and only our hooks go."""
+    s = json.loads(json.dumps(settings))
+    state = state or {}
+    cur = s.get("statusLine")
+    if install:
+        original = state.get("statusline_original") if is_our_statusline(cur) else cur
+        if is_our_statusline(original):
+            original = None
+        ours = {"type": "command", "command": statusline_command(), "refreshInterval": REFRESH_SECS}
+        if isinstance(original, dict) and "padding" in original:
+            ours["padding"] = original["padding"]
+        s["statusLine"] = ours
+        hooks = s.setdefault("hooks", {})
+        if not isinstance(hooks, dict) or not isinstance(hooks.setdefault(HOOK_EVENT, []), list):
+            raise SystemExit("claude-switch: \"hooks\" in settings.json isn't the documented shape; "
+                             "fix it and rerun setup")
+        entry = {"type": "command", "command": hook_command(), "timeout": HOOK_TIMEOUT}
+        ours = [h for g in hooks[HOOK_EVENT] if isinstance(g, dict) and isinstance(g.get("hooks"), list)
+                for h in g["hooks"] if is_our_hook(h)]
+        if len(ours) == 1:  # refresh in place: order among the user's hooks kept
+            ours[0].clear()
+            ours[0].update(entry)
+        else:
+            _strip_our_hooks(s)
+            s.setdefault("hooks", {}).setdefault(HOOK_EVENT, []).append({"hooks": [entry]})
+        return s, {"installed": True, "statusline_original": original}
+    if is_our_statusline(cur):
+        original = state.get("statusline_original")
+        if isinstance(original, dict) and not is_our_statusline(original):
+            s["statusLine"] = original
+        else:
+            del s["statusLine"]
+    _strip_our_hooks(s)
+    return s, None
+
+
+def plan_settings(reg, install):
+    """(path, old_text, new_text) when settings.json changes, else None.
+    Updates reg["settings"] (the recorded original statusLine). A
+    settings.json that isn't a JSON object is left alone."""
+    path = settings_path(reg)
+    old, _ = read_text(path)
+    try:
+        cur = json.loads(old) if old.strip() else {}
+    except ValueError:
+        cur = None
+    if not isinstance(cur, dict):
+        print("warning: %s is not a JSON object; statusline and hooks not changed" % path)
+        return None
+    new, state = apply_settings(cur, reg.get("settings"), install)
+    if state is None:
+        reg.pop("settings", None)
+    else:
+        reg["settings"] = state
+    if new == cur:
+        return None
+    return path, old, json.dumps(new, indent=2) + "\n"
+
+
+def write_settings(path, old, new):
+    """Back up, then write in place: keeps a hardlink or symlink shared
+    (os.replace would split it)."""
+    if old:
+        stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        bak = ensure_home() / "backups" / ("settings-%s.json" % stamp)
+        bak.parent.mkdir(parents=True, exist_ok=True)
+        bak.write_text(old, encoding="utf-8")
+        print("backup: %s" % bak)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(str(path), "w", encoding="utf-8", newline="") as f:
+        f.write(new)
+
+
+# ---------------------------------------------------------------- usage + hook
+
+WINDOWS_USAGE = (("five_hour", 5 * 3600), ("seven_day", 7 * 86400))
+LEVELS = (90, 97)
+SWITCH_RE = re.compile(r"^/(?:[\w.-]+:)?switch(?:\s+(.*))?$", re.S)
+SUBCOMMANDS = ("add", "remove", "rename", "list", "theme")
+
+
+def usage_path(name, suffix=""):
+    return switch_home() / "usage" / ("%s%s.json" % (name, suffix))
+
+
+def _read_json(p):
+    try:
+        d = json.loads(Path(p).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return d if isinstance(d, dict) else {}
+
+
+def _num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def record_usage(name, rate_limits, now):
+    """Cache the last seen used % and resets_at per window. Nothing to
+    record (no rate_limits yet): the old cache is kept."""
+    if not isinstance(rate_limits, dict):
+        return
+    data = {}
+    for key, _ in WINDOWS_USAGE:
+        w = rate_limits.get(key)
+        pct = w.get("used_percentage") if isinstance(w, dict) else None
+        if _num(pct):
+            r = w.get("resets_at")
+            data[key] = {"pct": float(pct), "resets_at": r if _num(r) else None}
+    if data:
+        data["seen"] = now
+        atomic_write(usage_path(name), json.dumps(data) + "\n")
+
+
+def effective_usage(data, now):
+    """(pct, window, resets_at) of the fullest window still current. A
+    window past its reset, or seen longer ago than it lasts, counts as 0."""
+    best = (0.0, None, None)
+    for key, span in WINDOWS_USAGE:
+        w = data.get(key)
+        if not isinstance(w, dict) or not _num(w.get("pct")):
+            continue
+        r, seen = w.get("resets_at"), data.get("seen")
+        if _num(r):
+            if r <= now:
+                continue
+        elif not _num(seen) or now - seen > span:
+            continue
+        if w["pct"] > best[0]:
+            best = (float(w["pct"]), key, r)
+    return best
+
+
+def guard(reg, now):
+    """Warning text the first time the current account crosses 90% and
+    again at 97% in one window, or None. Only with 2+ accounts."""
+    if len(reg.get("accounts") or []) < 2:
+        return None
+    acct = current_account(reg)
+    if not acct:
+        return None
+    pct, key, resets = effective_usage(_read_json(usage_path(acct["name"])), now)
+    level = max([lv for lv in LEVELS if pct >= lv] or [0])
+    if not level:
+        return None
+    warned_path = usage_path(acct["name"], ".warned")
+    warned = {}
+    for k, v in _read_json(warned_path).items():
+        tail = k.rpartition(":")[2]
+        if not (tail.isdigit() and int(tail) <= now):  # past windows dropped
+            warned[k] = v
+    wkey = "%s:%s" % (key, int(resets) if _num(resets) else "")
+    if warned.get(wkey, 0) >= level:
+        return None
+    warned[wkey] = level
+    atomic_write(warned_path, json.dumps(warned) + "\n")
+    others = [a for a in reg["accounts"] if a is not acct]
+    best = min(others, key=lambda a: effective_usage(_read_json(usage_path(a["name"])), now)[0])
+    return "%s at %d%%: run /switch %s" % (acct["name"], int(pct), best["name"])
+
+
+def cmd_hook():
+    """UserPromptSubmit. `/switch` or `/switch <name>` under a launcher: write
+    the request and block the prompt, so nothing reaches the API (works at
+    100% usage). Otherwise the usage guard. Never fails the prompt."""
+    try:
+        data = json.loads(sys.stdin.buffer.read().decode("utf-8", "replace") or "{}")
+        if not isinstance(data, dict):
+            return 0
+        m = SWITCH_RE.match(str(data.get("prompt") or "").strip())
+        if m and os.environ.get("CLAUDE_SWITCH_LAUNCHER"):
+            words = (m.group(1) or "").split()
+            if not words or (len(words) == 1 and words[0] not in SUBCOMMANDS):
+                _, msg = make_request(words[0] if words else None, str(data.get("session_id") or ""))
+                print(json.dumps({"decision": "block", "reason": msg, "hookSpecificOutput": {
+                    "hookEventName": HOOK_EVENT, "suppressOriginalPrompt": True}}))
+                return 0
+        msg = guard(load(), time.time())
+        if msg:
+            print(json.dumps({"systemMessage": msg}))
+    except Exception as e:  # a broken hook must never block the user's prompt
+        print("claude-switch hook: %s" % e, file=sys.stderr)
+    return 0
+
+
+def cmd_theme(args):
+    reg = load()
+    acct = _account_or_exit(reg, args.name)
+    if args.theme is None:
+        print("%s: %s" % (acct["name"], acct.get("theme") or "none (your settings' theme)"))
+        return 0
+    if args.theme != "-" and not re.match(r"^[a-z][a-z0-9-]{0,31}$", args.theme):
+        raise SystemExit("claude-switch: bad theme %r (e.g. dark, light, dark-daltonized)" % args.theme)
+    acct["theme"] = None if args.theme == "-" else args.theme
+    save(reg)
+    print("'%s' theme: %s (applies from its next start or switch)" % (acct["name"], acct["theme"] or "none"))
+    return 0
+
+
 # ---------------------------------------------------------------- main
 
 def main(argv=None):
@@ -916,6 +1330,8 @@ def main(argv=None):
             stream.reconfigure(errors="backslashreplace")
     if argv and argv[0] == "run":
         return cmd_run(argv[1:])
+    if argv and argv[0] == "hook":
+        return cmd_hook()
     p = argparse.ArgumentParser(prog="claude_switch.py", description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("run", help="launcher loop: run [name|-] [claude args]")
@@ -927,6 +1343,8 @@ def main(argv=None):
     s.add_argument("--profile", action="append", metavar="SHELL=PATH",
                    help="write only these (%s; cmd takes the shim dir)" % ", ".join(SHELLS))
     s.add_argument("--yes", action="store_true", help="write without asking")
+    s.add_argument("--uninstall", action="store_true",
+                   help="take the statusline and hook out of settings.json (the old statusline comes back)")
     ad = sub.add_parser("add", help="new account: config dir with shared items linked from the first")
     ad.add_argument("name")
     ad.add_argument("--dir", help="config dir (default ~/.claude-NAME)")
@@ -941,9 +1359,13 @@ def main(argv=None):
     rn.add_argument("new")
     sub.add_parser("list", help="accounts, colour, dir, last used")
     sub.add_parser("migrate", help="register ~/.claude and ~/.claude-* dirs; reads them only")
+    sub.add_parser("hook", help="UserPromptSubmit hook (stdin JSON): /switch without the API, usage guard")
+    th = sub.add_parser("theme", help="show or set an account's Claude theme ('-' clears)")
+    th.add_argument("name")
+    th.add_argument("theme", nargs="?")
     a = p.parse_args(argv)
     return {"request": cmd_request, "setup": cmd_setup, "add": cmd_add, "remove": cmd_remove,
-            "rename": cmd_rename, "list": cmd_list, "migrate": cmd_migrate}[a.cmd](a)
+            "rename": cmd_rename, "list": cmd_list, "migrate": cmd_migrate, "theme": cmd_theme}[a.cmd](a)
 
 
 if __name__ == "__main__":

@@ -40,6 +40,9 @@ if "--resume" in args and os.environ.get("FAKE_RESUME_FAIL"):
     sys.exit(1)
 if args[:1] in (["--resume"], ["--continue"]):
     sys.exit(0)
+if os.environ.get("FAKE_RENAME"):
+    subprocess.run([os.environ["CLAUDE_SWITCH_PYTHON"], os.environ["FAKE_SCRIPT"], "rename"]
+                   + os.environ["FAKE_RENAME"].split(), stdout=subprocess.DEVNULL)
 if os.environ.get("FAKE_ADD"):
     subprocess.run([os.environ["CLAUDE_SWITCH_PYTHON"], os.environ["FAKE_SCRIPT"], "add",
                     os.environ["FAKE_ADD"], "--session", os.environ.get("FAKE_SESSION", "")])
