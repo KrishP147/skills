@@ -54,9 +54,7 @@ slash command.
    - Nothing's running.
    - Nothing's dirty/unpushed (or it's intentional and already handed off).
    - Any mid-flight work has a handoff: committed and pushed, or saved on disk per [`TRACKING.md`](../handoff-auto/TRACKING.md) (untracked, the only option on forks; or, in commit mode, a dated handoff held uncommitted on a task branch, which doesn't count as dirty and is never suggested for commit).
-
-   An untracked handoff covers only the work it describes.
-   - It is NOT SAFE when its worktree is a non-main one or was made by pair/meta-orchestrator (it would be removed with the worktree), or when unsure.
+   - An untracked handoff covers only the work it describes, and is NOT SAFE when its worktree is a non-main one or was made by pair/meta-orchestrator (it would be removed with the worktree), or when unsure.
    - Otherwise NOT SAFE, with the specific reasons.
 7. **On "close" / "yes, stop them":** lists exactly what will be stopped and what (if anything) would be committed/pushed, and waits for an explicit yes before doing either.
    - On yes, stops background tasks with `TaskStop` (if available).
