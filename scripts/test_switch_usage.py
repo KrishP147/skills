@@ -235,7 +235,7 @@ class HookTest(Base):
         self.assertEqual(self.requests(), [])
 
     def test_passes_through(self):
-        for prompt in ("/switch add work2", "/switch remove alt", "/switch list", "/switch a b",
+        for prompt in ("/switch add work2", "/switch remove alt", "/switch list", "/switch theme alt dark",
                        "/switcher alt", "please /switch alt", "hello"):
             self.assertIsNone(self.hook(prompt, self.env), prompt)
         self.assertIsNone(self.hook("/switch alt"))  # not under a launcher: the skill shows setup steps
@@ -291,10 +291,12 @@ class HookNeverAsksTest(Base):
         self.assertEqual(req["transcript"], str(t.absolute()))
         self.assertIn("- cwd: %s" % self.tmp, (self.sw / "requests" / "4242.note.md").read_text())
 
-    def test_other_words_pass_through(self):
-        self.assertIsNone(self.hook("/switch rc-ok alt on", self.env))
-        self.assertIsNone(self.hook("/switch alt no", self.env))
+    def test_extra_words_blocked_with_usage(self):
+        for prompt in ("/switch alt now", "/switch a b yes", "/switch rc-ok alt on", "/switch alt no"):
+            out = self.hook(prompt, self.env)
+            self.assertEqual((out["decision"], out["reason"]), ("block", "usage: /switch [name]"), prompt)
         self.assertEqual(self.requests(), [])
+        self.assertIsNone(self.hook("/switch alt now"))  # not under a launcher: the skill handles it
 
 
 class SettingsTest(Base):

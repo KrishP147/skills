@@ -199,9 +199,6 @@ def setup_steps():
     )
 
 
-LIVE_SECS = 600
-
-
 def find_transcript(session, config_dir=None):
     """Absolute <config>/projects/*/<session>.jsonl, or None."""
     if not UUID_RE.match(session or ""):
@@ -229,43 +226,31 @@ def _last_record(path, tail=65536):
     return None
 
 
-def live_agents(transcript, now=None):
-    """Ids of subagents under <session>/subagents/ that look live: the last
-    record is not a final end_turn, or the file changed in the last 10 min."""
+def live_agents(transcript):
+    """Ids of subagents under <session>/subagents/ whose last record is not
+    a final assistant end_turn."""
     if not transcript:
         return []
     d = Path(transcript).with_suffix("") / "subagents"
-    now = time.time() if now is None else now
     out = []
     for f in sorted(d.glob("agent-*.jsonl")) if d.is_dir() else []:
         rec = _last_record(f) or {}
         msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
-        done = rec.get("type") == "assistant" and msg.get("stop_reason") == "end_turn"
-        try:
-            recent = now - f.stat().st_mtime < LIVE_SECS
-        except OSError:
-            recent = False
-        if not done or recent:
+        if not (rec.get("type") == "assistant" and msg.get("stop_reason") == "end_turn"):
             out.append(f.stem[len("agent-"):])
     return out
 
 
 def pre_switch_notes(current, target, agents, remote):
     """Info lines printed before a switch; they never stop it."""
-    cur = current or "this account"
-    lines = ["before switching %s -> %s:" % (cur, target["name"])]
+    lines = ["before switching %s -> %s:" % (current or "this account", target["name"])]
     if agents:
         lines.append("  %d subagent%s (%s): paused by the switch; resume each with SendMessage after relaunch"
                      % (len(agents), "" if len(agents) == 1 else "s", ", ".join(agents)))
     if remote:
         lines.append("  Remote Control ends with this session; run /remote-control on %s if you want it"
                      % target["name"])
-    lines += [
-        "  dies: background Bash commands and monitors, if any (Explore/Plan agents are one-shot)",
-        "  stays on %s: artifacts published this session (republishing needs edit rights), routines" % cur,
-        "  follows the login: run /mcp on %s for claude.ai connectors and MCP OAuth; "
-        "the Chrome extension must be signed into %s's org" % (target["name"], target["name"]),
-    ]
+    lines.append("  dies: background Bash commands and monitors, if any (Explore/Plan agents are one-shot)")
     return "\n".join(lines)
 
 
@@ -302,13 +287,19 @@ def write_note(launcher, current, target, session, agents, cwd):
     atomic_write(note_path(launcher), "\n".join(lines))
 
 
+USAGE = "usage: /switch [name]"
+
+
 def request_name(reg, words):
-    """Account name from request words. A trailing 'yes' (the old confirm
-    word) is dropped, unless it is the only word and an account is called that."""
+    """(name or None, None) from `/switch [name] [yes]`, else (None, USAGE).
+    A trailing 'yes' (the old confirm word) is dropped, unless it is the
+    only word and an account is called that."""
     words = list(words or [])
-    if words and words[-1] == "yes" and not (len(words) == 1 and find(reg, "yes")):
+    if words[1:] == ["yes"] or (words == ["yes"] and not find(reg, "yes")):
         words.pop()
-    return words[0] if words else None
+    if len(words) > 1:
+        return None, USAGE
+    return (words[0] if words else None), None
 
 
 def make_request(name, session, transcript=None, cwd=None):
@@ -335,7 +326,8 @@ def make_request(name, session, transcript=None, cwd=None):
 
 
 def cmd_request(args):
-    rc, msg = make_request(request_name(load(), args.words), args.session)
+    name, usage = request_name(load(), args.words)
+    rc, msg = (1, usage) if usage else make_request(name, args.session)
     print(msg)
     return rc
 
@@ -1509,10 +1501,11 @@ def cmd_hook():
         launcher = os.environ.get("CLAUDE_SWITCH_LAUNCHER")
         if m and launcher:
             words = (m.group(1) or "").split()
-            if (len(words) <= 2 and (not words or words[0] not in SUBCOMMANDS)
-                    and (len(words) < 2 or words[1] == "yes")):
-                _, msg = make_request(request_name(load(), words), str(data.get("session_id") or ""),
-                                      transcript=data.get("transcript_path") or None, cwd=data.get("cwd") or None)
+            if not words or words[0] not in SUBCOMMANDS:  # subcommands go through the skill
+                name, msg = request_name(load(), words)
+                if not msg:
+                    _, msg = make_request(name, str(data.get("session_id") or ""),
+                                          transcript=data.get("transcript_path") or None, cwd=data.get("cwd") or None)
                 print(json.dumps({"decision": "block", "reason": msg,
                                   "hookSpecificOutput": {"hookEventName": HOOK_EVENT,
                                                          "suppressOriginalPrompt": True}}))
