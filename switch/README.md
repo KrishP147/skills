@@ -53,7 +53,7 @@ statusline and hook back out of `settings.json`:
 
 ## How it works
 
-1. **Setup** (`claude_switch.py setup`) registers each `--account NAME=DIR` in `~/.claude-switch/accounts.json` (name, dir, colour, theme, last-used; written atomically) and copies the script there; the wrappers call that copy, so updating or uninstalling the skill doesn't break your shells.
+1. **Setup** (`claude_switch.py setup`) registers each `--account NAME=DIR` in `~/.claude-switch/accounts.json` (name, dir, colour, theme, last-used; written atomically). It also copies the script there. The wrappers call that copy, so updating or uninstalling the skill doesn't break your shells.
    - No `--account` on a first run registers `main` = `~/.claude`.
    - It then writes a block between `# >>> claude-switch >>>` markers into each shell profile it finds (bash, zsh, fish, PowerShell 5.1 and 7) and `claude.cmd` / `claude-<name>.cmd` shims for cmd.
    - It shows the unified diff and writes only after `y`.
@@ -67,7 +67,7 @@ statusline and hook back out of `settings.json`:
    - It writes a resume note to `~/.claude-switch/requests/<launcher pid>.note.md` and the request to `requests/<launcher pid>.json` (target, session, the transcript's absolute path).
    - A trailing `yes` (`/switch work yes`) is ignored.
    - Unknown names list the accounts, a session not started by the launcher gets the setup steps.
-4. **Relaunch.** The launcher sees its own request file, ends Claude (Windows: the whole process tree, MCP servers included), restores the terminal (raw mode, alt screen, bracketed paste, cursor) and starts the target account with `--resume <session id>`.
+4. **Relaunch.** The launcher sees its own request file, ends Claude (Windows: the whole process tree, MCP servers included), restores the terminal (raw mode, alt screen, bracketed paste, cursor), and starts the target account with `--resume <session id>`.
    - It uses `--resume <absolute transcript path>` instead when the target's `projects/` doesn't hold the session (an account with its own, unshared history).
    - The switch line is followed by the resume note's path.
    - If that exits with an error within 10 s it prints one line and uses `--continue`.
@@ -90,15 +90,15 @@ statusline and hook back out of `settings.json`:
    - `migrate` registers `~/.claude` and every `~/.claude-<name>` dir holding `.credentials.json`, `.claude.json` or `projects/`; it links nothing, and once setup has run it adds the statusline and hook to each one's `settings.json`.
    - Renaming the account you're on is fine: the launcher looks it up by its dir at the next switch.
 9. **Statusline.** Setup also writes a `statusLine` (refreshed every 60 s), and the hook below, into every account's `settings.json`.
-   - One linked between accounts is written once, and an account whose dir doesn't exist yet is skipped (rerun setup after its first login).
+   - A `settings.json` linked between accounts is written once. An account whose dir doesn't exist yet is skipped (rerun setup after its first login).
    - `add` and `migrate` do the same for a new account with its own file; `remove` takes them out of a file no other account uses.
    - The statusline prints the account name in its colour, then `session 42% · 2h13m left  week 18% · 4d6h left` from Claude Code's `rate_limits.five_hour` / `seven_day` fields (`-` until Claude reports them; they only exist for Pro and Max plans).
-   - A statusline you had before is never overwritten: setup records it per file in the registry, the new one runs it with the same input and puts its output on the same line, and `setup --uninstall` puts it back.
+   - A statusline you had before is never overwritten. Setup records it per file in the registry. The new statusline runs it with the same input and puts its output on the same line. `setup --uninstall` puts it back.
    - Settings are backed up to `~/.claude-switch/backups/` and written in place, so a linked `settings.json` stays linked.
 10. **Usage guard.** The statusline caches each account's last seen usage in `~/.claude-switch/usage/<account>.json`.
     - With two or more accounts, a `UserPromptSubmit` hook warns once when the account crosses 90% and once at 97% in a window: `work at 91%: run /switch personal`, naming the account with the most room (a window past its reset counts as empty).
 11. **`/switch` at 100%.** The same hook catches a typed `/switch` or `/switch <name>`, writes the launcher's request and blocks the prompt, so the switch makes no API call and works on an account that is out of usage.
-    - Claude Code passes a typed skill line to this hook as typed, before the skill expands (hooks reference, section "UserPromptSubmit input"; blocking per "UserPromptSubmit decision control").
+    - Claude Code gives this hook the line exactly as typed, before the skill expands (hooks reference, section "UserPromptSubmit input"; blocking per "UserPromptSubmit decision control").
     - `add`, `remove`, `rename`, `list` and `theme` still go through the skill.
 12. **Theme and title.** `/switch theme <name> <theme>` gives an account its own Claude theme.
     - The launcher passes it as `--settings '{"theme":...}'`, merged with a `--settings` you passed yourself (yours wins on the same key).
