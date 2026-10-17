@@ -29,14 +29,14 @@ Install section.
 | ponytail | skill | sonnet | medium | `/ponytail` | Lazy senior dev mode: the smallest change that fully solves the task, and a reply a busy human understands in one read. | lazy-fix-handoff |
 | pr-watch | skill | sonnet | high | `/pr-watch` | Watch the user's open PRs to merge — read bot and human review threads, fix valid ones via pair, reply to or resolve the rest with evidence, report CI; every push, reply, and resolve gated on a yes. | pair-to-pr |
 | progress-report | skill | sonnet | low | `/progress-report` | Write a short progress report of what an orchestrated or long session did since the last report (never overlapping): done, what worked, what didn't, concerns, decisions made for the user, manual steps. | unattended-backlog, brief-a-teammate |
-| remind | skill (user only) | haiku | low | `/remind` | Set a reminder for when an account's session or weekly limit resets, when its usage drops under a percentage, or at a time; list or cancel them. | usage-limit |
+| remind | skill (user only) | haiku | low | `/remind` | Set a reminder for when an account's session or weekly limit resets, when its usage drops under a percentage, or at a time; list or cancel them. | unattended-backlog, safe-to-close, climb-a-score, usage-limit |
 | repo-scrub | skill (user only) | opus | high | `/repo-scrub` | Scan a GitHub repo's full history for secrets and large files, scrub what the user picks, rewrite history safely, then flip it private → public. | go-public |
 | repo-showcase | skill | sonnet | high | `/repo-showcase` | Make a repo public-facing on its working tree — README rewritten around outcome and demo, stale docs pruned, outdated claims fixed, secrets and private names found, GitHub metadata proposed — then hand off to /repo-scrub. | go-public |
 | score-loop | skill | opus | high | `/score-loop` | Run an unattended experiment loop that hill-climbs one rerunnable numeric score — local grader-mirroring harness, one hypothesis per commit, keep only gains beyond the noise margin, auto-revert the rest, append-only results ledger; stops on budget, deadline or plateau. | climb-a-score |
 | session-bridge | skill | sonnet | low | `/session-bridge` | Coordinate with another Claude Code session or agent on the same repo — snapshot its state, check for overlap, send it a gated message. | two-sessions |
 | sitrep | skill | haiku | low | `/sitrep` | Live status of this session in ≤10 lines — what's running, git state, PRs + CI, asked vs done, what needs the user, and a SAFE/NOT SAFE close verdict. | safe-to-close, two-sessions, usage-limit |
 | spend-gate | skill | sonnet | medium | `/spend-gate` | Gate any billable action (GPU pods/instances, paid APIs or tiers, cloud credits) behind a cost estimate, a live balance check, and an explicit yes for that action. | paid-tests, climb-a-score |
-| switch | skill (user only) | haiku | low | `/switch` | Move this conversation to another Claude account (the previous one, or one by name), or add, remove, rename and list accounts. | usage-limit |
+| switch | skill (user only) | haiku | low | `/switch` | Move this conversation to another Claude account (the previous one, or one by name), or add, remove, rename and list accounts. | unattended-backlog, climb-a-score, usage-limit |
 | teammate-brief | skill | sonnet | medium | `/teammate-brief` | Write an onboarding document for a person joining or picking up a project — what it is, setup steps verified by running them, env var names and where to get them, tasks with "done when", owners, don't-touch list. | brief-a-teammate |
 | wayfinder | skill (user only) | opus | high | `/wayfinder` | Plan an effort too big for one session as a map of decision tickets (GitHub issue + sub-issues) and resolve them one per session until the way is clear, then hand off to divide. | big-effort |
 | consult-plan | skill | opus | high | `/consult-plan` | Grill a proposed change, deviation, or new idea against a repo's existing plan (issues, board, roadmap, decisions), then record the outcome. | pitch-an-idea |
@@ -114,8 +114,11 @@ human-in-the-loop points: nothing continues without you.
 6. manager (agent, opus · high): Briefs an implementer, reviews every round inline and reruns the tests itself, for up to 3 rounds.
 7. implementer (agent, sonnet · medium): Implements on its branch, commits small, watches the tests pass and ends with session-handoff.
 8. verifier (agent, opus · high): Runs update-progress end to end, answers or parks deviations, then runs next.
-9. /progress-report (skill, sonnet · low): Every N merges, writes a two-minute report of what happened since the last one, never overlapping.
-10. you: Read the report and do the manual steps it lists.
+9. you: When the statusline warns near the limit (90%), type /switch between merges; it is user-only, so Claude can't start it.
+10. /switch (skill, haiku · low): The session resumes on the other account; running subagents pause (resume each with SendMessage to its id) and background commands end, hence between merges.
+11. /remind (skill, haiku · low): /remind when <first account>'s session limit resets pops a toast at the reset time and says it once at your next prompt.
+12. /progress-report (skill, sonnet · low): Every N merges, writes a two-minute report of what happened since the last one, never overlapping.
+13. you: Read the report and do the manual steps it lists.
 
 ### pair-to-pr: One issue to a reviewed PR
 
@@ -148,9 +151,10 @@ human-in-the-loop points: nothing continues without you.
 
 1. you: Ask "can I close this".
 2. /sitrep (skill, haiku · low): Reports what's running, git state, PRs and CI, and asked vs done in up to 10 lines, with a SAFE or NOT SAFE verdict.
-3. you: Say close and name what may be stopped; anything vaguer gets the list again.
-4. /handoff-auto (skill, sonnet · medium): sitrep calls it for mid-flight work; it writes the handoff and prints its absolute path as the last line.
-5. you: Start the next session from that path.
+3. /remind (skill, haiku · low): Optional: /remind when <account>'s weekly limit resets, so you know when to come back.
+4. you: Say close and name what may be stopped; anything vaguer gets the list again.
+5. /handoff-auto (skill, sonnet · medium): sitrep calls it for mid-flight work; it writes the handoff and prints its absolute path as the last line.
+6. you: Start the next session from that path.
 
 ### two-sessions: Coordinate with another session
 
@@ -189,8 +193,11 @@ human-in-the-loop points: nothing continues without you.
 2. you: Say yes to the setup once: quota, spend cap, deadline; then it runs unattended.
 3. /spend-gate (skill, sonnet · medium): Gates each paid submission or compute step with a cost estimate and a live balance check; the spend cap is a ceiling, not approval.
 4. you: Say yes to that one paid action.
-5. /handoff-auto (skill, sonnet · medium): When the loop's context degrades, writes a handoff pointing at skilleddocs/experiments.md and /score-loop resume.
-6. you: Run /score-loop resume in a fresh session; at the deadline freeze, say yes to the final submission.
+5. you: When the statusline warns near the limit (90%), type /switch between experiments, not mid-run; it is user-only, so Claude can't start it.
+6. /switch (skill, haiku · low): The session resumes on the other account; running subagents pause (resume each with SendMessage to its id) and background commands end, hence between experiments.
+7. /remind (skill, haiku · low): /remind when <first account>'s session limit resets pops a toast at the reset time and says it once at your next prompt.
+8. /handoff-auto (skill, sonnet · medium): When the loop's context degrades, writes a handoff pointing at skilleddocs/experiments.md and /score-loop resume.
+9. you: Run /score-loop resume in a fresh session; at the deadline freeze, say yes to the final submission.
 
 ### brief-a-teammate: Hand the project to a teammate
 
