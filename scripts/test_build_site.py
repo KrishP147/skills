@@ -627,6 +627,17 @@ class WorkflowsPageTest(unittest.TestCase):
                     self.assertIn('href="/skills/%s">/%s</a>' % (st["name"], st["name"]), li)
                     self.assertTrue(os.path.isfile(os.path.join(self.out, st["name"], "index.html")))
 
+    def test_install_command_per_workflow(self):
+        # Each workflow section ends with its bash + PowerShell install one-liners.
+        for wf in self.raw:
+            m = re.search(r'<section class="sec wf" aria-labelledby="%s">(.*?)</section>' % wf["name"], self.page, re.S)
+            self.assertIsNotNone(m, wf["name"])
+            self.assertIn("./scripts/install-skills.sh --workflow %s " % wf["name"], m.group(1))
+            self.assertIn(".\\scripts\\install-skills.ps1 -Workflow %s " % wf["name"], m.group(1))
+        detail = os.path.join(self.out, "next", "index.html")
+        with open(detail, encoding="utf-8") as f:
+            self.assertIn("<code>./scripts/install-skills.sh --workflow close-the-loop</code>", f.read())
+
     def test_page_shell(self):
         # Same chrome as a detail page: slash prompt, nav data, back link, one h1.
         self.assertIn('id="skill-data"', self.page)

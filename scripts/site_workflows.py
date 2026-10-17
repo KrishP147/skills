@@ -137,6 +137,12 @@ def chain(wf):
     return " → ".join(st.get("name", "you") for st in wf["steps"])
 
 
+def install_cmds(name):
+    """(bash, PowerShell) one-liners that install just this workflow from a clone."""
+    return ("./scripts/install-skills.sh --workflow %s" % name,
+            ".\\scripts\\install-skills.ps1 -Workflow %s" % name)
+
+
 def href(base, name=None):
     return "%s/%s%s" % (base, SLUG, "#" + name if name else "")
 
@@ -146,8 +152,10 @@ def detail_section(wfs, base, sid):
     if not wfs:
         return ""
     items = "\n".join(
-        '<li><a href="%s">%s</a><br><span class="dim wf-chain">%s</span></li>'
-        % (esc(href(base, wf["name"])), esc(wf["title"]), esc(chain(wf))) for wf in wfs)
+        '<li><a href="%s">%s</a><br><span class="dim wf-chain">%s</span>'
+        '<br><span class="wf-cmd">Install just this one: <code>%s</code> or <code>%s</code></span></li>'
+        % ((esc(href(base, wf["name"])), esc(wf["title"]), esc(chain(wf))) + tuple(map(esc, install_cmds(wf["name"]))))
+        for wf in wfs)
     return ('<section class="sec" aria-labelledby="%s">\n<h2 id="%s">Sample workflows</h2>\n'
             '<ul class="wf-links">\n%s\n</ul>\n</section>' % (esc(sid), esc(sid), items))
 
@@ -168,9 +176,12 @@ def render_list(workflows, base):
            '<ul>\n%s\n</ul>\n</nav>' % toc]
     for wf in workflows:
         steps = "\n".join(_step_html(st, base) for st in wf["steps"])
+        sh, ps = install_cmds(wf["name"])
         out.append('<section class="sec wf" aria-labelledby="%s">\n<h2 id="%s">%s</h2>\n'
-                   '<ol class="wf-steps">\n%s\n</ol>\n</section>'
-                   % (esc(wf["name"]), esc(wf["name"]), esc(wf["title"]), steps))
+                   '<ol class="wf-steps">\n%s\n</ol>\n'
+                   '<p class="dim">Install just this workflow (its skills, agents and hooks, plus the skills they call):</p>\n'
+                   '<pre class="wf-cmd"><code>%s   # bash, Git Bash, macOS, Linux\n%s   # Windows PowerShell</code></pre>\n</section>'
+                   % (esc(wf["name"]), esc(wf["name"]), esc(wf["title"]), steps, esc(sh), esc(ps)))
     return "\n".join(out)
 
 
