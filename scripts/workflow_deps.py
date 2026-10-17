@@ -181,6 +181,15 @@ def listing(g):
     return ["%s\t%s" % (wf["name"], wf["title"]) for wf in g.workflows]
 
 
+def needs_line(g, name):
+    """The README line saying what installing `name` alone brings along."""
+    r = g.resolve(names=[name])
+    others = [n for k in ("skill", "agent", "hook") for n in r[k] if n != name]
+    if not others:
+        return "Works on its own."
+    return "Needs: %s (installed with it)." % ", ".join("`%s`" % n for n in others)
+
+
 def name_listing(g):
     return ["%s\t%s" % (e["name"], g.kinds[e["name"]]) for e in g.entries]
 

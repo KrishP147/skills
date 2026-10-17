@@ -164,6 +164,20 @@ class NamesTest(unittest.TestCase):
                 self.assertIn(d, self.g.kinds, src)
                 self.assertNotIn(d, self.g.deps[src], "%s still pulls %s" % (src, d))
 
+    def test_readme_needs_line_matches_resolver(self):
+        # skills: line right after the italic note; agents: first line of
+        # their agents/README.md section
+        with open(os.path.join(ROOT, "agents", "README.md"), encoding="utf-8") as f:
+            agents_md = f.read()
+        for n, k in self.g.kinds.items():
+            want = workflow_deps.needs_line(self.g, n)
+            if k == "skill":
+                with open(os.path.join(ROOT, self.g.by_name[n]["source"], "README.md"), encoding="utf-8") as f:
+                    lines = f.read().split("\n")
+                self.assertEqual(lines[4], want, "%s/README.md line 5" % n)
+            elif k == "agent":
+                self.assertIn("\n## %s\n\n%s\n" % (n, want), agents_md, n)
+
     def test_dangling_links_detects(self):
         with tempfile.TemporaryDirectory() as tmp:
             os.makedirs(os.path.join(tmp, "skills", "a"))
