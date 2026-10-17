@@ -6,6 +6,7 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 
 ## [0.1.0] - 2026-10-15
 
+- Workflows `unattended-backlog`, `climb-a-score` and `safe-to-close` gain `/switch` and `/remind` steps for usage limits (#235).
 - Skills split into categories (#227): Plan and decide, Build and orchestrate, Sessions and accounts, Review and report, Repo and safety, Kanban board, plus agents and hooks. One list in `site/data/meta.json` (`categories`, was `map_groups`) drives the site home, `/map`, each page's tag and the README "What's here" tables; a test fails if they drift.
 - skill pages: more spacing, bullets
 - New `remind` skill (#226): `/remind when <account>'s session|weekly limit resets`, `when <account> is under N%`, `in 2h ...`, `at 3pm ...`, `list`, `cancel <id>`. Reset times come from `switch`'s usage cache (unknown account, no cache or an already-reset window is an error, never a guess). Due reminders show once at the next prompt on any account through `switch`'s hook (a one-line hook without switch); timed ones also get a one-shot desktop notification (Windows scheduled task with a PowerShell toast, `msg` fallback; `at` on macOS/Linux). `reminders.json` sits next to the switch registry (`~/.claude-remind/` without it).
