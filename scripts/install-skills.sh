@@ -23,6 +23,10 @@
 #              and their settings.json snippet printed, never wired.
 #              Needs python 3, even with --no-lint.
 #   --list-workflows  print the workflow names and exit
+#   --skill <name>  install only that skill, agent or hook plus what it
+#              needs, same rules as --workflow. Repeatable, or
+#              comma-separated; combines with --workflow (union).
+#   --list-skills  print every skill, agent and hook name and exit
 set -euo pipefail
 
 MARKER=".from-krishp147-skills"
@@ -31,9 +35,11 @@ no_lint=0
 force=0
 no_sh_check=0
 list_workflows=0
+list_skills=0
 workflows=()
+skill_names=()
 usage() {
-  echo "Usage: $0 [--no-lint] [--force] [--no-sh-check] [--workflow <name>]... [--list-workflows]" >&2
+  echo "Usage: $0 [--no-lint] [--force] [--no-sh-check] [--workflow <name>]... [--skill <name>]... [--list-workflows] [--list-skills]" >&2
   exit 1
 }
 while (( $# )); do
@@ -48,6 +54,13 @@ while (( $# )); do
       shift
       ;;
     --workflow=*) workflows+=("${1#--workflow=}") ;;
+    --list-skills) list_skills=1 ;;
+    --skill)
+      (( $# >= 2 )) || usage
+      skill_names+=("$2")
+      shift
+      ;;
+    --skill=*) skill_names+=("${1#--skill=}") ;;
     *) usage ;;
   esac
   shift
@@ -84,6 +97,14 @@ if (( list_workflows )); then
   "$pybin" ${pyargs[@]+"${pyargs[@]}"} "${deps[@]}" list
   exit 0
 fi
+if (( list_skills )); then
+  if [[ -z "$pybin" ]]; then
+    echo "error: --list-skills needs python 3 (checked python3, python, py -3)." >&2
+    exit 1
+  fi
+  "$pybin" ${pyargs[@]+"${pyargs[@]}"} "${deps[@]}" list-names
+  exit 0
+fi
 
 # guard-git's hook command (agents/*.md frontmatter) is POSIX sh. Without
 # sh, Claude Code can't run the hook and nothing gets blocked, so check
@@ -114,21 +135,25 @@ else
   exit 1
 fi
 
-# --workflow: resolve before creating or copying anything; an unknown name
-# makes the resolver list the workflows and exit non-zero.
+# --workflow / --skill: resolve before creating or copying anything; an
+# unknown name makes the resolver list the valid names and exit non-zero.
 partial=0
 sel_skills=()
 sel_agents=()
 sel_hooks=()
 agent_hooks=0
-if (( ${#workflows[@]} )); then
+if (( ${#workflows[@]} || ${#skill_names[@]} )); then
   partial=1
   if [[ -z "$pybin" ]]; then
-    echo "error: --workflow needs python 3 to resolve the workflow (checked python3, python, py -3)." >&2
+    echo "error: --workflow and --skill need python 3 to resolve what to install (checked python3, python, py -3)." >&2
     echo "Install Python 3; --no-lint does not skip this step." >&2
     exit 1
   fi
-  resolved="$("$pybin" ${pyargs[@]+"${pyargs[@]}"} "${deps[@]}" resolve "${workflows[@]}")" || exit $?
+  resolve_args=(${workflows[@]+"${workflows[@]}"})
+  for n in ${skill_names[@]+"${skill_names[@]}"}; do
+    resolve_args+=(--skill "$n")
+  done
+  resolved="$("$pybin" ${pyargs[@]+"${pyargs[@]}"} "${deps[@]}" resolve "${resolve_args[@]}")" || exit $?
   while IFS= read -r line; do
     line="${line%$'\r'}"
     case "$line" in
@@ -143,8 +168,8 @@ if (( ${#workflows[@]} )); then
 fi
 
 if (( partial )); then
-  mkdir -p "$target"
-  (( ${#sel_agents[@]} )) && mkdir -p "$agents_target"
+  if (( ${#sel_skills[@]} )); then mkdir -p "$target"; fi
+  if (( ${#sel_agents[@]} )); then mkdir -p "$agents_target"; fi
 else
   mkdir -p "$target"
   mkdir -p "$agents_target"
@@ -211,9 +236,12 @@ if (( partial )); then
     copied_hooks+=("$h")
   done
 
-  printf 'Workflow(s): %s\n' "${workflows[*]}"
-  printf 'Installed %d skill(s) to %s:\n' "${#installed[@]}" "$target"
-  (( ${#installed[@]} )) && printf '  - %s\n' "${installed[@]}"
+  if (( ${#workflows[@]} )); then printf 'Workflow(s): %s\n' "${workflows[*]}"; fi
+  if (( ${#skill_names[@]} )); then printf 'Skill(s): %s\n' "${skill_names[*]}"; fi
+  if (( ${#sel_skills[@]} )); then
+    printf 'Installed %d skill(s) to %s:\n' "${#installed[@]}" "$target"
+    if (( ${#installed[@]} )); then printf '  - %s\n' "${installed[@]}"; fi
+  fi
   if (( ${#skipped_foreign[@]} )); then
     printf 'warning: skipped %d foreign skill dir(s) without marker (use --force): %s\n' \
       "${#skipped_foreign[@]}" "${skipped_foreign[*]}" >&2

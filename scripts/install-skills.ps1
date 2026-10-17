@@ -21,12 +21,18 @@
 #               skills dir) and their settings.json snippet printed, never
 #               wired. Needs python 3, even with -NoLint.
 #   -ListWorkflows  print the workflow names and exit
+#   -Skill a,b  install only those skills, agents or hooks plus what they
+#               need, same rules as -Workflow; combines with -Workflow
+#               (union).
+#   -ListSkills  print every skill, agent and hook name and exit
 param(
     [switch]$NoLint,
     [switch]$Force,
     [switch]$NoShCheck,
     [string[]]$Workflow,
-    [switch]$ListWorkflows
+    [switch]$ListWorkflows,
+    [string[]]$Skill,
+    [switch]$ListSkills
 )
 $ErrorActionPreference = "Stop"
 
@@ -68,6 +74,14 @@ if ($ListWorkflows) {
         exit 1
     }
     & $py.Path @($py.Args) $deps list
+    exit $LASTEXITCODE
+}
+if ($ListSkills) {
+    if (-not $py) {
+        [Console]::Error.WriteLine("error: -ListSkills needs python 3 (checked python, python3, py -3).")
+        exit 1
+    }
+    & $py.Path @($py.Args) $deps list-names
     exit $LASTEXITCODE
 }
 
@@ -130,23 +144,27 @@ if ($py) {
     exit 1
 }
 
-# -Workflow: resolve before creating or copying anything; an unknown name
-# makes the resolver list the workflows and exit non-zero.
-$partial = $PSBoundParameters.ContainsKey("Workflow")
+# -Workflow / -Skill: resolve before creating or copying anything; an
+# unknown name makes the resolver list the valid names and exit non-zero.
+$partial = $PSBoundParameters.ContainsKey("Workflow") -or $PSBoundParameters.ContainsKey("Skill")
 $selSkills = @()
 $selAgents = @()
 $selHooks = @()
 $agentHooks = $false
 $wfNames = @()
+$skillNames = @()
 if ($partial) {
     $wfNames = @($Workflow | ForEach-Object { "$_" -split "," } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $skillNames = @($Skill | ForEach-Object { "$_" -split "," } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     if (-not $py) {
-        [Console]::Error.WriteLine("error: -Workflow needs python 3 to resolve the workflow (checked python, python3, py -3).")
+        [Console]::Error.WriteLine("error: -Workflow and -Skill need python 3 to resolve what to install (checked python, python3, py -3).")
         [Console]::Error.WriteLine("Install Python 3; -NoLint does not skip this step.")
         exit 1
     }
     $ErrorActionPreference = "Continue"
-    $resolved = @(& $py.Path @($py.Args) $deps resolve @wfNames)
+    $resolveArgs = @($wfNames)
+    foreach ($n in $skillNames) { $resolveArgs += @("--skill", $n) }
+    $resolved = @(& $py.Path @($py.Args) $deps resolve @resolveArgs)
     $resolveExit = $LASTEXITCODE
     $ErrorActionPreference = "Stop"
     if ($resolveExit -ne 0) { exit $resolveExit }
@@ -163,7 +181,9 @@ if ($partial) {
     }
 }
 
-New-Item -ItemType Directory -Force -Path $target | Out-Null
+if ((-not $partial) -or $selSkills.Count -gt 0) {
+    New-Item -ItemType Directory -Force -Path $target | Out-Null
+}
 if ((-not $partial) -or $selAgents.Count -gt 0) {
     New-Item -ItemType Directory -Force -Path $agentsTarget | Out-Null
 }
@@ -231,9 +251,12 @@ if ($partial) {
         $copiedHooks += $h
     }
 
-    Write-Host "Workflow(s): $($wfNames -join ' ')"
-    Write-Host "Installed $($installed.Count) skill(s) to $target :"
-    $installed | ForEach-Object { Write-Host "  - $_" }
+    if ($wfNames.Count -gt 0) { Write-Host "Workflow(s): $($wfNames -join ' ')" }
+    if ($skillNames.Count -gt 0) { Write-Host "Skill(s): $($skillNames -join ' ')" }
+    if ($selSkills.Count -gt 0) {
+        Write-Host "Installed $($installed.Count) skill(s) to $target :"
+        $installed | ForEach-Object { Write-Host "  - $_" }
+    }
     if ($skippedForeign.Count -gt 0) {
         Write-Warning "skipped $($skippedForeign.Count) foreign skill dir(s) without marker (use -Force): $($skippedForeign -join ', ')"
     }
