@@ -15,7 +15,7 @@ summary; the build fails if a hook has no section). See [`../site/README.md`](..
 `UserPromptSubmit` hook. Prints a one-line warning into the conversation when
 the live context passes ~75k tokens, so both you and Claude see it and can
 wrap up: `/divide` the rest, then `/session-handoff` (or, for an orchestrator,
-the rotation step (`ROTATION.md`) in `meta-orchestrator`). Heuristic only;
+the rotation step in `meta-orchestrator`, see `ROTATION.md`). Heuristic only;
 `/context` is the precise check.
 
 How it works: on every prompt you submit, Claude Code passes the hook JSON on stdin; the script reads `transcript_path` and only the tail of that file (never the whole transcript).
@@ -140,7 +140,7 @@ How it works: reads the hook JSON on stdin (`tool_name`, `tool_input.command` fo
 - Trade-off: more approval prompts, since every job submit and endpoint update now needs approval.
 - Deliberately **not** defaulted: `fly deploy` and similar commands with a real free tier — add them yourself if your usage is always billable.
 - No match → exits 0 (allow) immediately.
-- Any error while reading config or matching (bad regex, unreadable file, malformed stdin) **fails open** — allows the call rather than blocking unrelated work on a hook bug; this hook is a net under `spend-gate`, not the only gate.
+- Any error while reading config or matching (bad regex, unreadable file, malformed stdin) **fails open**: it allows the call rather than blocking unrelated work on a hook bug. This hook is a safety net under `spend-gate`, not the only gate.
 
 Indirect forms. The patterns are also run on rewrites of the command, and a
 few rules cover billers that are not a CLI. All of these block:
@@ -196,9 +196,11 @@ Approval scheme (either allows the one matched action):
    - The hook deletes the first file it finds (sorted by name) and allows that single call; the next matching call is blocked again until another approval file appears.
    - The file is gone after use, so it is no record: the log is `skilleddocs/spend.md`.
    - A call holding two or more billable commands (`<create> && <create>`) is refused and the file kept: run them as separate calls.
-2. **`SPEND_GATE_APPROVED=<label>`.** For `Bash`, prefix the one command — `SPEND_GATE_APPROVED=yes runpodctl create pod ...` — this is a shell per-command env assignment, read out of the command string itself (the hook never executes the command), so it only ever covers that one invocation.
+2. **`SPEND_GATE_APPROVED=<label>`.** For `Bash`, prefix the one command: `SPEND_GATE_APPROVED=yes runpodctl create pod ...`. This is a shell per-command env assignment, read out of the command string itself (the hook never executes the command), so it only ever covers that one invocation.
    - For `PowerShell`, start the command with `$env:SPEND_GATE_APPROVED='<label>'; <cmd>` (leading only, `;` required, non-empty literal value, no `$` variables; a Bash-style prefix is not honoured).
-   - Both inline forms count only when the rest of the call is one simple command whose program is the call's only billable match: `true && <create>`, `<create>; <create>`, a pipe, `&`, a newline, a subshell, `$(...)`, backticks or a wrapper (`bash -c '<create>'`, `xargs`, `sudo`) is not approved, and `export SPEND_GATE_APPROVED=...` never is.
+   - Both inline forms count only when the rest of the call is one simple command whose program is the call's only billable match.
+     These are not approved: `true && <create>`, `<create>; <create>`, a pipe, `&`, a newline, a subshell, `$(...)`, backticks or a wrapper (`bash -c '<create>'`, `xargs`, `sudo`).
+     `export SPEND_GATE_APPROVED=...` never is.
    - `env SPEND_GATE_APPROVED=yes <create>` is the same single command and counts.
    - Redirections (`> out 2>&1`) are fine.
    - For an MCP tool call use the approval file: `export` inside a Bash tool call never reaches the hook's environment.
