@@ -73,6 +73,9 @@
       {"kind": "agent", "name": "manager", "why": "Briefs an implementer, reviews every round inline and reruns the tests itself, for up to 3 rounds."},
       {"kind": "agent", "name": "implementer", "why": "Implements on its branch, commits small, watches the tests pass and ends with session-handoff."},
       {"kind": "agent", "name": "verifier", "why": "Runs update-progress end to end, answers or parks deviations, then runs next."},
+      {"kind": "human", "why": "When the statusline warns near the limit (90%), type /switch between merges; it is user-only, so Claude can't start it."},
+      {"kind": "skill", "name": "switch", "why": "The session resumes on the other account; running subagents pause (resume each with SendMessage to its id) and background commands end, hence between merges."},
+      {"kind": "skill", "name": "remind", "why": "/remind when <first account>'s session limit resets pops a toast at the reset time and says it once at your next prompt."},
       {"kind": "skill", "name": "progress-report", "why": "Every N merges, writes a two-minute report of what happened since the last one, never overlapping."},
       {"kind": "human", "why": "Read the report and do the manual steps it lists."}
     ]
@@ -119,6 +122,7 @@
     "steps": [
       {"kind": "human", "why": "Ask \"can I close this\"."},
       {"kind": "skill", "name": "sitrep", "why": "Reports what's running, git state, PRs and CI, and asked vs done in up to 10 lines, with a SAFE or NOT SAFE verdict."},
+      {"kind": "skill", "name": "remind", "why": "Optional: /remind when <account>'s weekly limit resets, so you know when to come back."},
       {"kind": "human", "why": "Say close and name what may be stopped; anything vaguer gets the list again."},
       {"kind": "skill", "name": "handoff-auto", "why": "sitrep calls it for mid-flight work; it writes the handoff and prints its absolute path as the last line."},
       {"kind": "human", "why": "Start the next session from that path."}
@@ -175,6 +179,9 @@
       {"kind": "human", "why": "Say yes to the setup once: quota, spend cap, deadline; then it runs unattended."},
       {"kind": "skill", "name": "spend-gate", "why": "Gates each paid submission or compute step with a cost estimate and a live balance check; the spend cap is a ceiling, not approval."},
       {"kind": "human", "why": "Say yes to that one paid action."},
+      {"kind": "human", "why": "When the statusline warns near the limit (90%), type /switch between experiments, not mid-run; it is user-only, so Claude can't start it."},
+      {"kind": "skill", "name": "switch", "why": "The session resumes on the other account; running subagents pause (resume each with SendMessage to its id) and background commands end, hence between experiments."},
+      {"kind": "skill", "name": "remind", "why": "/remind when <first account>'s session limit resets pops a toast at the reset time and says it once at your next prompt."},
       {"kind": "skill", "name": "handoff-auto", "why": "When the loop's context degrades, writes a handoff pointing at skilleddocs/experiments.md and /score-loop resume."},
       {"kind": "human", "why": "Run /score-loop resume in a fresh session; at the deadline freeze, say yes to the final submission."}
     ]
