@@ -13,6 +13,7 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build_site  # noqa: E402
 import lint  # noqa: E402
+import site_detail  # noqa: E402
 import site_workflows  # noqa: E402
 
 ROOT = lint.repo_root()
@@ -175,12 +176,16 @@ class BuildSiteTest(unittest.TestCase):
         self.assertEqual(by["spend-guard"], "hooks")
         self.assertNotIn("README", by)
         self.assertTrue(set(by.values()) <= set(build_site.GROUPS))
-        order = [build_site.GROUPS.index(e["group"]) for e in self.data]
+        # skills.json is in category order (meta.json), then name
+        cats = list(site_detail.load_meta(ROOT)["categories"])
+        order = [(cats.index(e["category"]), e["name"]) for e in self.data]
         self.assertEqual(order, sorted(order))
+        self.assertEqual(by["consult-plan"], "kanban")
+        self.assertEqual({e["name"]: e["category"] for e in self.data}["consult-plan"], "plan-and-decide")
 
     def test_json_fields(self):
         for e in self.data:
-            self.assertEqual(set(e), {"name", "description", "summary", "group", "source", "readme"})
+            self.assertEqual(set(e), {"name", "description", "summary", "group", "category", "source", "readme"})
             self.assertTrue(e["name"] and e["description"] and e["summary"])
             self.assertNotIn("\\", e["source"])
             self.assertNotIn("\r", e["readme"])
@@ -232,7 +237,7 @@ class BuildSiteTest(unittest.TestCase):
         self.assertEqual(fs("v1.2 is out. Yes."), "v1.2 is out.")
 
     def test_escaping(self):
-        e = {"name": "x", "summary": '<b>"a" & b</b>', "group": "core"}
+        e = {"name": "x", "summary": '<b>"a" & b</b>', "group": "core", "category": "plan-and-decide"}
         html = build_site.render_list([e])
         self.assertIn("&lt;b&gt;&quot;a&quot; &amp; b&lt;/b&gt;", html)
         self.assertNotIn("<b>", html)

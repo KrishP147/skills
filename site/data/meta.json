@@ -41,14 +41,14 @@
     "lanes": ["concurrency", "streams"],
     "find-me-a-skill": ["find", "which-skill"]
   },
-  "map_groups_note": "Groups on the /map page, in order. Every skill, agent and hook in exactly one. Edges are generated, not listed here.",
-  "map_groups": {
-    "plan": ["gap-scan", "grilling", "grill-me", "grill-docs", "wayfinder", "consult-plan", "find-me-a-skill"],
-    "implement": ["pair", "meta-orchestrator", "lanes", "score-loop", "ponytail", "session-bridge"],
-    "review": ["pr-watch", "sitrep", "progress-report"],
-    "handoff": ["handoff", "handoff-auto", "session-handoff", "teammate-brief", "switch", "remind"],
-    "board": ["kanban-setup", "next", "divide", "update-progress"],
-    "repo-hygiene": ["repo-showcase", "repo-scrub", "spend-gate"],
+  "categories_note": "Categories for the home list, /map, page tags and the README. Order here is display order. Every skill, agent and hook in exactly one. Names: lowercase a-z, 0-9, -.",
+  "categories": {
+    "plan-and-decide": ["grilling", "grill-me", "grill-docs", "wayfinder", "consult-plan", "gap-scan", "find-me-a-skill"],
+    "build-and-orchestrate": ["pair", "meta-orchestrator", "lanes", "score-loop", "ponytail"],
+    "sessions-and-accounts": ["handoff", "handoff-auto", "sitrep", "session-bridge", "switch", "remind"],
+    "review-and-report": ["pr-watch", "progress-report", "teammate-brief"],
+    "repo-and-safety": ["repo-showcase", "repo-scrub", "spend-gate"],
+    "kanban-board": ["next", "session-handoff", "update-progress", "divide", "kanban-setup"],
     "agents": ["planner", "manager", "implementer", "verifier"],
     "hooks": ["smartzone", "spend-guard"]
   },
