@@ -24,7 +24,7 @@ Install section.
 | handoff | skill (user only) | sonnet | medium | `/handoff` | Compact the current conversation into a handoff document for another agent to pick up. | lazy-fix-handoff |
 | handoff-auto | skill | sonnet | medium | `/handoff-auto` | Write a handoff document for a fresh session, callable by the model. | safe-to-close, climb-a-score |
 | lanes | skill | sonnet | medium | `/lanes` | Set, increase, or decrease the parallel lanes of a meta-orchestrator run by grouping queued issues into file-disjoint streams, with a cost line and a confirm step. | unattended-backlog |
-| meta-orchestrator | skill | opus | high | `/meta-orchestrator` | Run a repo's backlog unattended as the orchestrator — planner, manager/implementer and verifier subagents per issue, merge gated on tests + CI, a ledger, and handoff to a fresh orchestrator on a budget. | big-effort, unattended-backlog |
+| meta-orchestrator | skill | opus | high | `/meta-orchestrator` | Run a repo's backlog unattended as the orchestrator — planner, manager/implementer and verifier subagents per issue, merge gated on tests + CI, a ledger, and handoff to a fresh orchestrator on a budget. | big-effort, unattended-backlog, orchestration-shapes |
 | pair | skill | sonnet | medium | `/pair` | Run one task (issue number or free text) in an isolated git worktree via a manager subagent that owns its implementer and retries; you push and open the PR at the end. | pair-to-pr |
 | ponytail | skill | sonnet | medium | `/ponytail` | Lazy senior dev mode: the smallest change that fully solves the task, and a reply a busy human understands in one read. | lazy-fix-handoff |
 | pr-watch | skill | sonnet | high | `/pr-watch` | Watch the user's open PRs to merge — read bot and human review threads, fix valid ones via pair, reply to or resolve the rest with evidence, report CI; every push, reply, and resolve gated on a yes. | pair-to-pr |
@@ -44,10 +44,10 @@ Install section.
 | next | skill | haiku | low | `/next` | Show the next work-session task from a repo's GitHub kanban board. | close-the-loop, new-board |
 | session-handoff | skill | sonnet | medium | `/session-handoff` | End an implementation session that started from a GitHub issue — writes the handoff, records progress against the issue, moves the card. | close-the-loop, wrap-up-long-session |
 | update-progress | skill | opus | medium | `/update-progress` | Verify a session's handoff document and update the repo's docs and kanban board from it. | close-the-loop |
-| implementer | agent | sonnet | medium | `Agent(subagent_type="implementer")` | Implements one well-specified issue from a kickoff brief on its own branch, commits small, runs the tests, and ends with a handoff document. | unattended-backlog, pair-to-pr |
-| manager | agent | opus | high | `Agent(subagent_type="manager")` | Owns one task inside a worktree — briefs an implementer subagent, reviews its diff and reruns tests itself, restarts a fresh implementer from skilleddocs/HANDOFF.md when one stalls (≤3 rounds). | unattended-backlog, pair-to-pr |
-| planner | agent | opus | medium | `Agent(subagent_type="planner")` | Picks the next issue from a repo's board, applies the run's scope exclusions, decides whether to divide, recommends a model, and returns a ≤40-line kickoff brief. | unattended-backlog |
-| verifier | agent | opus | high | `Agent(subagent_type="verifier")` | Verifies an implementation session: checks its handoff's claims against git, tests and CI, reviews the diff, updates docs/board/issues, reconciles deviations via consult-plan, and ends with the next task. | unattended-backlog |
+| implementer | agent | sonnet | medium | `Agent(subagent_type="implementer")` | Implements one well-specified issue from a kickoff brief on its own branch, commits small, runs the tests, and ends with a handoff document. | unattended-backlog, pair-to-pr, orchestration-shapes |
+| manager | agent | opus | high | `Agent(subagent_type="manager")` | Owns one task inside a worktree — briefs an implementer subagent, reviews its diff and reruns tests itself, restarts a fresh implementer from skilleddocs/HANDOFF.md when one stalls (≤3 rounds). | unattended-backlog, pair-to-pr, orchestration-shapes |
+| planner | agent | opus | medium | `Agent(subagent_type="planner")` | Picks the next issue from a repo's board, applies the run's scope exclusions, decides whether to divide, rates its size, recommends a shape and model, and returns a ≤40-line kickoff brief. | unattended-backlog, orchestration-shapes |
+| verifier | agent | opus | high | `Agent(subagent_type="verifier")` | Verifies an implementation session: checks its handoff's claims against git, tests and CI, reviews the diff, updates docs/board/issues, reconciles deviations via consult-plan, and ends with the next task. | unattended-backlog, orchestration-shapes |
 | smartzone | hook | haiku | low | install: hooks/README.md | "Your context has left the smart zone" warning. | wrap-up-long-session |
 | spend-guard | hook | haiku | low | install: hooks/README.md | Block billable commands without an approval. | paid-tests |
 
@@ -124,6 +124,16 @@ human-in-the-loop points: nothing continues without you.
 4. you: Read the report and say go; pair then pushes and opens the PR, and never merges.
 5. /pr-watch (skill, sonnet · high): Reads every review thread, classifies it, and fixes the valid ones through pair on the PR's branch.
 6. you: Say yes to each push, reply and resolve; a force push needs its own fresh yes.
+
+### orchestration-shapes: Match each issue to a shape: swarm, pair or flat
+
+1. you: Label issues size:XS to size:XL if you know their size, and pick shape auto (or pin pair, swarm or flat) in the meta-orchestrator setup.
+2. /meta-orchestrator (skill, opus · high): Reads shape from scope.md (an old execution key counts as shape) and runs each brief in the shape it names.
+3. planner (agent, opus · medium): Rates size (a size label wins), recommends a shape and the implementer model, and batches trivial, file-disjoint, exact-spec issues into one swarm brief.
+4. implementer (agent, sonnet · medium): Swarm: one haiku implementer per item, each in its own worktree off the batch branch, one parallel slot each; flat: one per issue on the model its size calls for.
+5. manager (agent, opus · high): Pair, the default: picks the implementer model by size (trivial haiku, small or medium sonnet, large or risky opus) and reviews every round; also takes the fix brief when a swarm batch's review finds a problem.
+6. verifier (agent, opus · high): Checks the merged issue or batch against git, tests and CI; skips its own code review after pair or swarm, which were already reviewed.
+7. you: With merge=ask, approve each PR: one per pair or flat issue, one per swarm batch closing all its items.
 
 ### wrap-up-long-session: Wrap up a long session
 

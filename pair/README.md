@@ -15,12 +15,12 @@ Runs **one task** (a GitHub issue or free text) through a `manager` subagent in 
 ## How to invoke
 
 ```
-/pair <issue # | task text> [--no-worktree] [--push] [--model opus|sonnet]
+/pair <issue # | task text> [--no-worktree] [--push] [--model haiku|sonnet|opus]
 ```
 
 - `--no-worktree` — new branch in the current checkout instead of a worktree.
 - `--push` — push and open the PR without asking.
-- `--model` — implementer model override (default: manager's choice, sonnet for mechanical work).
+- `--model` — implementer model override. Default: by the task's size (the issue's `size:*` label, else the manager's rating): trivial → haiku, small/medium → sonnet, large or risky → opus.
 
 Model-invocable, so "pair on issue 12" also works.
 
@@ -83,7 +83,7 @@ in `CLAUDE.md` (so `feat`). `--push` means no question before the push:
 ⏺ Bash(git worktree add ../_worktrees/myrepo-issue-42-fix-date-parsing -b feat/issue-42-fix-date-parsing main)
   ⎿ Preparing worktree (new branch 'feat/issue-42-fix-date-parsing')
 ⏺ #42 is on the board: moved to In Progress, commented "Started on branch `feat/issue-42-fix-date-parsing`".
-⏺ Agent(subagent_type="manager", prompt="working directory: /home/you/code/_worktrees/myrepo-issue-42-fix-date-parsing; task: #42 Fix date parsing + checklist; rules: prefix=feat, protected=main, test cmd=pytest; implementer model: your call; max_rounds: 3; never push, merge, or open a PR.")
+⏺ Agent(subagent_type="manager", prompt="working directory: /home/you/code/_worktrees/myrepo-issue-42-fix-date-parsing; task: #42 Fix date parsing + checklist; rules: prefix=feat, protected=main, test cmd=pytest; implementer model: by size; max_rounds: 3; never push, merge, or open a PR.")
   ⎿ Branch: feat/issue-42-fix-date-parsing, base 1a2b3c4, head 9f8e7d6
     Commits: 9f8e7d6 fix: parse dates with a UTC offset (#42)
     Tests: pytest, 118 passed; lint: none configured (run by me)
@@ -105,7 +105,7 @@ in `CLAUDE.md` (so `feat`). `--push` means no question before the push:
 ## Related
 
 - Spawns the [`manager`](../agents/README.md#manager) agent, which spawns [`implementer`](../agents/README.md#implementer).
-- [`meta-orchestrator`](../meta-orchestrator/) runs the same manager per issue in `execution: pair` mode.
+- [`meta-orchestrator`](../meta-orchestrator/) runs the same manager per issue with `shape: pair` (its default); `flat` and `swarm` are its other shapes (see its README).
 - Needs `gh` and the agents installed.
 
 ## Prereqs
