@@ -4,7 +4,10 @@
 
 ## What it does
 
-Turns a run's ledger into a short progress report (1–2 pages) covering **only what happened since the last report** — never overlapping. Markdown by default, `.docx` on request. Every issue/PR/commit reference is a link.
+Turns a run's ledger into a short progress report (1–2 pages) covering **only what happened since the last report** — never overlapping.
+
+- Markdown by default, `.docx` on request.
+- Every issue/PR/commit reference is a link.
 
 ## When to use
 
@@ -24,14 +27,38 @@ Model-invocable, so asking for "an update doc" works too.
 
 ## How it works
 
-1. **Find the source.** Reports folder (default the repo's `skilleddocs/reports/`); ledger at `skilleddocs/orchestrator/ledger.md`. No ledger → reconstructs one from `git log`, merged PRs, issues and the conversation, and says so.
-2. **Watermark.** `.last-reported` holds `<NNN> <report filename> <entry NNN's timestamp>`, NNN = last reported ledger entry. The new report covers `watermark + 1 … latest` (a restarted ledger, numbered from 001 again, is caught by the timestamp and covered from 001), plus any commits or merged PRs since the watermark with no ledger entry, marked "not in ledger" (the reporting commits themselves are skipped). Earlier items only reappear under "Revisions to earlier reports" if they changed (revert, reversed decision, broken "done").
-3. **Fixed sections:** header (report number, date, time range in your local zone, ledger range), Summary, Done (table), What worked, What didn't, Concerns (ranked, blocking flagged), Decided for you, Assumed decisions open (`A-n` still unconfirmed), Manual steps for you, Revisions to earlier reports, Next up. Empty → "none".
-4. **Link everything.** Resolves the repo URL once; `#n`, `PR #n`/`PR#n`, commit hashes and decision ids (if the repo has a decisions doc/ADRs) become links in every section. Existing links, bare URLs, code spans, headings and decimal CI run ids are left as they are. Checks the link count afterwards.
-5. **Write** `NNN-YYYY-MM-DD-<slug>.md` (or `.docx`) in the reports folder; never overwrites an earlier report; reads it back to check.
-6. **Advance the watermark:** updates `.last-reported`, appends a `report` entry to the ledger. Commits them with the report only in commit mode on the default branch, or its docs branch when the default is protected ([`TRACKING.md`](../handoff-auto/TRACKING.md)). Prints the path and entry range.
+1. **Find the source.** Reports folder (default the repo's `skilleddocs/reports/`); ledger at `skilleddocs/orchestrator/ledger.md`.
+   - No ledger → reconstructs one from `git log`, merged PRs, issues and the conversation, and says so.
+2. **Watermark.** `.last-reported` holds `<NNN> <report filename> <entry NNN's timestamp>`, NNN = last reported ledger entry.
+   - The new report covers `watermark + 1 … latest` (a restarted ledger, numbered from 001 again, is caught by the timestamp and covered from 001).
+   - It also covers any commits or merged PRs since the watermark with no ledger entry, marked "not in ledger" (the reporting commits themselves are skipped).
+   - Earlier items only reappear under "Revisions to earlier reports" if they changed (revert, reversed decision, broken "done").
+3. **Fixed sections.** Empty → "none".
+   - Header (report number, date, time range in your local zone, ledger range).
+   - Summary.
+   - Done (table).
+   - What worked.
+   - What didn't.
+   - Concerns (ranked, blocking flagged).
+   - Decided for you.
+   - Assumed decisions open (`A-n` still unconfirmed).
+   - Manual steps for you.
+   - Revisions to earlier reports.
+   - Next up.
+4. **Link everything.** Resolves the repo URL once.
+   - `#n`, `PR #n`/`PR#n`, commit hashes and decision ids (if the repo has a decisions doc/ADRs) become links in every section.
+   - Existing links, bare URLs, code spans, headings and decimal CI run ids are left as they are.
+   - Checks the link count afterwards.
+5. **Write** `NNN-YYYY-MM-DD-<slug>.md` (or `.docx`) in the reports folder.
+   - Never overwrites an earlier report.
+   - Reads it back to check.
+6. **Advance the watermark.** Updates `.last-reported`, appends a `report` entry to the ledger.
+   - Commits them with the report only in commit mode on the default branch, or its docs branch when the default is protected ([`TRACKING.md`](../handoff-auto/TRACKING.md)).
+   - Prints the path and entry range.
 
-Reads: `skilleddocs/orchestrator/ledger.md`, `.last-reported`, git/gh. Writes: the report, `.last-reported`, a ledger entry.
+Reads: `skilleddocs/orchestrator/ledger.md`, `.last-reported`, git/gh.
+
+Writes: the report, `.last-reported`, a ledger entry.
 
 ## Design principles
 
@@ -59,7 +86,12 @@ Reads: `skilleddocs/orchestrator/ledger.md`, `.last-reported`, git/gh. Writes: t
 /progress-report skilleddocs/reports/
 ```
 
-Watermark says 5; ledger is at 22. Writes `skilleddocs/reports/002-2026-09-23-auth-and-export.md` covering entries 6–22 (Done table with 4 merged PRs, one flaky-CI item under "What didn't", two decisions made on your behalf), sets `.last-reported` to `022 002-2026-09-23-auth-and-export.md`, appends a `report` ledger entry, prints the path.
+Watermark says 5; ledger is at 22.
+
+- Writes `skilleddocs/reports/002-2026-09-23-auth-and-export.md` covering entries 6–22 (Done table with 4 merged PRs, one flaky-CI item under "What didn't", two decisions made on your behalf).
+- Sets `.last-reported` to `022 002-2026-09-23-auth-and-export.md`.
+- Appends a `report` ledger entry.
+- Prints the path.
 
 ## Related
 
@@ -68,4 +100,5 @@ Watermark says 5; ledger is at 22. Writes `skilleddocs/reports/002-2026-09-23-au
 
 ## Prereqs
 
-`gh` to resolve the repo URL for links. For `docx`: the `docx` skill or `python-docx`.
+- `gh` to resolve the repo URL for links.
+- For `docx`: the `docx` skill or `python-docx`.
