@@ -12,8 +12,9 @@ account, `/switch <name>` on a named one. `/switch add|remove|rename|list`
 manages the accounts; new ones share skills, settings and history with
 the first. Before each switch it lists what stays with the old account
 (artifacts, routines) and what is live (Remote Control, running
-subagents), and with three or more accounts asks first when something is. With two accounts it never asks. A statusline shows which account you're on and how much of
-its session and weekly limits is used, and warns you near the limit
+subagents), and with three or more accounts asks first when something
+is; with two it never asks. A statusline shows which account you're on
+and how much of its session and weekly limits is used, and warns you near the limit
 with the account that has the most room left.
 
 ## When to use
@@ -144,8 +145,8 @@ statusline and hook back out of `settings.json`:
     is out of usage. Claude Code passes a typed skill line to this hook
     as typed, before the skill expands (hooks reference, section
     "UserPromptSubmit input"; blocking per "UserPromptSubmit decision
-    control"). With three or more accounts, when the check finds something live, the first `/switch
-    [name]` shows it and switches nothing; type the same command again
+    control"). With three or more accounts, when the check finds
+    something live, the first `/switch [name]` shows it and switches nothing; type the same command again
     within 120 s, or `/switch [name] yes`, to switch. `add`, `remove`,
     `rename`, `list`, `theme` and `rc-ok` still go through the skill.
 12. **Theme and title.** `/switch theme <name> <theme>` gives an account
