@@ -29,14 +29,14 @@ One-time setup from a shell (use the installed copy, e.g.
 `python3` is usually the Microsoft Store stub.
 
 ```
-python3 claude_switch.py setup --account main=~/.claude --account alt=~/.claude-alt
+python3 claude_switch.py setup --account work=~/.claude --account personal=~/.claude-personal
 ```
 
 Already have `~/.claude-<name>` dirs? `python3 claude_switch.py migrate`
 (Windows: `python claude_switch.py migrate`) registers them (and
 `~/.claude` as `main`) without touching their contents.
 
-Then, in a new shell, `claude` or `claude-alt`, and inside a session:
+Then, in a new shell, `claude` or `claude-personal`, and inside a session:
 
 ```
 /switch [name]
@@ -96,7 +96,7 @@ statusline and hook back out of `settings.json`:
    - A statusline you had before is never overwritten: setup records it per file in the registry, the new one runs it with the same input and puts its output on the same line, and `setup --uninstall` puts it back.
    - Settings are backed up to `~/.claude-switch/backups/` and written in place, so a linked `settings.json` stays linked.
 10. **Usage guard.** The statusline caches each account's last seen usage in `~/.claude-switch/usage/<account>.json`.
-    - With two or more accounts, a `UserPromptSubmit` hook warns once when the account crosses 90% and once at 97% in a window: `main at 91%: run /switch alt`, naming the account with the most room (a window past its reset counts as empty).
+    - With two or more accounts, a `UserPromptSubmit` hook warns once when the account crosses 90% and once at 97% in a window: `work at 91%: run /switch personal`, naming the account with the most room (a window past its reset counts as empty).
 11. **`/switch` at 100%.** The same hook catches a typed `/switch` or `/switch <name>`, writes the launcher's request and blocks the prompt, so the switch makes no API call and works on an account that is out of usage.
     - Claude Code passes a typed skill line to this hook as typed, before the skill expands (hooks reference, section "UserPromptSubmit input"; blocking per "UserPromptSubmit decision control").
     - `add`, `remove`, `rename`, `list` and `theme` still go through the skill.
@@ -172,7 +172,7 @@ Each switch also writes a resume note, `~/.claude-switch/requests/<launcher pid>
 
 - Out of usage on one account: `/switch` and keep going in the same
   conversation on the other; the hook does it without an API call.
-- The guard says `main at 91%: run /switch alt` before you run out.
+- The guard says `work at 91%: run /switch personal` before you run out.
 - Two terminals, two accounts, both switching back and forth all day.
 - A new login that should see your skills and history from the start:
   `/switch add work`, log in, carry on.
@@ -221,17 +221,17 @@ Each switch also writes a resume note, `~/.claude-switch/requests/<launcher pid>
 ```
 
 ```
-before switching main -> alt:
+before switching work -> personal:
   dies: background Bash commands and monitors, if any (Explore/Plan agents are one-shot)
-switching to 'alt': this session ends now and resumes there.
->> claude-switch: main -> alt
+switching to 'personal': this session ends now and resumes there.
+>> claude-switch: work -> personal
    resume note: ~/.claude-switch/requests/41236.note.md
 ```
 
-The same conversation reopens on `alt`.
+The same conversation reopens on `personal`.
 
-- `/switch nope` instead prints `unknown account 'nope'. accounts: main (current), alt` and does nothing.
-- `/switch alt now` (anything after the name but `yes`) prints `usage: /switch [name]`.
+- `/switch nope` instead prints `unknown account 'nope'. accounts: work (current), personal` and does nothing.
+- `/switch personal now` (anything after the name but `yes`) prints `usage: /switch [name]`.
 
 ## Related
 
