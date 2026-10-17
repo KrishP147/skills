@@ -1,13 +1,10 @@
 # hooks/ — optional per-repo hooks
 
-Not installed by a full `install-skills` run; copy what you want into a repo's
-`.claude/hooks/` and wire it in that repo's `.claude/settings.json`.
-`install-skills --workflow <name>` with a workflow that uses a hook copies it
-to `~/.claude/hooks/` and prints the user-level `settings.json` snippet below;
-it never wires it in.
-(The agents' own `guard-git.py` lives in [`../agents/hooks/`](../agents/hooks/)
-and *is* installed, into `~/.claude/agents/hooks/`, or wired by the plugin.)
-None of these ship with the plugin either.
+Not installed by a full `install-skills` run; copy what you want into a repo's `.claude/hooks/` and wire it in that repo's `.claude/settings.json`.
+
+- `install-skills --workflow <name>` with a workflow that uses a hook copies it to `~/.claude/hooks/` and prints the user-level `settings.json` snippet below; it never wires it in.
+- The agents' own `guard-git.py` lives in [`../agents/hooks/`](../agents/hooks/) and *is* installed, into `~/.claude/agents/hooks/`, or wired by the plugin.
+- None of these ship with the plugin either.
 
 Each `hooks/*.py` gets a page on the [skills site](https://www.krishpunjabi.com/skills/),
 built from its ``## `<file>.py` — tagline`` section below (the tagline is the
@@ -18,24 +15,21 @@ summary; the build fails if a hook has no section). See [`../site/README.md`](..
 `UserPromptSubmit` hook. Prints a one-line warning into the conversation when
 the live context passes ~75k tokens, so both you and Claude see it and can
 wrap up: `/divide` the rest, then `/session-handoff` (or, for an orchestrator,
-the rotation step (`ROTATION.md`) in `meta-orchestrator`). Heuristic only;
+the rotation step in `meta-orchestrator`, see `ROTATION.md`). Heuristic only;
 `/context` is the precise check.
 
-How it works: on every prompt you submit, Claude Code passes the hook JSON
-on stdin; the script reads `transcript_path` and only the tail of that file
-(never the whole transcript). It takes the last main-chain assistant entry
-(not a sidechain) with `message.usage` and sums `input_tokens +
-cache_creation_input_tokens + cache_read_input_tokens`. `/compact` appends a
-`compact_boundary` line and never truncates the file, so usage from before the
-last boundary is ignored; if there is no usage after it (or at all), it falls
-back to the bytes after the last boundary (whole file if none) at ~20 bytes
-per token. If the result is at least the threshold it prints the warning
-(stdout is injected into the conversation). Below it, or on any error
-(missing file, malformed lines, bad env), it prints nothing and never blocks.
+How it works: on every prompt you submit, Claude Code passes the hook JSON on stdin; the script reads `transcript_path` and only the tail of that file (never the whole transcript).
 
-Threshold: env var `SMARTZONE_TOKENS` (integer tokens), default `75000` (the
-old 1.5 MB size check at ~20 bytes per token). A bad value falls back to the
-default. Set it in the hook `command` or your shell env.
+- It takes the last main-chain assistant entry (not a sidechain) with `message.usage` and sums `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`.
+- `/compact` appends a `compact_boundary` line and never truncates the file, so usage from before the last boundary is ignored.
+- If there is no usage after it (or at all), it falls back to the bytes after the last boundary (whole file if none) at ~20 bytes per token.
+- If the result is at least the threshold it prints the warning (stdout is injected into the conversation).
+- Below it, or on any error (missing file, malformed lines, bad env), it prints nothing and never blocks.
+
+Threshold: env var `SMARTZONE_TOKENS` (integer tokens), default `75000` (the old 1.5 MB size check at ~20 bytes per token).
+
+- A bad value falls back to the default.
+- Set it in the hook `command` or your shell env.
 
 Related: [`divide`](../kanban/divide/), [`session-handoff`](../kanban/session-handoff/),
 [`meta-orchestrator`](../meta-orchestrator/) (rotates early on this warning).
@@ -75,10 +69,9 @@ cp <skills repo>/hooks/smartzone.py .claude/hooks/
 Claude Code asks you to approve the hook once per repo.
 
 Install at user level (covers sessions started in your home directory too).
-In a home-dir session `$CLAUDE_PROJECT_DIR` is `~`, so a per-repo
-`.claude/hooks/` copy is never loaded there. Copy the script to
-`~/.claude/hooks/` and register it in `~/.claude/settings.json` with an
-absolute path:
+
+- In a home-dir session `$CLAUDE_PROJECT_DIR` is `~`, so a per-repo `.claude/hooks/` copy is never loaded there.
+- Copy the script to `~/.claude/hooks/` and register it in `~/.claude/settings.json` with an absolute path:
 
 ```bash
 mkdir -p ~/.claude/hooks
@@ -118,24 +111,36 @@ command or MCP call that matches a known billable pattern unless an
 approval already exists, so a billable action can't slip through even if
 the gate steps get skipped in the prompt.
 
-How it works: reads the hook JSON on stdin (`tool_name`,
-`tool_input.command` for `Bash` and `PowerShell`, `cwd`). A `Bash` or `PowerShell` command is checked against
-a list of regexes; any other tool name is checked against a list of
-`fnmatch` globs (for MCP tool names like `mcp__runpod__create-pod`).
-Default billable patterns: `runpodctl` `create`/`start` (legacy `create pod`/`start pod` and v2 `pod|serverless|network-volume|nv create|start`; `template`/`registry create` are free and stay ungated), `runpodctl network-volume|nv update ... --size` (resize; rename-only is allowed), `runpodctl serverless|sls update`, `runpodctl serverless|sls run` (job submit), `runpodctl pod|pods update ... --volume-in-gb|--container-disk-in-gb` (storage resize; other updates allowed), `runpodctl model add` (uploads to model storage), the `sls` alias for `create`/`update`/`run`, global flags before the noun (`--profile x pod create`, `-o json serverless run`), `vultr-cli instance create`,
-`aws ec2 run-instances|request-spot-instances|request-spot-fleet|start-instances`, `gcloud compute instances create|start|bulk create`, `az vm create|start` (each with global flags before the service, `aws --region x ec2 …`, `gcloud --project=p alpha|beta|preview compute …`, `az --subscription s vm …`),
-`modal deploy` (also as `.exe`/`.cmd`, quoted, or full-path forms), and MCP tools matching `mcp__*runpod*__create-*` (except the free `create-template`, `create-secret`, `create-registry` and `create-delegation`, which only write config or credential records; a `mcp:` glob of your own still gates them) /
-`mcp__*runpod*__deploy-*` / `__run-endpoint` / `__runsync-endpoint` /
-`__retry-job` / `__update-endpoint` / `__set-endpoint-gpus`, plus
-`__pod-action` only when its action is `start` or `resume` (read from
-`tool_input.body.action`, else `tool_input.action`; `stop`, `restart`,
-`terminate` and an unrecognised shape are allowed). `__update-network-volume` only when `tool_input.body` is an object with a `size` key (resize bills; name-only allowed; blocks even if the size equals the current one, since the hook can't know it). `__update-pod` only when `tool_input.body` is an object with a `disk`, `templateId` (applies a template's disk), `mounts.persistent` (always carries `size`, so a path-only edit blocks too), or v1 `volumeInGb`/`containerDiskInGb` key (name/image/env/ports and network/global mounts allowed). There is no `runpodctl hub deploy`: Hub deploys go through `serverless create --hub-id`, already gated. `update-global-volume` is not gated: it only takes a name, nothing billable. Trade-off: more approval
-prompts, since every job submit and endpoint update now needs approval. Deliberately **not** defaulted: `fly deploy` and
-similar commands with a real free tier — add them yourself if your usage is
-always billable. No match → exits 0 (allow) immediately. Any error while
-reading config or matching (bad regex, unreadable file, malformed stdin)
-**fails open** — allows the call rather than blocking unrelated work on a
-hook bug; this hook is a net under `spend-gate`, not the only gate.
+How it works: reads the hook JSON on stdin (`tool_name`, `tool_input.command` for `Bash` and `PowerShell`, `cwd`).
+
+- A `Bash` or `PowerShell` command is checked against a list of regexes.
+- Any other tool name is checked against a list of `fnmatch` globs (for MCP tool names like `mcp__runpod__create-pod`).
+- Default billable patterns:
+  - `runpodctl` `create`/`start` (legacy `create pod`/`start pod` and v2 `pod|serverless|network-volume|nv create|start`; `template`/`registry create` are free and stay ungated)
+  - `runpodctl network-volume|nv update ... --size` (resize; rename-only is allowed)
+  - `runpodctl serverless|sls update`
+  - `runpodctl serverless|sls run` (job submit)
+  - `runpodctl pod|pods update ... --volume-in-gb|--container-disk-in-gb` (storage resize; other updates allowed)
+  - `runpodctl model add` (uploads to model storage)
+  - the `sls` alias for `create`/`update`/`run`
+  - global flags before the noun (`--profile x pod create`, `-o json serverless run`)
+  - `vultr-cli instance create`
+  - `aws ec2 run-instances|request-spot-instances|request-spot-fleet|start-instances`
+  - `gcloud compute instances create|start|bulk create`
+  - `az vm create|start` (each with global flags before the service, `aws --region x ec2 …`, `gcloud --project=p alpha|beta|preview compute …`, `az --subscription s vm …`)
+  - `modal deploy` (also as `.exe`/`.cmd`, quoted, or full-path forms)
+  - MCP tools matching `mcp__*runpod*__create-*` (except the free `create-template`, `create-secret`, `create-registry` and `create-delegation`, which only write config or credential records; a `mcp:` glob of your own still gates them)
+  - `mcp__*runpod*__deploy-*`
+  - `__run-endpoint` / `__runsync-endpoint` / `__retry-job` / `__update-endpoint` / `__set-endpoint-gpus`
+  - `__pod-action` only when its action is `start` or `resume` (read from `tool_input.body.action`, else `tool_input.action`; `stop`, `restart`, `terminate` and an unrecognised shape are allowed).
+  - `__update-network-volume` only when `tool_input.body` is an object with a `size` key (resize bills; name-only allowed; blocks even if the size equals the current one, since the hook can't know it).
+  - `__update-pod` only when `tool_input.body` is an object with a `disk`, `templateId` (applies a template's disk), `mounts.persistent` (always carries `size`, so a path-only edit blocks too), or v1 `volumeInGb`/`containerDiskInGb` key (name/image/env/ports and network/global mounts allowed).
+- There is no `runpodctl hub deploy`: Hub deploys go through `serverless create --hub-id`, already gated.
+- `update-global-volume` is not gated: it only takes a name, nothing billable.
+- Trade-off: more approval prompts, since every job submit and endpoint update now needs approval.
+- Deliberately **not** defaulted: `fly deploy` and similar commands with a real free tier — add them yourself if your usage is always billable.
+- No match → exits 0 (allow) immediately.
+- Any error while reading config or matching (bad regex, unreadable file, malformed stdin) **fails open**: it allows the call rather than blocking unrelated work on a hook bug. This hook is a safety net under `spend-gate`, not the only gate.
 
 Indirect forms. The patterns are also run on rewrites of the command, and a
 few rules cover billers that are not a CLI. All of these block:
@@ -154,22 +159,17 @@ few rules cover billers that are not a CLI. All of these block:
   `{runpodctl,create,pod}`, `('run'+'podctl')`, PowerShell backticks,
   `$'\x72...'`, `(Get-Command runpodctl).Source`, base64 from
   `-EncodedCommand` or `base64 -d`.
-- **REST/GraphQL writes** (`curl`, `wget`, `Invoke-RestMethod`/`irm`,
-  `Invoke-WebRequest`/`iwr`, python `requests`, ...). A write is an explicit
-  `POST`/`PUT`/`PATCH` or a body flag (`-d`, `--data*`, `--json`, `-F`, `-T`,
-  `--post-data`, `-Body`, `-InFile`). Blocked: writes to `rest.runpod.io`
-  except `templates`, `containerregistryauth`, `secrets`, `user`, `billing`
-  and `/stop`; `api.runpod.ai/v2/<id>/run|runsync|...` except
-  `cancel`/`purge-queue`/`status`/`health`/`stream`; Runpod GraphQL
-  (`api.runpod.io/graphql`) mutations whose field reads
-  deploy/rent/resume/create/save/update/edit/bid/start/launch
-  (`podFindAndDeployOnDemand`, `podRentInterruptable`, `podResume`,
-  `saveEndpoint`, ...) or a write whose body can't be read (`-d @file`);
-  `api.vultr.com` writes (except ssh-keys, firewalls, startup-scripts,
-  domains, users, account, iso, `/halt`); EC2 `Action=RunInstances` (and
-  spot/fleet/start); GCE `.../instances` writes; Azure
-  `Microsoft.Compute/virtualMachines` writes. GETs, DELETEs, `/stop` and a
-  query-only GraphQL body (`query { myself { pods { id } } }`) are allowed.
+- **REST/GraphQL writes** (`curl`, `wget`, `Invoke-RestMethod`/`irm`, `Invoke-WebRequest`/`iwr`, python `requests`, ...).
+  - A write is an explicit `POST`/`PUT`/`PATCH` or a body flag (`-d`, `--data*`, `--json`, `-F`, `-T`, `--post-data`, `-Body`, `-InFile`).
+  - Blocked:
+    - writes to `rest.runpod.io` except `templates`, `containerregistryauth`, `secrets`, `user`, `billing` and `/stop`
+    - `api.runpod.ai/v2/<id>/run|runsync|...` except `cancel`/`purge-queue`/`status`/`health`/`stream`
+    - Runpod GraphQL (`api.runpod.io/graphql`) mutations whose field reads deploy/rent/resume/create/save/update/edit/bid/start/launch (`podFindAndDeployOnDemand`, `podRentInterruptable`, `podResume`, `saveEndpoint`, ...) or a write whose body can't be read (`-d @file`)
+    - `api.vultr.com` writes (except ssh-keys, firewalls, startup-scripts, domains, users, account, iso, `/halt`)
+    - EC2 `Action=RunInstances` (and spot/fleet/start)
+    - GCE `.../instances` writes
+    - Azure `Microsoft.Compute/virtualMachines` writes.
+  - GETs, DELETEs, `/stop` and a query-only GraphQL body (`query { myself { pods { id } } }`) are allowed.
 - **SDK one-liners** (needs `python`/`py` or an `import` in the command, so
   `python -c` and `python - <<EOF` heredocs): Runpod `create_pod`,
   `create_endpoint`, `resume_pod`, `create_network_volume`, `run_sync`,
@@ -184,53 +184,41 @@ few rules cover billers that are not a CLI. All of these block:
   `<<< 'pod create'`, `< file`, `-a file`). With no mention at all
   (`$X create pod` alone) the hook can't tell and allows.
 
-Spot and interruptible flags (`--communityCloud`, `--bid`,
-`podRentInterruptable`, `"interruptible": true`) don't change any of this:
-the create still blocks. A call blocked only through one of these forms is
-not covered by an inline `SPEND_GATE_APPROVED` (that reads the raw command);
-use the approval file. Every rewrite is a regex scan or a single linear
-pass, capped, so a 2000-flag line stays well under a second.
+Spot and interruptible flags (`--communityCloud`, `--bid`, `podRentInterruptable`, `"interruptible": true`) don't change any of this: the create still blocks.
+
+- A call blocked only through one of these forms is not covered by an inline `SPEND_GATE_APPROVED` (that reads the raw command); use the approval file.
+- Every rewrite is a regex scan or a single linear pass, capped, so a 2000-flag line stays well under a second.
 
 Approval scheme (either allows the one matched action):
 
-1. **File-based, one-shot.** Drop a file into
-   `skilleddocs/spend-approvals/` (path relative to the tool call's `cwd`;
-   override the directory with `SPEND_GATE_APPROVALS_DIR`). The filename is
-   just a label — contents are ignored, and names starting with `.`
-   (`.gitkeep`, `.DS_Store`) never count. The hook deletes the first file it
-   finds (sorted by name) and allows that single call; the next matching
-   call is blocked again until another approval file appears. The file is
-   gone after use, so it is no record: the log is `skilleddocs/spend.md`. A
-   call holding two or more billable commands (`<create> && <create>`) is
-   refused and the file kept: run them as separate calls.
-2. **`SPEND_GATE_APPROVED=<label>`.** For `Bash`, prefix the one command —
-   `SPEND_GATE_APPROVED=yes runpodctl create pod ...` — this is a shell
-   per-command env assignment, read out of the command string itself (the
-   hook never executes the command), so it only ever covers that one
-   invocation. For `PowerShell`, start the command with
-   `$env:SPEND_GATE_APPROVED='<label>'; <cmd>` (leading only, `;` required,
-   non-empty literal value, no `$` variables; a Bash-style prefix is not
-   honoured). Both inline forms count only when the rest of the call is
-   one simple command whose program is the call's only billable match:
-   `true && <create>`, `<create>; <create>`, a pipe, `&`, a newline, a
-   subshell, `$(...)`, backticks or a wrapper (`bash -c '<create>'`,
-   `xargs`, `sudo`) is not approved, and `export SPEND_GATE_APPROVED=...`
-   never is. `env SPEND_GATE_APPROVED=yes <create>` is the same single
-   command and counts. Redirections (`> out 2>&1`) are fine. For an MCP tool call use the approval file: `export` inside a
-   Bash tool call never reaches the hook's environment. The hook does also
-   honour `SPEND_GATE_APPROVED` in the environment Claude Code was launched
-   with, but that approves every matching call for the whole session, so
-   avoid it.
+1. **File-based, one-shot.** Drop a file into `skilleddocs/spend-approvals/` (path relative to the tool call's `cwd`; override the directory with `SPEND_GATE_APPROVALS_DIR`).
+   - The filename is just a label — contents are ignored, and names starting with `.` (`.gitkeep`, `.DS_Store`) never count.
+   - The hook deletes the first file it finds (sorted by name) and allows that single call; the next matching call is blocked again until another approval file appears.
+   - The file is gone after use, so it is no record: the log is `skilleddocs/spend.md`.
+   - A call holding two or more billable commands (`<create> && <create>`) is refused and the file kept: run them as separate calls.
+2. **`SPEND_GATE_APPROVED=<label>`.** For `Bash`, prefix the one command: `SPEND_GATE_APPROVED=yes runpodctl create pod ...`. This is a shell per-command env assignment, read out of the command string itself (the hook never executes the command), so it only ever covers that one invocation.
+   - For `PowerShell`, start the command with `$env:SPEND_GATE_APPROVED='<label>'; <cmd>` (leading only, `;` required, non-empty literal value, no `$` variables; a Bash-style prefix is not honoured).
+   - Both inline forms count only when the rest of the call is one simple command whose program is the call's only billable match.
+     These are not approved: `true && <create>`, `<create>; <create>`, a pipe, `&`, a newline, a subshell, `$(...)`, backticks or a wrapper (`bash -c '<create>'`, `xargs`, `sudo`).
+     `export SPEND_GATE_APPROVED=...` never is.
+   - `env SPEND_GATE_APPROVED=yes <create>` is the same single command and counts.
+   - Redirections (`> out 2>&1`) are fine.
+   - For an MCP tool call use the approval file: `export` inside a Bash tool call never reaches the hook's environment.
+   - The hook does also honour `SPEND_GATE_APPROVED` in the environment Claude Code was launched with, but that approves every matching call for the whole session, so avoid it.
 
-This is a tripwire, not a security boundary: an agent that can write files
-can write its own approval. It catches a skipped gate. It can't stop an
-agent that ignores the skill.
+This is a tripwire, not a security boundary:
 
-Patterns are searched anywhere in the command string, so a command that only
-mentions a billable command also trips: `grep -rn 'runpodctl pod create'`,
-`echo 'modal deploy app.py' >> README.md`, a `git commit -m` message naming
-one. This is accepted tripwire behaviour: rephrase (e.g. put the text in a
-file and use `git commit -F`) or approve it.
+- An agent that can write files can write its own approval.
+- It catches a skipped gate.
+- It can't stop an agent that ignores the skill.
+
+Patterns are searched anywhere in the command string, so a command that only mentions a billable command also trips:
+
+- `grep -rn 'runpodctl pod create'`
+- `echo 'modal deploy app.py' >> README.md`
+- a `git commit -m` message naming one.
+
+This is accepted tripwire behaviour: rephrase (e.g. put the text in a file and use `git commit -F`) or approve it.
 
 Patterns are extendable, without editing the script:
 

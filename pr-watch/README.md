@@ -4,7 +4,12 @@
 
 ## What it does
 
-Watches your open pull requests (your own repo, or a fork against its upstream) until they merge. It pulls every bot and human review thread (CodeRabbit, Copilot, maintainers), fixes the ones that are actually valid, replies to or resolves the rest, and reports CI — including the fork-specific `action_required` state, which means "needs a maintainer's approval," not "broken."
+Watches your open pull requests (your own repo, or a fork against its upstream) until they merge.
+
+- Pulls every bot and human review thread (CodeRabbit, Copilot, maintainers).
+- Fixes the ones that are actually valid.
+- Replies to or resolves the rest.
+- Reports CI, including the fork-specific `action_required` state, which means "needs a maintainer's approval," not "broken."
 
 ## When to use
 
@@ -19,22 +24,34 @@ Watches your open pull requests (your own repo, or a fork against its upstream) 
 /pr-watch [PR # | owner/repo] [--once]
 ```
 
-No argument: every open PR authored by you, across repos. `--once` runs a single pass and reports instead of watching.
-
-Model-invocable, so "watch my PRs until they're merged" also works without the slash.
+- No argument: every open PR authored by you, across repos.
+- `--once` runs a single pass and reports instead of watching.
+- Claude also runs it from a plain request like "watch my PRs until they're merged".
 
 ## How it works
 
 1. **List** open PRs (`gh search prs --author @me --state open`, or `gh pr view` for a single one) into a state table: repo, PR #, branch, draft, fork.
-2. **Pull review threads** per PR with a GraphQL `reviewThreads` query (threads and long comment chains both paginated), classifying each unresolved one as valid / outdated / disagree / question, citing its thread URL.
+2. **Pull review threads** per PR with a GraphQL `reviewThreads` query (threads and long comment chains both paginated).
+   - Classifies each unresolved one as valid / outdated / disagree / question.
+   - Cites its thread URL.
 3. **Read CI** (`gh pr checks`); a fork PR stuck at `action_required` is reported as waiting on maintainer approval, not as failing.
-4. **Fix** the valid threads through [`pair`](../pair/) (one call per PR, every valid thread's path/line/body as the task), which reruns the tests; where subagents can't be spawned, it fixes inline on the head branch with the same gates.
-5. **GATE** — shows the diff summary and drafted replies and asks before pushing or replying; a force push needs its own fresh yes even if the push itself was already approved.
-6. **Push, then reply and resolve**: replies to every thread with the fixing commit's SHA (or, for disagree/question threads, the reasoning); resolves only threads it just fixed or proved outdated by reading the current diff, and only after another explicit yes — never a disagree/question thread, which gets a reply and stays open.
-7. **Optional bot re-trigger** (`@coderabbitai review`) only on a fresh yes; notes that bots frequently never run on fork PRs at all.
+4. **Fix** the valid threads through [`pair`](../pair/) (one call per PR, every valid thread's path/line/body as the task), which reruns the tests.
+   - Where subagents can't be spawned, it fixes inline on the head branch with the same gates.
+5. **Gate.** Shows the diff summary and drafted replies, and asks before pushing or replying.
+   - A force push needs its own fresh yes even if the push itself was already approved.
+6. **Push, then reply and resolve.**
+   - Replies to every thread with the fixing commit's SHA (or, for disagree/question threads, the reasoning).
+   - Resolves only threads it just fixed or proved outdated by reading the current diff, and only after another explicit yes.
+   - Never resolves a disagree/question thread, which gets a reply and stays open.
+7. **Optional bot re-trigger** (`@coderabbitai review`), only on a fresh yes.
+   - Notes that bots frequently never run on fork PRs at all.
 8. **Watches** (`Monitor` or a bounded poll, never a blind sleep) until merged/closed/stopped, re-reading threads and CI every pass.
-9. **Logs** every pass to `skilleddocs/pr-watch/<local-date>-<repo>.md` in the repo you're working from, one file per PR repo; committed or untracked per [TRACKING.md](../handoff-auto/TRACKING.md) (always untracked on a fork).
-10. **Ends** with one line per PR: merged (link), waiting-on-maintainer (and why), or needs-you (an open gate or a thread only you can answer) — every PR/thread/CI run linked.
+9. **Logs** every pass to `skilleddocs/pr-watch/<local-date>-<repo>.md` in the repo you're working from, one file per PR repo.
+   - Committed or untracked per [TRACKING.md](../handoff-auto/TRACKING.md) (always untracked on a fork).
+10. **Ends** with one line per PR; every PR/thread/CI run is linked.
+    - Merged (link).
+    - Waiting-on-maintainer (and why).
+    - Needs-you (an open gate or a thread only you can answer).
 
 ## Flow
 
@@ -119,4 +136,7 @@ each wait for their own yes:
 
 ## Prereqs
 
-`gh` authenticated with `repo` scope, `origin` on GitHub (otherwise it stops and says so) (write access where you expect to resolve threads); `pair`'s agents installed for the fix step.
+- `gh` authenticated with `repo` scope.
+- `origin` on GitHub (otherwise it stops and says so).
+- Write access where you expect to resolve threads.
+- `pair`'s agents installed for the fix step.

@@ -13,21 +13,26 @@ Grills a proposed change, deviation or new idea against the repo's existing plan
 
 ## How to invoke
 
-`/consult-plan <the idea, deviation, or innovation>` — model-invocable.
+`/consult-plan <the idea, deviation, or innovation>`. Claude can also run it itself.
 
 ## How it works
 
 1. **Baseline** (whatever exists):
-   - open issues (`gh issue list --state open`)
-   - board state (`gh project item-list` or `status:*` labels)
-   - a roadmap doc (`ROADMAP.md`, `docs/roadmap.md`, …)
-   - the decisions doc (found by the same rule as step 3)
-   - the grill transcripts (`skilleddocs/grills/`, or `grills/` beside a tracked register)
+   - Open issues (`gh issue list --state open`).
+   - Board state (`gh project item-list` or `status:*` labels).
+   - A roadmap doc (`ROADMAP.md`, `docs/roadmap.md`, …).
+   - The decisions doc (found by the same rule as step 3).
+   - The grill transcripts (`skilleddocs/grills/`, or `grills/` beside a tracked register).
    - Earlier decisions are cited as `D<k>`.
-2. **Grill:** calls [`grilling`](../../grilling/) with that baseline, framed as fit / conflict / extension and what you want to happen.
+2. **Grill:** calls [`grilling`](../../grilling/) with that baseline. The questions are framed as fit, conflict or extension, plus what you want to happen.
 3. **Record** once settled, both:
-   - **Decision:** append to the repo's decisions doc: the one `AGENTS.md` / `CLAUDE.md` names, else an existing `docs/decisions.md` or ADR folder, else `skilleddocs/decisions.md` (header and rows as in [`grill-docs`](../../grill-docs/)). Source column: `consult-plan <date>` plus the issue or PR link if any.
-   - **Issue** (accepted or changed ideas): a comment on the relevant issue when it refines existing work, or a new issue when it needs its own work, put on the board at Todo (Projects v2: `item-add` + `item-edit`; label mode: `status:todo`, created first if missing). A **rejected** idea gets the decision row only, plus a comment if a related issue exists; no new issue.
+   - **Decision:** append to the repo's decisions doc.
+     - The one `AGENTS.md` / `CLAUDE.md` names, else an existing `docs/decisions.md` or ADR folder, else `skilleddocs/decisions.md` (header and rows as in [`grill-docs`](../../grill-docs/)).
+     - Source column: `consult-plan <date>` plus the issue or PR link if any.
+   - **Issue** (accepted or changed ideas):
+     - A comment on the relevant issue when it refines existing work.
+     - A new issue when it needs its own work, put on the board at Todo (Projects v2: `item-add` + `item-edit`; label mode: `status:todo`, created first if missing).
+     - A **rejected** idea gets the decision row only, plus a comment if a related issue exists; no new issue.
 
 ## Design principles
 
@@ -55,7 +60,10 @@ Grills a proposed change, deviation or new idea against the repo's existing plan
 /consult-plan add a plugin system instead of hard-coding exporters
 ```
 
-Reads 12 open issues and `ROADMAP.md`, asks a round of questions (does it replace #31? scope for v1?), you settle it, and it appends an entry to `docs/decisions.md` (or `skilleddocs/decisions.md` if the repo has none) and comments on #31.
+- Reads 12 open issues and `ROADMAP.md`.
+- Asks a round of questions (does it replace #31? scope for v1?).
+- You settle it.
+- It appends an entry to `docs/decisions.md` (or `skilleddocs/decisions.md` if the repo has none) and comments on #31.
 
 ## Related
 
