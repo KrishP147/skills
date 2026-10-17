@@ -40,6 +40,13 @@ if "--resume" in args and os.environ.get("FAKE_RESUME_FAIL"):
     sys.exit(1)
 if args[:1] in (["--resume"], ["--continue"]):
     sys.exit(0)
+if os.environ.get("FAKE_RENAME"):
+    subprocess.run([os.environ["CLAUDE_SWITCH_PYTHON"], os.environ["FAKE_SCRIPT"], "rename"]
+                   + os.environ["FAKE_RENAME"].split(), stdout=subprocess.DEVNULL)
+if os.environ.get("FAKE_ADD"):
+    subprocess.run([os.environ["CLAUDE_SWITCH_PYTHON"], os.environ["FAKE_SCRIPT"], "add",
+                    os.environ["FAKE_ADD"], "--session", os.environ.get("FAKE_SESSION", "")])
+    time.sleep(60)
 if os.environ.get("FAKE_SWITCH_TO"):
     subprocess.run([os.environ["CLAUDE_SWITCH_PYTHON"], os.environ["FAKE_SCRIPT"], "request",
                     os.environ["FAKE_SWITCH_TO"], "--session", os.environ.get("FAKE_SESSION", "")])
@@ -61,9 +68,13 @@ class Base(unittest.TestCase):
         p = mock.patch.dict(os.environ, env, clear=True)
         p.start()
         self.addCleanup(p.stop)
+        # documents_dir() asks Windows for the REAL Documents folder: never fall back to it
+        p = mock.patch.object(cs, "default_targets", lambda: {"bash": self.tmp / "default" / ".bashrc"})
+        p.start()
+        self.addCleanup(p.stop)
 
     def register(self, *names):
-        reg = {"accounts": []}
+        reg = {"accounts": [], "profiles": {"bash": str(self.tmp / "profiles" / ".bashrc")}}
         for n in names:
             d = self.home / ".claude" if n == "main" else self.tmp / ("cfg-" + n)
             cs.upsert(reg, n, str(d))
@@ -205,7 +216,9 @@ class SetupTest(Base):
         rc, out = self.setup("main=%s" % (self.home / ".claude"), "alt=%s" % alt)
         self.assertEqual(rc, 0, out)
         p = self.profiles()
-        py, script = sys.executable, str(SCRIPT)
+        py, script = sys.executable, str(self.sw / "claude_switch.py")  # stable copy, not the skill's
+        self.assertEqual(Path(script).read_bytes(), SCRIPT.read_bytes())
+        self.assertNotIn(str(SCRIPT), p["bash"].read_text() + p["powershell"].read_text(encoding="utf-8-sig"))
         sh = lambda s: Path(s).as_posix() if os.name == "nt" else s
         bash = p["bash"].read_text()
         self.assertIn("claude() { '%s' '%s' run - \"$@\"; }" % (sh(py), sh(script)), bash)
@@ -268,6 +281,30 @@ class SetupTest(Base):
         self.assertIn("not UTF-8", str(e.exception))
         self.assertEqual(p.read_bytes(), b"# caf\xe9\r\n")
 
+    def test_diff_no_trailing_newline(self):
+        p = self.profiles()["bash"]
+        p.parent.mkdir(parents=True)
+        p.write_text("export A=1")
+        with mock.patch("builtins.input", side_effect=EOFError):
+            rc, out = self.main("setup", "--profile=bash=%s" % p)
+        self.assertEqual(rc, 1)
+        self.assertIn("\n-export A=1\n+export A=1\n", out)
+        self.assertEqual(p.read_text(), "export A=1")
+
+    def test_cp1252_console_diff(self):
+        p = self.profiles()["bash"]
+        p.parent.mkdir(parents=True)
+        p.write_text("# a → b\n", encoding="utf-8")
+        raw = io.BytesIO()
+        out = io.TextIOWrapper(raw, encoding="cp1252")
+        argv = ["setup", "--profile=bash=%s" % p, "--yes"]
+        with contextlib.redirect_stdout(out):
+            rc = cs.main(argv)
+        out.flush()
+        self.assertEqual(rc, 0)
+        self.assertIn(b"+claude() {", raw.getvalue())
+        self.assertIn("# a → b\n", p.read_text(encoding="utf-8"))
+
     def test_no_yes_writes_nothing(self):
         with mock.patch("builtins.input", side_effect=EOFError):
             rc, out = self.setup("alt=%s" % self.tmp, yes=False)
@@ -299,6 +336,269 @@ class SetupTest(Base):
                                 "'%s', [ref]$null, [ref]$e); if ($e.Count) { $e; exit 1 }" % path],
                                stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+
+def make_link(src, dst):
+    """Junction on Windows, symlink elsewhere: what add creates for dirs."""
+    if os.name == "nt":
+        import _winapi
+        _winapi.CreateJunction(str(src), str(dst))
+    else:
+        os.symlink(str(src), str(dst), target_is_directory=True)
+
+
+def tree_hash(root):
+    """Every path under root (links not followed) with its link flag and bytes."""
+    out = {}
+    for dirpath, dirnames, filenames in os.walk(root):
+        for n in dirnames + filenames:
+            p = os.path.join(dirpath, n)
+            rel = os.path.relpath(p, root)
+            if cs.is_link(p):
+                out[rel] = ("link", os.readlink(p))
+            elif os.path.isfile(p):
+                out[rel] = ("file", Path(p).read_bytes(), os.stat(p).st_mtime_ns)
+            else:
+                out[rel] = ("dir",)
+        dirnames[:] = [d for d in dirnames if not cs.is_link(os.path.join(dirpath, d))]
+    return out
+
+
+class AccountsTest(Base):
+    def setUp(self):
+        super().setUp()
+        self.register("main")
+        self.main_dir = self.home / ".claude"
+        (self.main_dir / "skills" / "s1").mkdir(parents=True)
+        (self.main_dir / "skills" / "s1" / "SKILL.md").write_text("shared skill")
+        (self.main_dir / "projects" / "p").mkdir(parents=True)
+        (self.main_dir / "projects" / "p" / "session.jsonl").write_text("history")
+        (self.main_dir / "settings.json").write_text('{"a": 1}')
+        (self.main_dir / ".credentials.json").write_text("main secret")
+        self.bashrc = self.tmp / "profiles" / ".bashrc"
+
+    def add(self, name="work", *extra, env=None):
+        rc, out = self.main("add", name, *extra, env=env)
+        self.assertEqual(rc, 0, out)
+        return out
+
+    def test_add_links_shared_items(self):
+        out = self.add()
+        work = self.home / ".claude-work"
+        for n in cs.SHARED_DIRS:
+            self.assertTrue(cs.is_link(work / n), n)
+            self.assertTrue((self.main_dir / n).is_dir(), n)  # missing ones created empty in the source
+        self.assertEqual((work / "skills" / "s1" / "SKILL.md").read_text(), "shared skill")
+        (work / "projects" / "p" / "new.jsonl").write_text("from work")
+        self.assertEqual((self.main_dir / "projects" / "p" / "new.jsonl").read_text(), "from work")
+        self.assertEqual((work / "settings.json").read_text(), '{"a": 1}')
+        self.assertTrue(os.path.samefile(work / "settings.json", self.main_dir / "settings.json"))
+        self.assertFalse(os.path.lexists(work / "CLAUDE.md"))
+        self.assertIn("CLAUDE.md missing; not shared", out)
+        self.assertFalse((work / ".credentials.json").exists())  # per account
+        reg = cs.load()
+        self.assertEqual([a["name"] for a in reg["accounts"]], ["main", "work"])
+        self.assertNotEqual(reg["accounts"][0]["colour"], reg["accounts"][1]["colour"])
+        bash = self.bashrc.read_text()
+        self.assertIn("claude-work()", bash)
+        self.assertIn(cs._sh_path(self.sw / "claude_switch.py"), bash)  # wrappers call the stable copy
+        self.assertEqual((self.sw / "claude_switch.py").read_bytes(), SCRIPT.read_bytes())
+        self.assertIn("updated %s" % self.bashrc, out)
+        self.assertIn("start it with claude-work", out)
+        self.assertEqual(self.requests(), [])
+        self.assertFalse((self.tmp / "default").exists())
+
+    def test_add_keeps_existing_and_custom_dir(self):
+        d = self.tmp / "custom"
+        (d / "skills").mkdir(parents=True)
+        out = self.add("job", "--dir", str(d))
+        self.assertIn("already exists; left as is", out)
+        self.assertFalse(cs.is_link(d / "skills"))
+        self.assertTrue(cs.is_link(d / "projects"))
+        self.assertEqual(cs.find(cs.load(), "job")["dir"], str(d))
+
+    def test_add_refusals(self):
+        self.add()
+        for argv in (["add", "work"], ["add", "Bad Name"], ["add", "dup", "--dir", str(self.main_dir)]):
+            with self.assertRaises(SystemExit, msg=argv):
+                self.main(*argv)
+        self.assertEqual([a["name"] for a in cs.load()["accounts"]], ["main", "work"])
+
+    def test_file_fallbacks(self):
+        src, dst = self.main_dir / "settings.json", self.tmp / "s1.json"
+        with mock.patch.object(cs, "WINDOWS", True), \
+                mock.patch.object(cs.os, "symlink", side_effect=OSError(1314, "privilege")):
+            self.assertIn("hardlinked", cs.link_file(src, dst))
+            self.assertTrue(os.path.samefile(src, dst))
+            with mock.patch.object(cs.os, "link", side_effect=OSError("cross-device")):
+                self.assertIn("copied", cs.link_file(src, self.tmp / "s2.json"))
+        self.assertEqual((self.tmp / "s2.json").read_text(), '{"a": 1}')
+
+    def test_add_under_launcher_writes_request(self):
+        self.add(env={"CLAUDE_SWITCH_LAUNCHER": "4242", "CLAUDE_SWITCH_ACCOUNT": "main"})
+        self.assertEqual(json.loads((self.sw / "requests" / "4242.json").read_text()),
+                         {"target": "work", "session": ""})
+
+    def test_remove_delete_dir_keeps_shared(self):
+        self.add()
+        work = self.home / ".claude-work"
+        (work / ".credentials.json").write_text("work secret")
+        (work / "sub").mkdir()
+        make_link(self.main_dir / "projects", work / "sub" / "deep-link")  # nested link too
+        before = tree_hash(self.main_dir)
+        rc, out = self.main("remove", "work", "--delete-dir", "--yes")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("unlink (shared", out)
+        self.assertFalse(os.path.lexists(work))
+        self.assertEqual(tree_hash(self.main_dir), before)
+        self.assertEqual((self.main_dir / "projects" / "p" / "session.jsonl").read_text(), "history")
+        self.assertEqual([a["name"] for a in cs.load()["accounts"]], ["main"])
+        self.assertNotIn("claude-work()", self.bashrc.read_text())
+
+    def test_delete_dir_never_follows(self):
+        shared = self.tmp / "shared"
+        (shared / "inner").mkdir(parents=True)
+        (shared / "inner" / "keep.txt").write_text("keep")
+        root = self.tmp / "victim"
+        (root / "a" / "b").mkdir(parents=True)
+        (root / "a" / "b" / "f.txt").write_text("x")
+        make_link(shared, root / "a" / "j")
+        make_link(shared / "inner", root / "j2")
+        self.assertTrue(cs.is_link(root / "a" / "j"))
+        if os.name == "nt":
+            self.assertTrue(os.lstat(root / "j2").st_file_attributes & cs.stat.FILE_ATTRIBUTE_REPARSE_POINT)
+        links, files, dirs = cs.scan_tree(root)
+        self.assertEqual(sorted(map(os.path.basename, links)), ["j", "j2"])
+        self.assertEqual([os.path.basename(f) for f in files], ["f.txt"])
+        cs.delete_dir(root)
+        self.assertFalse(root.exists())
+        self.assertEqual((shared / "inner" / "keep.txt").read_text(), "keep")
+
+    def test_remove_dry_run_and_no(self):
+        self.add()
+        work = self.home / ".claude-work"
+        before, reg = tree_hash(work), cs.registry_path().read_text()
+        rc, out = self.main("remove", "work", "--delete-dir", "--dry-run")
+        self.assertEqual(rc, 0)
+        self.assertIn("dry run: nothing changed", out)
+        self.assertIn("unlink (shared", out)
+        self.assertIn("delete: %s" % work, out)
+        with mock.patch("builtins.input", side_effect=EOFError):
+            rc, out = self.main("remove", "work", "--delete-dir")
+        self.assertEqual(rc, 1)
+        self.assertEqual((tree_hash(work), cs.registry_path().read_text()), (before, reg))
+
+    def test_remove_keeps_dir_by_default(self):
+        self.add()
+        rc, out = self.main("remove", "work")
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(cs.is_link(self.home / ".claude-work" / "projects"))
+        self.assertIsNone(cs.find(cs.load(), "work"))
+
+    def test_remove_refusals(self):
+        with self.assertRaises(SystemExit) as e:
+            self.main("remove", "main")
+        self.assertIn("last account", str(e.exception))
+        self.add()
+        self.add("job")
+        cases = ((("remove", "main"), None, "first account"),
+                 (("remove", "work"), {"CLAUDE_SWITCH_ACCOUNT": "work"}, "account you're on"),
+                 (("remove", "work"), {"CLAUDE_SWITCH_ACCOUNT": "old-name",
+                                       "CLAUDE_CONFIG_DIR": str(self.home / ".claude-work")}, "account you're on"),
+                 (("remove", "nope"), None, "unknown account"))
+        for argv, env, msg in cases:
+            with self.assertRaises(SystemExit) as e:
+                self.main(*argv, env=env)
+            self.assertIn(msg, str(e.exception))
+        reg = cs.load()  # a dir overlapping another account's is never deleted
+        cs.find(reg, "job")["dir"] = str(self.main_dir / "nested")
+        cs.save(reg)
+        (self.main_dir / "nested").mkdir()
+        with self.assertRaises(SystemExit) as e:
+            self.main("remove", "job", "--delete-dir", "--yes")
+        self.assertIn("overlaps", str(e.exception))
+        self.assertTrue((self.main_dir / "nested").is_dir())
+        self.assertEqual([a["name"] for a in cs.load()["accounts"]], ["main", "work", "job"])
+
+    def test_rename(self):
+        self.add()
+        rc, out = self.main("rename", "work", "job")
+        self.assertEqual(rc, 0, out)
+        a = cs.find(cs.load(), "job")
+        self.assertEqual(a["dir"], str(self.home / ".claude-work"))
+        self.assertTrue((self.home / ".claude-work").is_dir())
+        bash = self.bashrc.read_text()
+        self.assertIn("claude-job()", bash)
+        self.assertNotIn("claude-work()", bash)
+        for argv in (("rename", "job", "main"), ("rename", "job", "Bad"), ("rename", "nope", "x")):
+            with self.assertRaises(SystemExit, msg=argv):
+                self.main(*argv)
+
+    def test_list(self):
+        self.add()
+        cs.touch("work")
+        rc, out = self.main("list", env={"CLAUDE_SWITCH_ACCOUNT": "work"})
+        lines = out.splitlines()
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(lines), 2)
+        self.assertTrue(lines[0].startswith("main"))
+        self.assertIn("last used never", lines[0])
+        self.assertIn(str(self.main_dir), lines[0])
+        self.assertIn(cs.find(cs.load(), "work")["colour"], lines[1])
+        self.assertTrue(lines[1].endswith("(current)"))
+        self.assertIn(" UTC", lines[1])
+        self.assertNotIn("\x1b", out)  # not a tty: no ANSI
+
+
+class MigrateTest(Base):
+    def test_read_only_and_exclusions(self):
+        h = self.home
+        files = {".claude/projects/p/s.jsonl": "x", ".claude-alt/.credentials.json": "c",
+                 ".claude-mac/.claude.json": "{}", ".claude-proj/projects/q/s.jsonl": "y",
+                 ".claude-Bad/.credentials.json": "c", ".claude-old.stale-123/.credentials.json": "c",
+                 ".claude-switch/accounts.json": "{}", ".claude-empty/notes.txt": "n",
+                 ".claude-file": "not a dir", ".claude.json": "{}"}
+        for rel, text in files.items():
+            (h / rel).parent.mkdir(parents=True, exist_ok=True)
+            (h / rel).write_text(text)
+        before = tree_hash(h)
+        rc, out = self.main("migrate")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(tree_hash(h), before)
+        reg = cs.load()
+        self.assertEqual([(a["name"], a["dir"]) for a in reg["accounts"]],
+                         [(n, str(h / d)) for n, d in (("main", ".claude"), ("alt", ".claude-alt"),
+                                                       ("mac", ".claude-mac"), ("proj", ".claude-proj"))])
+        self.assertIn("'Bad' is not a valid account name", out)
+        self.assertIn(".claude-empty: no .credentials.json", out)
+        self.assertNotIn("stale", out)
+        self.assertIn("run setup once", out)  # no recorded profiles, no block yet: shells untouched
+        self.assertFalse((self.tmp / "default").exists())
+        rc, out = self.main("migrate")
+        self.assertIn("nothing new", out)
+        self.assertEqual(tree_hash(h), before)
+
+    def test_unrecorded_profiles_only_update_existing_block(self):
+        cs.save({"accounts": []})  # registry from before profiles were recorded
+        rc = self.main("setup", "--account=main=%s" % (self.home / ".claude"),
+                       "--profile=bash=%s" % (self.tmp / "default" / ".bashrc"), "--yes")[0]
+        self.assertEqual(rc, 0)
+        reg = cs.load()
+        del reg["profiles"]
+        cs.save(reg)
+        (self.home / ".claude-alt" / "projects").mkdir(parents=True)
+        rc, out = self.main("migrate")
+        self.assertIn("claude-alt()", (self.tmp / "default" / ".bashrc").read_text())
+        self.assertIn("bash", cs.load()["profiles"])
+
+    def test_keeps_registered_main(self):
+        self.register("main", "alt")
+        (self.home / ".claude").mkdir()
+        (self.home / ".claude-alt" / "projects").mkdir(parents=True)
+        rc, out = self.main("migrate")
+        self.assertEqual([a["name"] for a in cs.load()["accounts"]], ["main", "alt"])
+        self.assertIn("'alt' is already", out)
+        self.assertIn("nothing new", out)
 
 
 class FindClaudeTest(Base):
@@ -372,6 +672,25 @@ class LauncherTest(Base):
         self.assertEqual(rc, 2)
         self.assertIn("unknown account 'gone'. accounts: main, alt", err)
         self.assertEqual(len(self.log()), 2)  # claude not started
+
+    def test_no_accounts_says_run_setup(self):
+        cs.registry_path().unlink()
+        rc, _, err = self.finish(self.launch())
+        self.assertEqual(rc, 2)
+        self.assertIn("no accounts yet; run setup", err)
+        self.assertIn(" setup --account main=", err)
+        self.assertNotIn("not started by", err)
+        self.assertFalse((self.tmp / "log.jsonl").exists())
+
+    def test_add_switches_into_new_account(self):
+        rc, _, err = self.finish(self.launch("main", FAKE_ADD="work", FAKE_SESSION=SID))
+        self.assertEqual(rc, 0, err)
+        log = self.log()
+        self.assertEqual([(e["account"], e["args"]) for e in log], [("main", []), ("work", ["--resume", SID])])
+        self.assertEqual(log[1]["config"], str(self.home / ".claude-work"))
+        self.assertTrue(cs.is_link(self.home / ".claude-work" / "projects"))
+        self.assertIn("claude-work()", (self.tmp / "profiles" / ".bashrc").read_text())
+        self.assertEqual(self.requests(), [])
 
     def test_two_launchers_dont_cross(self):
         a = self.launch("main", log="a.jsonl", FAKE_SWITCH_TO="alt", FAKE_SESSION=SID)

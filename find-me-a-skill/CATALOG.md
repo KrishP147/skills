@@ -35,7 +35,7 @@ Install section.
 | session-bridge | skill | sonnet | low | `/session-bridge` | Coordinate with another Claude Code session or agent on the same repo — snapshot its state, check for overlap, send it a gated message. | two-sessions |
 | sitrep | skill | haiku | low | `/sitrep` | Live status of this session in ≤10 lines — what's running, git state, PRs + CI, asked vs done, what needs the user, and a SAFE/NOT SAFE close verdict. | safe-to-close, two-sessions, usage-limit |
 | spend-gate | skill | sonnet | medium | `/spend-gate` | Gate any billable action (GPU pods/instances, paid APIs or tiers, cloud credits) behind a cost estimate, a live balance check, and an explicit yes for that action. | paid-tests, climb-a-score |
-| switch | skill (user only) | haiku | low | `/switch` | Move this conversation to another Claude account (the previous one, or one by name). | usage-limit |
+| switch | skill (user only) | haiku | low | `/switch` | Move this conversation to another Claude account (the previous one, or one by name), or add, remove, rename and list accounts. | usage-limit |
 | teammate-brief | skill | sonnet | medium | `/teammate-brief` | Write an onboarding document for a person joining or picking up a project — what it is, setup steps verified by running them, env var names and where to get them, tasks with "done when", owners, don't-touch list. | brief-a-teammate |
 | wayfinder | skill (user only) | opus | high | `/wayfinder` | Plan an effort too big for one session as a map of decision tickets (GitHub issue + sub-issues) and resolve them one per session until the way is clear, then hand off to divide. | big-effort |
 | consult-plan | skill | opus | high | `/consult-plan` | Grill a proposed change, deviation, or new idea against a repo's existing plan (issues, board, roadmap, decisions), then record the outcome. | pitch-an-idea |
@@ -200,8 +200,9 @@ human-in-the-loop points: nothing continues without you.
 
 ### usage-limit: Keep going on another account
 
-1. you: Run claude_switch.py setup once, then start Claude with claude or claude-<name> so a launcher watches the session.
-2. you: An account hits its usage limit mid-task: type /switch or /switch <name>; it is user-only, so Claude can't start it.
-3. /switch (skill, haiku · low): Writes a request for this terminal's launcher only, which ends the session and resumes it on the target account (--continue when --resume fails).
-4. /sitrep (skill, haiku · low): On the new account, lists what was running and asked vs done, so nothing from before the move is lost.
-5. you: Carry on; /switch with no name goes back to the account you came from.
+1. you: Run claude_switch.py setup (or migrate for existing ~/.claude-<name> dirs) once, then start Claude with claude or claude-<name> so a launcher watches the session.
+2. /switch (skill, haiku · low): /switch add <name> makes a new account that shares the first one's skills, settings and history and moves you into it to log in; remove, rename and list manage the rest.
+3. you: The statusline shows the account and its session and weekly use; near the limit a warning names the account with the most room. Type /switch or /switch <name>; it is user-only, so Claude can't start it.
+4. /switch (skill, haiku · low): A prompt hook writes a request for this terminal's launcher only, with no API call so it works at 100%; the launcher ends the session and resumes it on the target account (--continue when --resume fails).
+5. /sitrep (skill, haiku · low): On the new account, lists what was running and asked vs done, so nothing from before the move is lost.
+6. you: Carry on; /switch with no name goes back to the account you came from.

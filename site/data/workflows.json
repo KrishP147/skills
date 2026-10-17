@@ -193,9 +193,10 @@
     "name": "usage-limit",
     "title": "Keep going on another account",
     "steps": [
-      {"kind": "human", "why": "Run claude_switch.py setup once, then start Claude with claude or claude-<name> so a launcher watches the session."},
-      {"kind": "human", "why": "An account hits its usage limit mid-task: type /switch or /switch <name>; it is user-only, so Claude can't start it."},
-      {"kind": "skill", "name": "switch", "why": "Writes a request for this terminal's launcher only, which ends the session and resumes it on the target account (--continue when --resume fails)."},
+      {"kind": "human", "why": "Run claude_switch.py setup (or migrate for existing ~/.claude-<name> dirs) once, then start Claude with claude or claude-<name> so a launcher watches the session."},
+      {"kind": "skill", "name": "switch", "why": "/switch add <name> makes a new account that shares the first one's skills, settings and history and moves you into it to log in; remove, rename and list manage the rest."},
+      {"kind": "human", "why": "The statusline shows the account and its session and weekly use; near the limit a warning names the account with the most room. Type /switch or /switch <name>; it is user-only, so Claude can't start it."},
+      {"kind": "skill", "name": "switch", "why": "A prompt hook writes a request for this terminal's launcher only, with no API call so it works at 100%; the launcher ends the session and resumes it on the target account (--continue when --resume fails)."},
       {"kind": "skill", "name": "sitrep", "why": "On the new account, lists what was running and asked vs done, so nothing from before the move is lost."},
       {"kind": "human", "why": "Carry on; /switch with no name goes back to the account you came from."}
     ]
