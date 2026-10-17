@@ -20,7 +20,8 @@
     "tested": [
       "grill-me", "wayfinder", "score-loop", "repo-showcase", "pr-watch",
       "teammate-brief", "ponytail"
-    ]
+    ],
+    "new": ["switch"]
   },
   "aliases_note": "Extra search words per name for the slash prompt. Lowercase a-z, 0-9, -; never an existing name.",
   "aliases": {
@@ -28,6 +29,7 @@
     "verifier": ["qa", "check"],
     "handoff": ["compact", "summarize"],
     "sitrep": ["status"],
+    "switch": ["account", "usage-limit"],
     "spend-gate": ["cost", "budget"],
     "repo-scrub": ["secrets"],
     "repo-showcase": ["readme", "polish"],
@@ -43,7 +45,7 @@
     "plan": ["gap-scan", "grilling", "grill-me", "grill-docs", "wayfinder", "consult-plan", "find-me-a-skill"],
     "implement": ["pair", "meta-orchestrator", "lanes", "score-loop", "ponytail", "session-bridge"],
     "review": ["pr-watch", "sitrep", "progress-report"],
-    "handoff": ["handoff", "handoff-auto", "session-handoff", "teammate-brief"],
+    "handoff": ["handoff", "handoff-auto", "session-handoff", "teammate-brief", "switch"],
     "board": ["kanban-setup", "next", "divide", "update-progress"],
     "repo-hygiene": ["repo-showcase", "repo-scrub", "spend-gate"],
     "agents": ["planner", "manager", "implementer", "verifier"],
@@ -78,6 +80,7 @@
     "repo-scrub": {"model": "opus", "effort": "high"},
     "repo-showcase": {"model": "sonnet", "effort": "high"},
     "session-bridge": {"model": "sonnet", "effort": "low"},
+    "switch": {"model": "haiku", "effort": "low"},
     "sitrep": {"model": "haiku", "effort": "low"},
     "spend-gate": {"model": "sonnet", "effort": "medium"},
     "teammate-brief": {"model": "sonnet", "effort": "medium"},

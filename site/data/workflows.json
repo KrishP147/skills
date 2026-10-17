@@ -175,5 +175,16 @@
       {"kind": "human", "why": "Answer the batch and approve the draft; commit and push each need their own yes."},
       {"kind": "human", "why": "Share the file with your teammate: that's your call."}
     ]
+  },
+  {
+    "name": "usage-limit",
+    "title": "Keep going on another account",
+    "steps": [
+      {"kind": "human", "why": "Run claude_switch.py setup once, then start Claude with claude or claude-<name> so a launcher watches the session."},
+      {"kind": "human", "why": "An account hits its usage limit mid-task: type /switch or /switch <name>; it is user-only, so Claude can't start it."},
+      {"kind": "skill", "name": "switch", "why": "Writes a request for this terminal's launcher only, which ends the session and resumes it on the target account (--continue when --resume fails)."},
+      {"kind": "skill", "name": "sitrep", "why": "On the new account, lists what was running and asked vs done, so nothing from before the move is lost."},
+      {"kind": "human", "why": "Carry on; /switch with no name goes back to the account you came from."}
+    ]
   }
 ]
