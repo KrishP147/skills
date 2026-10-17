@@ -4,20 +4,20 @@
 
 ## What it does
 
-Compacts the current conversation into a handoff document so a fresh session can continue the work without the old context.
+Turns this conversation into a handoff document. A fresh session can pick up the work from it, without the old context.
 
 ## When to use
 
 - Context is getting long and quality is dropping.
 - You're stopping for the day and want to resume cleanly.
-- You want to hand the task to another agent/session.
+- You want to hand the task to another agent or session.
 
 ## How to invoke
 
 `/handoff [what the next session will be used for]`.
 
-- User-invoked only (`disable-model-invocation: true`).
-- For a model-callable version use [`handoff-auto`](../handoff-auto/).
+- Only you can run it; Claude won't call it on its own (`disable-model-invocation: true`).
+- For a version Claude can call itself, use [`handoff-auto`](../handoff-auto/).
 
 ## How it works
 
