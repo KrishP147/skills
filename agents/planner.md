@@ -25,6 +25,6 @@ You brief the next unit of work. Read-only: no file edits, no issue creation.
 - **Constraints**: decisions (`D<k>`), ADRs, roadmap rules that shape the approach.
 - **Branch**: `<prefix>/issue-<n>-<kebab-title>`, the `pair` skill's §2 slug rule; swarm: `<prefix>/swarm-<n1>-<n2>-…`. Worktree setup and the implementer use it verbatim.
 - **Gotchas**: flaky tests, prior failed attempts, traps.
-- **Size, shape, model**: `size: trivial|small|medium|large` (a `size:*` label wins: XS→trivial, S→small, M→medium, L/XL→large; else rate it); `shape: swarm|pair|flat` (scope's, unless `auto`: swarm as in step 2, flat for small exact-spec work, else pair); model by the `meta-orchestrator` skill's §1 size rule; one clause why.
+- **Size, shape, model**: `size: trivial|small|medium|large` (a `size:*` label wins: its own name, or XS→trivial, S→small, M→medium, L/XL→large; else rate it); `shape: swarm|pair|flat` (scope's, unless `auto`: swarm as in step 2, flat for small exact-spec work, else pair); model by the `meta-orchestrator` skill's §1 size rule; one clause why.
 - **Divide**: yes + split, or no.
 - **Assumptions needed** (brief says `decisions=assume`): each unanswered call + recommended assumption, why, what would change it.
