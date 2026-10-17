@@ -17,7 +17,7 @@ Creates a GitHub Projects (v2) board for a repo if it has none, then backfills i
 /kanban-setup [current | retroactive | both]
 ```
 
-Default `current`. User-invoked only (`disable-model-invocation: true`) because it creates real, visible issues.
+Default `current`. Only you can run it (`disable-model-invocation: true`), because it creates real, visible issues.
 
 ## How it works
 
@@ -34,7 +34,8 @@ Default `current`. User-invoked only (`disable-model-invocation: true`) because 
    - `retroactive` = finished items from CHANGELOG / git log / resolved TODOs.
    - `both` = both, separated.
 5. **Preview, then create:** shows the board actions and every issue (title, mode, target column), then waits.
-   - The board actions: create the board, `gh project link <n> --owner <owner> --repo <owner>/<repo>`, add In Review via the `updateProjectV2Field` GraphQL mutation via `gh api graphql` replaying every existing option plus the new one (`gh` can't add an option to an existing field; or add it by hand in the UI), or the label creation.
+   - The board actions are: create the board; `gh project link <n> --owner <owner> --repo <owner>/<repo>`; add In Review; or, in label mode, create the labels.
+   - To add In Review it runs the `updateProjectV2Field` GraphQL mutation via `gh api graphql`, replaying every existing option plus the new one (`gh` can't add an option to an existing field). You can add it by hand in the UI instead.
    - On yes: board actions first.
    - Then `current` → create + `item-add` + `item-edit` to Todo.
    - `retroactive` → create, close, `item-add` + `item-edit` to Done (`item-add` alone leaves Status empty, so the `item-edit` step is required, not optional).
