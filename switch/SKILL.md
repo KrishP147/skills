@@ -55,5 +55,5 @@ Show its output as is.
 ```
 
 - Ends with `switching to '<name>'` → the launcher ends this session and resumes it on that account. Add nothing.
-- Ends with `rerun with yes` → nothing switched: something is live. Ask "Switch anyway? (yes/no)" and stop. Only on the user's explicit yes in their next message, run the same command with `yes` right after `$ARGUMENTS`; anything else: say nothing was switched.
+- Ends with `rerun with yes` → nothing switched: something is live (three or more accounts only; with two accounts `/switch` never asks). Ask "Switch anyway? (yes/no)" and stop. Only on the user's explicit yes in their next message, run the same command with `yes` right after `$ARGUMENTS`; anything else: say nothing was switched.
 - Anything else (unknown name with the account list, already on that account, not started by the launcher with setup steps, python not found) → nothing was switched; show the output as is. Python not found means the session wasn't started by the launcher: point at the setup step in this skill's README.

@@ -12,7 +12,7 @@ account, `/switch <name>` on a named one. `/switch add|remove|rename|list`
 manages the accounts; new ones share skills, settings and history with
 the first. Before each switch it lists what stays with the old account
 (artifacts, routines) and what is live (Remote Control, running
-subagents), and asks first when something is. A statusline shows which account you're on and how much of
+subagents), and with three or more accounts asks first when something is. With two accounts it never asks. A statusline shows which account you're on and how much of
 its session and weekly limits is used, and warns you near the limit
 with the account that has the most room left.
 
@@ -77,8 +77,9 @@ statusline and hook back out of `settings.json`:
 3. **`/switch`** runs `claude_switch.py request [name] --session <this
    session id>`. With no name it picks the account this launcher came
    from, else the most recently used other one. It prints the pre-switch
-   check (see "What follows the account"); when something there is live
-   it switches nothing until you confirm with `yes`. Otherwise it writes
+   check (see "What follows the account"); with three or more accounts,
+   when something there is live it switches nothing until you confirm
+   with `yes`. With two accounts it never asks. Otherwise it writes
    a resume note to `~/.claude-switch/requests/<launcher pid>.note.md`
    and the request to `requests/<launcher pid>.json` (target, session,
    Remote Control on or off, the transcript's absolute path); unknown
@@ -143,7 +144,7 @@ statusline and hook back out of `settings.json`:
     is out of usage. Claude Code passes a typed skill line to this hook
     as typed, before the skill expands (hooks reference, section
     "UserPromptSubmit input"; blocking per "UserPromptSubmit decision
-    control"). When the check finds something live, the first `/switch
+    control"). With three or more accounts, when the check finds something live, the first `/switch
     [name]` shows it and switches nothing; type the same command again
     within 120 s, or `/switch [name] yes`, to switch. `add`, `remove`,
     `rename`, `list`, `theme` and `rc-ok` still go through the skill.
@@ -182,8 +183,9 @@ switch `/switch` prints what each of them does:
   account of the Claude process. After the switch the launcher starts
   the target with `--remote-control`, so the session reappears under
   the target account's Claude apps, and a phone signed into the old
-  account loses it. `/switch` asks before doing that;
-  `/switch rc-ok <name> on` stops the question for that account.
+  account loses it. With three or more accounts `/switch` asks before
+  doing that; `/switch rc-ok <name> on` stops the question for that
+  account. With two accounts it never asks.
 - **Subagents** (live). A subagent whose transcript (under the
   session's `subagents/` folder) has no final reply yet, or changed in
   the last 10 minutes, counts as running. The switch pauses it; after
@@ -199,8 +201,9 @@ switch `/switch` prints what each of them does:
   on the target to connect them there. The **Chrome extension** must be
   signed into the target's organisation.
 
-Something live (a running subagent, or Remote Control without `rc-ok`)
-means a yes first; otherwise it switches straight away. Each switch also
+With three or more accounts, something live (a running subagent, or
+Remote Control without `rc-ok`) means a yes first; otherwise, and always
+with two accounts, it switches straight away. Each switch also
 writes a resume note, `~/.claude-switch/requests/<launcher pid>.note.md`
 (session, working dir, branch, last commit, live subagent ids and what
 to do about them); the launcher prints its path under the switch line
