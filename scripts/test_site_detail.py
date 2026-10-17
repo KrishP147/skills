@@ -117,6 +117,15 @@ class DetailPagesTest(unittest.TestCase):
             self.assertNotRegex(page, r'theme[^,;]*https?://', name)
             self.assertIn("Use cases &amp; tips from the community", page, name)
 
+    def test_install_section_first(self):
+        # Every page opens with its own one-line install, bash + PowerShell.
+        for name, page in self.pages.items():
+            first = re.search(r'<h2 id="([^"]*)">(.*?)</h2>', page)
+            self.assertEqual(first.groups(), ("install", "Install"), name)
+            self.assertIn("./scripts/install-skills.sh --skill %s   #" % name, page, name)
+            self.assertIn(".\\scripts\\install-skills.ps1 -Skill %s   #" % name, page, name)
+            self.assertEqual("copied, not wired" in page, self.by[name]["group"] == "hooks", name)
+
     def test_sections_ordered_none_empty(self):
         titles = [t for _k, t in site_detail.SECTIONS] + ["Source"]
         h2 = re.compile(r'<h2 id="[^"]*">(.*?)</h2>')

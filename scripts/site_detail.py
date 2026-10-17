@@ -524,7 +524,7 @@ def build_pages(root, entries, meta, template, data_json, site_base="", workflow
         for fixed in ("term", "cmd", "menu", "echo", "hint", "status", "prompt-box",
                       "comments", "skill-data", "source"):
             rd.unique_id(fixed)
-        body = []
+        body = [install_section(e, rd.unique_id("install"))]
         for key, title, md in ordered:
             body.append(_section(rd, title, md, example=key == "example"))
         for heading, md in extras:
@@ -616,6 +616,24 @@ def example_html(rd, md):
 
 def missing_example(ordered):
     return not any(k == "example" for k, _t, _b in ordered)
+
+
+def install_cmds(name):
+    """(bash, PowerShell) one-liners that install just this entry from a clone."""
+    return ("./scripts/install-skills.sh --skill %s" % name,
+            ".\\scripts\\install-skills.ps1 -Skill %s" % name)
+
+
+def install_section(e, sid):
+    """'Install' section, first on every detail page."""
+    sh, ps = install_cmds(e["name"])
+    note = ("Install just this, from a clone of the repo. It is copied, not wired: "
+            "the installer prints the settings.json snippet to add."
+            if e["group"] == "hooks" else
+            "Install just this, from a clone of the repo. Anything it needs comes with it.")
+    return ('<section class="sec" aria-labelledby="%s">\n<h2 id="%s">Install</h2>\n<p class="dim">%s</p>\n'
+            '<pre class="wf-cmd"><code>%s   # bash, Git Bash, macOS, Linux\n%s   # Windows PowerShell</code></pre>\n</section>'
+            %(esc(sid), esc(sid), esc(note), esc(sh), esc(ps)))
 
 
 def _source_section(e):
