@@ -10,8 +10,9 @@ Format: [{name, title, steps: [{kind, name?, why}]}]
   why   one line
 Rules (SystemExit on any break): unknown keys or names, a workflow with
 fewer than 2 skill/agent steps or no human step, duplicate workflow names,
-a name that clashes with an id on the workflows page, and any skill that
-appears in no workflow. Agents and hooks are optional.
+a name that clashes with an id on the workflows page, and any skill, agent
+or hook that appears in no workflow (install-skills --workflow installs
+from here, so everything must be reachable).
 """
 import html
 import json
@@ -84,9 +85,10 @@ def validate(raw, entries):
         if not any(s["kind"] == "human" for s in steps):
             _fail("%s: needs a human step" % where)
     used = {s["name"] for wf in raw for s in wf["steps"] if s["kind"] != "human"}
-    missing = sorted(n for n, k in kinds.items() if k == "skill" and n not in used)
-    if missing:
-        _fail("skills in no workflow: %s" % ", ".join(missing))
+    for kind in ("skill", "agent", "hook"):
+        missing = sorted(n for n, k in kinds.items() if k == kind and n not in used)
+        if missing:
+            _fail("%ss in no workflow: %s" % (kind, ", ".join(missing)))
     return raw
 
 

@@ -526,6 +526,20 @@ class WorkflowsValidationTest(unittest.TestCase):
         raw = [wf for wf in self.copy() if wf["name"] != "go-public"]
         self.fails(raw, "skills in no workflow: repo-scrub, repo-showcase")
 
+    def test_every_agent_and_hook_covered(self):
+        used = {s.get("name") for wf in self.raw for s in wf["steps"]}
+        for group in ("agents", "hooks"):
+            names = [e["name"] for e in self.entries if e["group"] == group]
+            self.assertTrue(names, group)
+            self.assertEqual([n for n in names if n not in used], [], group)
+
+    def test_uncovered_agent_or_hook_fails(self):
+        for kind, name in (("agent", "planner"), ("hook", "spend-guard")):
+            raw = self.copy()
+            for wf in raw:
+                wf["steps"] = [s for s in wf["steps"] if s.get("name") != name]
+            self.fails(raw, "%ss in no workflow: %s" % (kind, name))
+
     def test_bad_steps_fail(self):
         cases = [
             ({"kind": "human", "name": "pair", "why": "x"}, "human step has no name"),
