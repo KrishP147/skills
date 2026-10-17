@@ -11,7 +11,8 @@ live conversation between them. Stdlib only.
   rename OLD NEW | list | migrate
   theme NAME [THEME|-]         Claude theme for one account (launcher --settings)
   setup --uninstall [--yes]    take the statusline and hooks out of settings.json
-  hook                         UserPromptSubmit hook: /switch without the API, usage guard
+  hook                         UserPromptSubmit hook: /switch without the API, usage guard,
+                               due reminders (the remind skill's copy in the registry dir)
 
 Registry: $CLAUDE_SWITCH_HOME (default ~/.claude-switch)/accounts.json.
 Setup and the account commands copy this script (and statusline.py) there;
@@ -22,6 +23,7 @@ path, or a JSON list of argv), CLAUDE_SWITCH_RESUME_FAIL_SECS.
 import argparse
 import datetime
 import difflib
+import importlib.util
 import json
 import os
 import re
@@ -1514,12 +1516,33 @@ def cmd_hook():
                                   "hookSpecificOutput": {"hookEventName": HOOK_EVENT,
                                                          "suppressOriginalPrompt": True}}))
                 return 0
-        msg = guard(load(), time.time())
+        try:
+            warn = guard(load(), time.time())
+        except Exception as e:
+            print("claude-switch hook: %s" % e, file=sys.stderr)
+            warn = None
+        msg = "\n".join(m for m in (warn, due_reminders()) if m)
         if msg:
             print(json.dumps({"systemMessage": msg}))
     except Exception as e:  # a broken hook must never block the user's prompt
         print("claude-switch hook: %s" % e, file=sys.stderr)
     return 0
+
+
+def due_reminders():
+    """Due reminders of the remind skill, which copies its remind.py into the
+    registry dir; None without it. Its failure never touches the guard."""
+    p = switch_home() / "remind.py"
+    if not p.is_file():
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location("claude_remind", p)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.deliver()
+    except Exception as e:
+        print("claude-switch hook: remind: %s" % e, file=sys.stderr)
+        return None
 
 
 def cmd_theme(args):
