@@ -1,7 +1,10 @@
 # hooks/ — optional per-repo hooks
 
-Not installed by `install-skills`; copy what you want into a repo's
+Not installed by a full `install-skills` run; copy what you want into a repo's
 `.claude/hooks/` and wire it in that repo's `.claude/settings.json`.
+`install-skills --workflow <name>` with a workflow that uses a hook copies it
+to `~/.claude/hooks/` and prints the user-level `settings.json` snippet below;
+it never wires it in.
 (The agents' own `guard-git.py` lives in [`../agents/hooks/`](../agents/hooks/)
 and *is* installed, into `~/.claude/agents/hooks/`, or wired by the plugin.)
 None of these ship with the plugin either.

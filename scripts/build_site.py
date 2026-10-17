@@ -263,6 +263,7 @@ def build(root, out, base=""):
     if len(set(names)) != len(names):
         raise SystemExit("duplicate skill/agent/hook names: %s" % sorted(n for n in names if names.count(n) > 1))
     site_workflows.check_slug(entries)
+    site_map.check_slug(entries)  # before validate: a clashing name is the clearer error
     workflows = site_workflows.validate(site_workflows.load(root), entries)
     meta = site_detail.load_meta(root)
     map_groups, map_edges = site_map.build(root, entries, meta, workflows)

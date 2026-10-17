@@ -10,8 +10,9 @@ Format: [{name, title, steps: [{kind, name?, why}]}]
   why   one line
 Rules (SystemExit on any break): unknown keys or names, a workflow with
 fewer than 2 skill/agent steps or no human step, duplicate workflow names,
-a name that clashes with an id on the workflows page, and any skill that
-appears in no workflow. Agents and hooks are optional.
+a name that clashes with an id on the workflows page, and any skill, agent
+or hook that appears in no workflow (install-skills --workflow installs
+from here, so everything must be reachable).
 """
 import html
 import json
@@ -84,9 +85,10 @@ def validate(raw, entries):
         if not any(s["kind"] == "human" for s in steps):
             _fail("%s: needs a human step" % where)
     used = {s["name"] for wf in raw for s in wf["steps"] if s["kind"] != "human"}
-    missing = sorted(n for n, k in kinds.items() if k == "skill" and n not in used)
-    if missing:
-        _fail("skills in no workflow: %s" % ", ".join(missing))
+    for kind in ("skill", "agent", "hook"):
+        missing = sorted(n for n, k in kinds.items() if k == kind and n not in used)
+        if missing:
+            _fail("%ss in no workflow: %s" % (kind, ", ".join(missing)))
     return raw
 
 
@@ -135,6 +137,12 @@ def chain(wf):
     return " → ".join(st.get("name", "you") for st in wf["steps"])
 
 
+def install_cmds(name):
+    """(bash, PowerShell) one-liners that install just this workflow from a clone."""
+    return ("./scripts/install-skills.sh --workflow %s" % name,
+            ".\\scripts\\install-skills.ps1 -Workflow %s" % name)
+
+
 def href(base, name=None):
     return "%s/%s%s" % (base, SLUG, "#" + name if name else "")
 
@@ -144,8 +152,10 @@ def detail_section(wfs, base, sid):
     if not wfs:
         return ""
     items = "\n".join(
-        '<li><a href="%s">%s</a><br><span class="dim wf-chain">%s</span></li>'
-        % (esc(href(base, wf["name"])), esc(wf["title"]), esc(chain(wf))) for wf in wfs)
+        '<li><a href="%s">%s</a><br><span class="dim wf-chain">%s</span>'
+        '<br><span class="wf-cmd">Install just this one: <code>%s</code> or <code>%s</code></span></li>'
+        % ((esc(href(base, wf["name"])), esc(wf["title"]), esc(chain(wf))) + tuple(map(esc, install_cmds(wf["name"]))))
+        for wf in wfs)
     return ('<section class="sec" aria-labelledby="%s">\n<h2 id="%s">Sample workflows</h2>\n'
             '<ul class="wf-links">\n%s\n</ul>\n</section>' % (esc(sid), esc(sid), items))
 
@@ -166,9 +176,12 @@ def render_list(workflows, base):
            '<ul>\n%s\n</ul>\n</nav>' % toc]
     for wf in workflows:
         steps = "\n".join(_step_html(st, base) for st in wf["steps"])
+        sh, ps = install_cmds(wf["name"])
         out.append('<section class="sec wf" aria-labelledby="%s">\n<h2 id="%s">%s</h2>\n'
-                   '<ol class="wf-steps">\n%s\n</ol>\n</section>'
-                   % (esc(wf["name"]), esc(wf["name"]), esc(wf["title"]), steps))
+                   '<ol class="wf-steps">\n%s\n</ol>\n'
+                   '<p class="dim">Install just this workflow (its skills, agents and hooks, plus the skills they call):</p>\n'
+                   '<pre class="wf-cmd"><code>%s   # bash, Git Bash, macOS, Linux\n%s   # Windows PowerShell</code></pre>\n</section>'
+                   % (esc(wf["name"]), esc(wf["name"]), esc(wf["title"]), steps, esc(sh), esc(ps)))
     return "\n".join(out)
 
 

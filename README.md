@@ -193,6 +193,21 @@ The lint step needs a real Python 3 on `PATH` (`python`, `python3`, or — on Wi
 
 If a directory with the same name as one of this repo's skills already exists under `~/.claude/skills/` but has no `.from-krishp147-skills` marker (i.e. you didn't get it from here), the install leaves it untouched, warns, and exits non-zero at the end so you notice. Pass `--force` (sh) / `-Force` (ps1) to replace it anyway. Upgrading from an install made before the marker existed? Every old skill dir looks foreign, so run once with `--force` / `-Force`.
 
+#### Install one workflow
+
+To take only what one [sample workflow](https://www.krishpunjabi.com/skills/workflows) uses instead of everything:
+
+```bash
+./scripts/install-skills.sh --list-workflows                 # names and titles
+./scripts/install-skills.sh --workflow pair-to-pr            # repeat --workflow for more
+.\scripts\install-skills.ps1 -ListWorkflows                  # Windows PowerShell
+.\scripts\install-skills.ps1 -Workflow pair-to-pr,paid-tests
+```
+
+The workflows are the ones in [`site/data/workflows.json`](site/data/workflows.json); every skill, agent and hook is in at least one. A workflow installs the skills, agents and hooks its steps name, plus what they need: skills an agent preloads, skills a selected skill calls or links into, and the `guard-git` hook whenever an agent is installed ([`scripts/workflow_deps.py`](scripts/workflow_deps.py) works this out). Hooks from [`hooks/`](hooks/README.md) are copied to `~/.claude/hooks/` (`CLAUDE_HOOKS_DIR` to change it) and their `settings.json` snippet is printed; they are never wired in for you. A different file already there is kept unless `--force` / `-Force`.
+
+Nothing outside the selection is touched or warned about: no stale-skill or stale-agent warnings, no other directories changed. Lint, the Git Bash check and the marker / `--force` rules for the selected skills work as above. An unknown name prints the list, exits non-zero and installs nothing. Resolving a workflow needs Python 3, so `--no-lint` doesn't help there: without Python the install stops with an error rather than falling back to installing everything.
+
 ## Update
 
 Plugin: `/plugin marketplace update krish`, then restart Claude Code. Install script:
