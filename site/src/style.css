@@ -343,7 +343,7 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
 .chip .k { color: var(--dim); }
 .chip-tested { border-color: var(--accent-line); }
 
-.sec { margin: 0 0 28px; min-width: 0; }
+.sec { margin: 0 0 28px; min-width: 0; line-height: 1.7; }
 .sec h2 {
   font-size: 1rem;
   color: var(--accent);
@@ -353,10 +353,10 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
 }
 .sec h2::before { content: "## "; color: var(--dim); }
 .sec h3, .sec h4, .sec h5, .sec h6 { font-size: 0.95rem; margin: 16px 0 6px; }
-.sec p { margin: 0 0 10px; overflow-wrap: anywhere; }
-.sec ul, .sec ol { margin: 0 0 10px; padding-left: 1.6em; }
-.sec li { margin: 3px 0; overflow-wrap: anywhere; }
-.sec li > ul, .sec li > ol { margin: 4px 0; }
+.sec p { margin: 0 0 14px; overflow-wrap: anywhere; }
+.sec ul, .sec ol { margin: 0 0 14px; padding-left: 1.6em; }
+.sec li { margin: 8px 0; overflow-wrap: anywhere; }
+.sec li > ul, .sec li > ol { margin: 10px 0; }
 .sec code {
   background: var(--accent-soft);
   border-radius: 3px;
