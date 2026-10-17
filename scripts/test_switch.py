@@ -876,5 +876,57 @@ class LauncherAccountBoundTest(Base):
         self.assertEqual(self.log("b.jsonl")[-1]["args"], ["--continue", "--remote-control"])
 
 
+class TwoAccountsNeverAskTest(Base):
+    """Exactly two accounts: nothing to choose, so /switch never asks."""
+    def setUp(self):
+        super().setUp()
+        self.register("main", "alt")
+        self.env = {"CLAUDE_SWITCH_LAUNCHER": "4242", "CLAUDE_SWITCH_ACCOUNT": "main",
+                    "CLAUDE_CODE_BRIDGE_SESSION_ID": "b1"}
+        self.transcript = self.home / ".claude" / "projects" / "p" / (SID + ".jsonl")
+        self.transcript.parent.mkdir(parents=True)
+        self.transcript.write_text("{}\n")
+
+    def req(self):
+        return json.loads((self.sw / "requests" / "4242.json").read_text())
+
+    def test_rc_on_switches_at_once(self):
+        for argv in (("request", "--session", SID), ("request", "alt", "--session", SID)):
+            rc, out = self.main(*argv, env=self.env)
+            self.assertEqual((rc, self.req()["rc"]), (0, True))
+            self.assertIn("note: Remote Control is on", out)
+            self.assertNotIn("live:", out)
+            self.assertNotIn("stops this question", out)
+            self.assertNotIn("rerun with yes", out)
+            self.assertIn("switching to 'alt'", out)
+            self.assertEqual(self.requests(), ["4242.json", "4242.note.md"])
+            os.remove(self.sw / "requests" / "4242.json")
+
+    def test_live_subagent_switches_at_once(self):
+        agent_file(self.transcript.with_suffix("") / "subagents", "a1", False, 3600)
+        rc, out = self.main("request", "alt", "--session", SID, env=self.env)
+        self.assertEqual(rc, 0)
+        self.assertIn("note: 1 subagent (a1)", out)
+        self.assertIn("- live subagents: a1", (self.sw / "requests" / "4242.note.md").read_text())
+
+    def test_three_accounts_still_ask(self):
+        self.register("main", "alt", "work")
+        rc, out = self.main("request", "alt", "--session", SID, env=self.env)
+        self.assertEqual(rc, cs.NEED_YES)
+        self.assertIn("live: Remote Control is on", out)
+        self.assertEqual(self.requests(), [])
+        self.main("rc-ok", "alt", "on")
+        rc, _ = self.main("request", "alt", "--session", SID, env=self.env)
+        self.assertEqual((rc, self.req()["rc"]), (0, True))
+
+    def test_hook_switches_on_first_try(self):
+        with mock.patch.dict(os.environ, self.env):
+            msg = cs.hook_switch("4242", [], {"session_id": SID, "transcript_path": str(self.transcript)})
+        self.assertIn("switching to 'alt'", msg)
+        self.assertNotIn("again within", msg)
+        self.assertEqual(self.req()["rc"], True)
+        self.assertNotIn("4242.pending.json", self.requests())
+
+
 if __name__ == "__main__":
     unittest.main()

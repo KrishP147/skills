@@ -254,15 +254,17 @@ def live_agents(transcript, now=None):
     return out
 
 
-def pre_switch_check(current, target, agents, rc):
+def pre_switch_check(current, target, agents, rc, ask=True):
     """(text, needs_yes). Live: subagents, Remote Control (unless the
-    target has rc_ok). The rest are reminders that never ask."""
+    target has rc_ok). The rest are reminders that never ask. ask=False
+    (only two accounts: nothing to choose) prints the same lines as notes
+    and never asks."""
     cur = current or "this account"
     lines = ["before switching %s -> %s:" % (cur, target["name"])]
     if agents:
-        lines.append("  live: %d subagent%s (%s): paused by the switch; resume each with SendMessage after relaunch"
-                     % (len(agents), "" if len(agents) == 1 else "s", ", ".join(agents)))
-    rc_ask = rc and not target.get("rc_ok")
+        lines.append("  %s: %d subagent%s (%s): paused by the switch; resume each with SendMessage after relaunch"
+                     % ("live" if ask else "note", len(agents), "" if len(agents) == 1 else "s", ", ".join(agents)))
+    rc_ask = ask and rc and not target.get("rc_ok")
     if rc:
         lines.append("  %s: Remote Control is on: this session reappears under %s's Claude apps; "
                      "a phone signed into %s loses it%s"
@@ -274,7 +276,7 @@ def pre_switch_check(current, target, agents, rc):
         "  follows the login: run /mcp on %s for claude.ai connectors and MCP OAuth; "
         "the Chrome extension must be signed into %s's org" % (target["name"], target["name"]),
     ]
-    return "\n".join(lines), bool(agents or rc_ask)
+    return "\n".join(lines), bool(ask and agents or rc_ask)
 
 
 def _git(cwd, *args):
@@ -327,7 +329,8 @@ def split_yes(reg, words):
 def make_request(name, session, confirmed=False, transcript=None, cwd=None):
     """Print-ready (rc, message). Writes the pre-switch check, then the
     resume note and this launcher's request file. rc 2 = not under a
-    launcher; NEED_YES = something live and not confirmed (nothing written)."""
+    launcher; NEED_YES = something live, 3+ accounts, and not confirmed
+    (nothing written). With two accounts it never asks."""
     launcher = os.environ.get("CLAUDE_SWITCH_LAUNCHER")
     if not launcher:
         return 2, setup_steps()
@@ -341,7 +344,7 @@ def make_request(name, session, confirmed=False, transcript=None, cwd=None):
     transcript = str(Path(transcript).absolute()) if transcript else ""
     agents = live_agents(transcript)
     rc = bool(os.environ.get("CLAUDE_CODE_BRIDGE_SESSION_ID"))
-    check, needs_yes = pre_switch_check(current, target, agents, rc)
+    check, needs_yes = pre_switch_check(current, target, agents, rc, ask=len(reg["accounts"]) >= 3)
     if needs_yes and not confirmed:
         return NEED_YES, check + "\nsomething above is live: nothing switched yet."
     ensure_home()
@@ -1449,7 +1452,7 @@ def guard(reg, now):
 
 
 def hook_switch(launcher, words, data, now=None):
-    """Two-step confirm without the model: when something is live the first
+    """Two-step confirm without the model: with 3+ accounts and something live the first
     `/switch [name]` prints the check, writes a pending marker and switches
     nothing; the same command again within 120 s, or `/switch [name] yes`,
     confirms. Returns the message for the block reason."""
