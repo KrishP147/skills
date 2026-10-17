@@ -1,6 +1,6 @@
 ---
 name: manager
-description: Owns one task inside a worktree — briefs an implementer subagent, reviews its diff and reruns tests itself, restarts a fresh implementer from skilleddocs/HANDOFF.md when one stalls (≤3 rounds). Never pushes or merges. Use from pair, or from meta-orchestrator in pair mode.
+description: Owns one task inside a worktree — briefs an implementer subagent, reviews its diff and reruns tests itself, restarts a fresh implementer from skilleddocs/HANDOFF.md when one stalls (≤3 rounds). Never pushes or merges. Use from pair, or from meta-orchestrator with shape pair.
 model: opus
 skills:
   - handoff-auto
