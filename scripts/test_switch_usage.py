@@ -235,13 +235,32 @@ class HookTest(Base):
         self.assertEqual(self.requests(), [])
 
     def test_passes_through(self):
-        for prompt in ("/switch add work2", "/switch remove alt", "/switch list", "/switch theme alt dark",
-                       "/switcher alt", "please /switch alt", "hello"):
+        for prompt in ("/switch add work2", "/switch remove alt", "/switch list extra", "/switch theme alt dark",
+                       "/switch setup", "/switch setup work", "/switcher alt", "please /switch alt", "hello"):
             self.assertIsNone(self.hook(prompt, self.env), prompt)
         self.assertIsNone(self.hook("/switch alt"))  # not under a launcher: the skill shows setup steps
         self.assertIsNone(self.hook(None, self.env, raw=b"not json"))
         self.assertIsNone(self.hook(None, self.env, raw=b"[]"))
         self.assertEqual(self.requests(), [])
+
+    def test_list_answered_with_or_without_launcher(self):
+        (self.home / ".claude").mkdir()
+        (self.home / ".claude" / ".credentials.json").write_text("{}")
+        for env in (self.env, {}):
+            out = self.hook("  /switch list ", env)
+            self.assertEqual(out["decision"], "block")
+            self.assertTrue(out["hookSpecificOutput"]["suppressOriginalPrompt"])
+            lines = out["reason"].splitlines()
+            self.assertEqual(len(lines), 3)
+            self.assertIn("logged in", lines[0])
+            self.assertTrue(lines[0].endswith("(current)"))  # main: CLAUDE_CONFIG_DIR unset = ~/.claude
+            self.assertNotIn("\x1b", out["reason"])
+        self.assertEqual(self.hook("/skills:switch list")["decision"], "block")
+        self.assertEqual(self.requests(), [])
+
+    def test_list_broken_registry_passes_through(self):
+        cs.registry_path().write_text("{broken")
+        self.assertIsNone(self.hook("/switch list", self.env))
 
     def test_guard_message_on_prompt(self):
         cs.atomic_write(cs.usage_path("main"), json.dumps(
@@ -615,6 +634,74 @@ class LauncherThemeTest(Base):
         self.assertEqual(rc, 0, err)
         self.assertEqual(log[1]["previous"], "boss")
         self.assertIn("boss -> alt", err)
+
+
+class ListTest(Base):
+    def setUp(self):
+        super().setUp()
+        self.reg = self.register("main", "alt", "work")  # work's dir never created
+        self.main_dir, self.alt_dir = self.home / ".claude", self.tmp / "cfg-alt"
+        self.main_dir.mkdir()
+        self.alt_dir.mkdir()
+
+    def lines(self, env=None):
+        with mock.patch.dict(os.environ, env or {}):
+            return dict(zip(("main", "alt", "work"), cs.list_lines(cs.load(), NOW)))
+
+    def test_login_and_email(self):
+        (self.main_dir / ".credentials.json").write_text("{}")
+        # ~/.claude keeps its .claude.json in HOME; a stray one inside the dir is ignored
+        (self.home / ".claude.json").write_text(json.dumps({"oauthAccount": {"emailAddress": "ana@example.com"}}))
+        (self.main_dir / ".claude.json").write_text(json.dumps({"oauthAccount": {"emailAddress": "old@example.com"}}))
+        (self.alt_dir / ".claude.json").write_text(json.dumps({"oauthAccount": {"emailAddress": "sam@example.com"}}))
+        out = self.lines()
+        self.assertIn("  logged in   ana@example.com  ", out["main"])
+        self.assertIn("  logged out  sam@example.com  ", out["alt"])  # no credentials file, not macOS
+        self.assertIn("  logged out  -  ", out["work"])
+        with mock.patch.object(cs, "MACOS", True):  # login in the Keychain: oauthAccount counts
+            out = self.lines()
+        self.assertIn("  logged in   sam@example.com", out["alt"])
+        self.assertIn("  logged out  -  ", out["work"])
+
+    def test_default_dir_falls_back_to_inner_file(self):
+        (self.main_dir / ".claude.json").write_text(json.dumps({"oauthAccount": {"emailAddress": "ana@example.com"}}))
+        self.assertIn("ana@example.com", self.lines()["main"])
+
+    def test_bad_claude_json(self):
+        for text in ("{not json", "[]", '{"oauthAccount": "x"}', '{"oauthAccount": {"emailAddress": 7}}', "\xff"):
+            (self.alt_dir / ".claude.json").write_bytes(text.encode("latin-1"))
+            with mock.patch.object(cs, "MACOS", True):
+                self.assertIn("  logged %s  -  " % ("in " if "oauthAccount\": {" in text else "out"),
+                              self.lines()["alt"], text)
+
+    def test_usage_cells(self):
+        cs.atomic_write(cs.usage_path("main"), json.dumps({
+            "seen": NOW, "five_hour": {"pct": 42.4, "resets_at": NOW + 8010},
+            "seven_day": {"pct": 18, "resets_at": NOW + 4 * 86400 + 6 * 3600 + 600}}))
+        cs.atomic_write(cs.usage_path("alt"), "garbage")
+        cs.atomic_write(cs.usage_path("work"), json.dumps({  # stale: past reset, and seen too long ago
+            "seen": NOW - 6 * 3600, "five_hour": {"pct": 99, "resets_at": None},
+            "seven_day": {"pct": 70, "resets_at": NOW - 1}}))
+        out = self.lines()
+        self.assertIn("session 42% (2h13m left)  week 18% (4d6h left)", out["main"])
+        self.assertRegex(out["alt"], r"session -\s+week -\s+last used never")
+        self.assertRegex(out["work"], r"session 0%\s+week 0%\s+last used never")
+
+    def test_aligned_current_no_ansi(self):
+        cs.touch("alt")
+        out = self.lines({"CLAUDE_CONFIG_DIR": str(self.alt_dir)})
+        cols = {line.index("session") for line in out.values()} | {line.index("last used") for line in out.values()}
+        self.assertEqual(len(cols), 2)
+        self.assertTrue(out["alt"].endswith("%s  (current)" % self.alt_dir))
+        self.assertTrue(out["main"].startswith("main  cyan "))
+        self.assertIn(" UTC  ", out["alt"])
+        self.assertNotIn("\x1b", "".join(out.values()))
+        with mock.patch.dict(os.environ, {"CLAUDE_SWITCH_ACCOUNT": "work"}):
+            self.assertTrue(cs.list_lines(cs.load(), NOW, tty=True)[2].startswith("\x1b[43m  \x1b[0m work"))
+
+    def test_empty(self):
+        cs.save({"accounts": []})
+        self.assertEqual(cs.list_lines(cs.load(), NOW), ["no accounts; run /switch setup, or migrate"])
 
 
 if __name__ == "__main__":

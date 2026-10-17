@@ -25,16 +25,7 @@ ORIGINAL_TIMEOUT = 5
 LABELS = (("five_hour", "session"), ("seven_day", "week"))
 
 
-def time_left(secs):
-    secs = int(secs)
-    if secs < 60:
-        return "<1m"
-    d, h, m = secs // 86400, secs % 86400 // 3600, secs % 3600 // 60
-    if d:
-        return "%dd%dh" % (d, h)
-    if h:
-        return "%dh%02dm" % (h, m)
-    return "%dm" % m
+time_left = cs.time_left  # one format for the statusline and `list`
 
 
 def window(label, w, now):
