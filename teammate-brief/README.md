@@ -27,7 +27,7 @@ Writes a handoff document for a person joining or picking up a project. It cover
 /teammate-brief [teammate name or role]
 ```
 
-Model-invocable, so the trigger phrases above work without the slash.
+Claude also runs it when you say one of the phrases above.
 
 ## How it works
 
@@ -47,7 +47,7 @@ Model-invocable, so the trigger phrases above work without the slash.
 6. **Don't-touch list** — what to leave alone and why, per item.
 7. **Draft, then write** — shows the full draft before writing.
    - Saves to `skilleddocs/briefs/<name>-<local-date>.md` on confirmation (`teammate` when no name was given).
-8. **GATE**
+8. **Gate.**
    - Commits only when [`TRACKING.md`](../handoff-auto/TRACKING.md) allows it and on yes.
    - Pushes only on a separate yes.
    - Never shares or sends the document anywhere.
@@ -69,7 +69,7 @@ Model-invocable, so the trigger phrases above work without the slash.
 
 ## Tips
 
-- No strong opinions on the §1 questions? Say "go" — the defaults assume a
+- No strong opinions on the step 1 questions? Say "go". The defaults assume a
   newcomer, which means more detail, not less.
 - If a setup step needs credentials you don't have, say so — an "unverified"
   step with a clear reason is more useful than a guess presented as fact.
