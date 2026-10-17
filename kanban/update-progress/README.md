@@ -12,17 +12,40 @@ In a fresh session after [`session-handoff`](../session-handoff/). The `verifier
 
 ## How to invoke
 
-`/update-progress [path to handoff doc]` — omit the path to use the newest file by mtime in `skilleddocs/handoffs/` across all worktrees (then the OS temp dir). Model-invocable.
+`/update-progress [path to handoff doc]`
+
+- Omit the path to use the newest file by mtime in `skilleddocs/handoffs/` across all worktrees (then the OS temp dir).
+- Model-invocable.
 
 ## How it works
 
-1. **Locate the handoff** (given path, or newest by mtime in the handoff folder (`AGENTS.md`/`CLAUDE.md`'s, else `skilleddocs/handoffs/`) of every `git worktree list` entry, current first, other worktrees' untracked files only, skipping one whose issues already carry a "verified, merged" comment; tied mtimes are listed and you are asked; then temp dir).
-2. **Verify claims:** `git log` over the handoff's base SHA..head (else `git merge-base <default> <branch>`); fetches first and counts head as merged when it is on `origin/<default>` or the branch has a merged PR containing it (squash and rebase merges count; a deleted PR branch is read via the PR's `pull/<n>/head` ref; an erroring check never counts as merged); runs the repo's test suite on the handoff's code: the default checkout (fast-forwarded) if head is merged, else the worktree with the branch checked out, else a temporary `git worktree add` of head. Doesn't trust "tests pass".
+1. **Locate the handoff**: the given path, or the newest by mtime.
+   - Looks in the handoff folder (`AGENTS.md`/`CLAUDE.md`'s, else `skilleddocs/handoffs/`) of every `git worktree list` entry, current first.
+   - Other worktrees' untracked files only.
+   - Skips one whose issues already carry a "verified, merged" comment.
+   - Tied mtimes are listed and you are asked.
+   - Then temp dir.
+2. **Verify claims:** `git log` over the handoff's base SHA..head (else `git merge-base <default> <branch>`).
+   - Fetches first and counts head as merged when it is on `origin/<default>` or the branch has a merged PR containing it (squash and rebase merges count; a deleted PR branch is read via the PR's `pull/<n>/head` ref; an erroring check never counts as merged).
+   - Runs the repo's test suite on the handoff's code: the default checkout (fast-forwarded) if head is merged, else the worktree with the branch checked out, else a temporary `git worktree add` of head.
+   - Doesn't trust "tests pass".
 3. **Code review** via the `code-review` skill if product code changed.
-4. **Update docs that exist** (only once the work is merged into the default branch): roadmap checkboxes, status doc rows + dated entry, decisions doc (only if a decision was recorded), else README status section / `CHANGELOG.md` / `docs/`. Moves a "current phase" marker to where merges are landing; fixes README feature lists that miss merged capabilities. Never invents doc structure.
-5. **Update the board:** comments on the issue; closes it and moves the card to Done if complete, verified and merged; complete and verified but unmerged → In Review with a "verified, awaiting merge" comment; otherwise sets the card/label to where it stands. Label mode: creates `status:done` first if missing; complete, verified and merged → `status:in-review` (or a never-moved `status:in-progress`) becomes `status:done`; partial/blocked keeps its label.
+4. **Update docs that exist** (only once the work is merged into the default branch):
+   - Roadmap checkboxes, status doc rows + dated entry, decisions doc (only if a decision was recorded), else README status section / `CHANGELOG.md` / `docs/`.
+   - Moves a "current phase" marker to where merges are landing.
+   - Fixes README feature lists that miss merged capabilities.
+   - Never invents doc structure.
+5. **Update the board:** comments on the issue.
+   - Closes it and moves the card to Done if complete, verified and merged.
+   - Complete and verified but unmerged → In Review with a "verified, awaiting merge" comment.
+   - Otherwise sets the card/label to where it stands.
+   - Label mode: creates `status:done` first if missing; complete, verified and merged → `status:in-review` (or a never-moved `status:in-progress`) becomes `status:done`; partial/blocked keeps its label.
 6. **Escalate deviations:** if the handoff's `## Board status` lists deviations/innovations, calls [`consult-plan`](../consult-plan/).
-7. **Commits the doc edits and the handoff** on the default branch (the handoff moved into the default checkout first if it sits in the task's worktree, so it can't block that branch's next merge; handoff only if it was left uncommitted and the repo is in commit mode per [`TRACKING.md`](../../handoff-auto/TRACKING.md)). A protected default branch (a PR required by classic protection or a ruleset; an unclear answer, e.g. no admin rights on the classic endpoint, means it asks) gets a `docs/` branch instead (or the repo's own branch prefix). Pushes, and opens that PR, only on your yes.
+7. **Commits the doc edits and the handoff** on the default branch.
+   - The handoff is moved into the default checkout first if it sits in the task's worktree, so it can't block that branch's next merge.
+   - Handoff only if it was left uncommitted and the repo is in commit mode per [`TRACKING.md`](../../handoff-auto/TRACKING.md).
+   - A protected default branch (a PR required by classic protection or a ruleset; an unclear answer, e.g. no admin rights on the classic endpoint, means it asks) gets a `docs/` branch instead (or the repo's own branch prefix).
+   - Pushes, and opens that PR, only on your yes.
 8. Ends by calling (or telling you to call) [`next`](../next/).
 
 ## Design principles
@@ -41,8 +64,11 @@ In a fresh session after [`session-handoff`](../session-handoff/). The `verifier
 
 ## Tips
 
-- Run it in a fresh session; with no argument it picks the newest file by mtime in the handoff folder of any worktree, so pass the path if several sessions ended recently.
-- Only complete, verified and merged work goes to Done and closes the issue; verified but unmerged waits in In Review; anything else is set to where it really stands.
+- Run it in a fresh session.
+- With no argument it picks the newest file by mtime in the handoff folder of any worktree, so pass the path if several sessions ended recently.
+- Only complete, verified and merged work goes to Done and closes the issue.
+- Verified but unmerged waits in In Review.
+- Anything else is set to where it really stands.
 - Code review only runs when product code changed; the `verifier` agent skips it with `review-done=yes`.
 - It ends with `next`, so the following task is already on screen.
 
@@ -67,4 +93,6 @@ In a fresh session after [`session-handoff`](../session-handoff/). The `verifier
 
 ## Prereqs
 
-`gh`, authenticated with the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)). `consult-plan` and `next` installed; a `code-review` skill for the review step.
+- `gh`, authenticated with the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)).
+- `consult-plan` and `next` installed.
+- A `code-review` skill for the review step.

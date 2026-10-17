@@ -19,10 +19,16 @@ Ends an implementation session tied to a GitHub issue: writes the handoff docume
 
 1. Calls [`handoff-auto`](../../handoff-auto/) with the issue as argument; takes the path it prints.
 2. Appends `## Board status` to that doc: issues/cards touched, complete / partial / blocked, deviations from the issue, new ideas found mid-session.
-3. Moves the card (board lookup per [`next/BOARD.md`](../next/BOARD.md)): Projects v2 via `gh project item-edit` with IDs looked up from `gh project field-list` / `item-list` (GraphQL fallback when the list is stale); label fallback creates `status:in-review` first if missing, then swaps `status:in-progress` → `status:in-review` when complete, otherwise leaves it and comments if blocked. A Projects board with no In Review option: the card stays In Progress, the handoff says so, and it points at [`IN-REVIEW-OPTION.md`](../kanban-setup/IN-REVIEW-OPTION.md). Run by a guarded agent (`implementer`/`manager`, read-only `gh`), it skips the move and comment and lists them in the handoff for the caller.
+3. Moves the card (board lookup per [`next/BOARD.md`](../next/BOARD.md)).
+   - Projects v2 via `gh project item-edit` with IDs looked up from `gh project field-list` / `item-list` (GraphQL fallback when the list is stale).
+   - Label fallback creates `status:in-review` first if missing, then swaps `status:in-progress` → `status:in-review` when complete, otherwise leaves it and comments if blocked.
+   - A Projects board with no In Review option: the card stays In Progress, the handoff says so, and it points at [`IN-REVIEW-OPTION.md`](../kanban-setup/IN-REVIEW-OPTION.md).
+   - Run by a guarded agent (`implementer`/`manager`, read-only `gh`), it skips the move and comment and lists them in the handoff for the caller.
 4. Prints the handoff file path.
 
-Follows any handoff filename/section rules in the repo's `CLAUDE.md`/`AGENTS.md`. Commits the handoff only per [`handoff-auto/TRACKING.md`](../../handoff-auto/TRACKING.md): never on a fork, and in commit mode only when the current branch is the default; on a task branch it stays uncommitted on disk (`update-progress` commits it on the default branch), so it can't leak into the task's PR.
+- Follows any handoff filename/section rules in the repo's `CLAUDE.md`/`AGENTS.md`.
+- Commits the handoff only per [`handoff-auto/TRACKING.md`](../../handoff-auto/TRACKING.md): never on a fork, and in commit mode only when the current branch is the default.
+- On a task branch it stays uncommitted on disk (`update-progress` commits it on the default branch), so it can't leak into the task's PR.
 
 ## Design principles
 
@@ -70,4 +76,5 @@ Follows any handoff filename/section rules in the repo's `CLAUDE.md`/`AGENTS.md`
 
 ## Prereqs
 
-`gh`, authenticated with the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)). [`handoff-auto`](../../handoff-auto/) installed.
+- `gh`, authenticated with the `project` OAuth scope: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)).
+- [`handoff-auto`](../../handoff-auto/) installed.
