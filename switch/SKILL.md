@@ -1,7 +1,7 @@
 ---
 name: switch
 description: Move this conversation to another Claude account (the previous one, or one by name), or add, remove, rename and list accounts.
-argument-hint: "[account name] | add <name> | remove <name> [--delete-dir] | rename <old> <new> | list | theme <name> [theme]"
+argument-hint: "[account name] [yes] | add <name> | remove <name> [--delete-dir] | rename <old> <new> | list | theme <name> [theme] | rc-ok <name> on|off"
 disable-model-invocation: true
 allowed-tools:
   - Bash("${CLAUDE_SWITCH_PYTHON:-python3}" "${CLAUDE_SKILL_DIR}/scripts/claude_switch.py" request:*)
@@ -10,6 +10,7 @@ allowed-tools:
   - Bash("${CLAUDE_SWITCH_PYTHON:-python3}" "${CLAUDE_SKILL_DIR}/scripts/claude_switch.py" rename:*)
   - Bash("${CLAUDE_SWITCH_PYTHON:-python3}" "${CLAUDE_SKILL_DIR}/scripts/claude_switch.py" list:*)
   - Bash("${CLAUDE_SWITCH_PYTHON:-python3}" "${CLAUDE_SKILL_DIR}/scripts/claude_switch.py" theme:*)
+  - Bash("${CLAUDE_SWITCH_PYTHON:-python3}" "${CLAUDE_SKILL_DIR}/scripts/claude_switch.py" rc-ok:*)
 ---
 
 Pick the branch by the first word of `$ARGUMENTS` and run only its commands with the Bash tool, exactly as written, no text before the first one.
@@ -22,7 +23,7 @@ Pick the branch by the first word of `$ARGUMENTS` and run only its commands with
 
 Show its output as is. `switching to '<name>'` means the launcher ends this session and reopens it on the new account, which asks for a login; add nothing.
 
-**`rename <old> <new>`**, **`list`** or **`theme <name> [theme]`**:
+**`rename <old> <new>`**, **`list`**, **`theme <name> [theme]`** or **`rc-ok <name> on|off`**:
 
 ```
 "${CLAUDE_SWITCH_PYTHON:-python3}" "${CLAUDE_SKILL_DIR}/scripts/claude_switch.py" $ARGUMENTS
@@ -47,11 +48,12 @@ Show its output as is.
 
    Anything but yes: say nothing was changed and stop.
 
-**Anything else** (empty, or an account name): run this, repeat its output in one line and stop.
+**Anything else** (empty or an account name, either optionally followed by `yes`): run this and show its output as is.
 
 ```
 "${CLAUDE_SWITCH_PYTHON:-python3}" "${CLAUDE_SKILL_DIR}/scripts/claude_switch.py" request $ARGUMENTS --session "${CLAUDE_SESSION_ID}"
 ```
 
-- `switching to '<name>'` → the launcher ends this session and resumes it on that account. Add nothing.
+- Ends with `switching to '<name>'` → the launcher ends this session and resumes it on that account. Add nothing.
+- Ends with `rerun with yes` → nothing switched: something is live. Ask "Switch anyway? (yes/no)" and stop. Only on the user's explicit yes in their next message, run the same command with `yes` right after `$ARGUMENTS`; anything else: say nothing was switched.
 - Anything else (unknown name with the account list, already on that account, not started by the launcher with setup steps, python not found) → nothing was switched; show the output as is. Python not found means the session wasn't started by the launcher: point at the setup step in this skill's README.

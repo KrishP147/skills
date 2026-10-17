@@ -10,7 +10,9 @@ dir, and moves a live conversation from one to another. Start Claude with
 `/switch` closes it and reopens the same conversation on your previous
 account, `/switch <name>` on a named one. `/switch add|remove|rename|list`
 manages the accounts; new ones share skills, settings and history with
-the first. A statusline shows which account you're on and how much of
+the first. Before each switch it lists what stays with the old account
+(artifacts, routines) and what is live (Remote Control, running
+subagents), and asks first when something is. A statusline shows which account you're on and how much of
 its session and weekly limits is used, and warns you near the limit
 with the account that has the most room left.
 
@@ -47,6 +49,8 @@ Then, in a new shell, `claude` or `claude-alt`, and inside a session:
 /switch rename <old> <new>
 /switch list
 /switch theme <name> [dark|light|...|-]
+/switch rc-ok <name> on|off
+/switch [name] yes
 ```
 
 User-invoked only; Claude never switches on its own. To take the
@@ -72,14 +76,22 @@ statusline and hook back out of `settings.json`:
    records the account as last used.
 3. **`/switch`** runs `claude_switch.py request [name] --session <this
    session id>`. With no name it picks the account this launcher came
-   from, else the most recently used other one. It writes
-   `~/.claude-switch/requests/<launcher pid>.json` and nothing else;
-   unknown names list the accounts, a session not started by the launcher
-   gets the setup steps.
+   from, else the most recently used other one. It prints the pre-switch
+   check (see "What follows the account"); when something there is live
+   it switches nothing until you confirm with `yes`. Otherwise it writes
+   a resume note to `~/.claude-switch/requests/<launcher pid>.note.md`
+   and the request to `requests/<launcher pid>.json` (target, session,
+   Remote Control on or off, the transcript's absolute path); unknown
+   names list the accounts, a session not started by the launcher gets
+   the setup steps.
 4. **Relaunch.** The launcher sees its own request file, ends Claude
    (Windows: the whole process tree, MCP servers included), restores the
    terminal (raw mode, alt screen, bracketed paste, cursor) and starts the
-   target account with `--resume <session id>`. If that exits with an
+   target account with `--resume <session id>`, or `--resume <absolute
+   transcript path>` when the target's `projects/` doesn't hold the
+   session (an account with its own, unshared history), plus
+   `--remote-control` when Remote Control was on. The switch line is
+   followed by the resume note's path. If that exits with an
    error within 10 s it prints one line and uses `--continue`. Other
    args you started Claude with (e.g. `--model`) are not carried across
    a switch; only `--resume` / `--continue` are passed.
@@ -131,8 +143,10 @@ statusline and hook back out of `settings.json`:
     is out of usage. Claude Code passes a typed skill line to this hook
     as typed, before the skill expands (hooks reference, section
     "UserPromptSubmit input"; blocking per "UserPromptSubmit decision
-    control"). `add`, `remove`, `rename`, `list` and `theme` still go
-    through the skill.
+    control"). When the check finds something live, the first `/switch
+    [name]` shows it and switches nothing; type the same command again
+    within 120 s, or `/switch [name] yes`, to switch. `add`, `remove`,
+    `rename`, `list`, `theme` and `rc-ok` still go through the skill.
 12. **Theme and title.** `/switch theme <name> <theme>` gives an account
     its own Claude theme: the launcher passes it as
     `--settings '{"theme":...}'`, merged with a `--settings` you passed
@@ -157,6 +171,41 @@ flowchart TD
   E --> B
   B -->|exit without a request| G[launcher exits with the same code]
 ```
+
+## What follows the account
+
+Login, settings and transcripts belong to a config dir; some features
+belong to the claude.ai account that is logged in there. Before every
+switch `/switch` prints what each of them does:
+
+- **Remote Control** (live). A Remote Control session lives on the
+  account of the Claude process. After the switch the launcher starts
+  the target with `--remote-control`, so the session reappears under
+  the target account's Claude apps, and a phone signed into the old
+  account loses it. `/switch` asks before doing that;
+  `/switch rc-ok <name> on` stops the question for that account.
+- **Subagents** (live). A subagent whose transcript (under the
+  session's `subagents/` folder) has no final reply yet, or changed in
+  the last 10 minutes, counts as running. The switch pauses it; after
+  the relaunch, `SendMessage` to its id resumes it with its history.
+  Explore and Plan agents are one-shot and can't be resumed.
+- **Background Bash commands and monitors** end with the old process
+  and are not resumed. This line is always shown and never asks on its
+  own.
+- **Artifacts published in this session and routines** stay on the old
+  account; republishing an artifact from the new one needs edit rights
+  to it.
+- **claude.ai connectors and MCP OAuth** follow the login: run `/mcp`
+  on the target to connect them there. The **Chrome extension** must be
+  signed into the target's organisation.
+
+Something live (a running subagent, or Remote Control without `rc-ok`)
+means a yes first; otherwise it switches straight away. Each switch also
+writes a resume note, `~/.claude-switch/requests/<launcher pid>.note.md`
+(session, working dir, branch, last commit, live subagent ids and what
+to do about them); the launcher prints its path under the switch line
+and deletes it when it exits. Point the resumed conversation at it if
+you need it.
 
 ## Design principles
 
@@ -190,10 +239,12 @@ flowchart TD
 
 ## Tips
 
-- Resuming needs the conversation's transcript under the target's config
-  dir. Accounts made with `add` share `projects/`, so it is there; for
-  accounts registered by `setup` or `migrate` it isn't, and a resume
-  falls back to `--continue` (the target's own latest conversation).
+- Accounts made with `add` share `projects/`, so the target resumes the
+  session by id. For accounts registered by `setup` or `migrate` it
+  isn't there, so the launcher passes the transcript's absolute path
+  instead (a Windows path with spaces as its short 8.3 name); if that
+  resume fails too, it falls back to `--continue` (the target's own
+  latest conversation).
 - Windows without Developer Mode can't make file symlinks: `add`
   hardlinks `settings.json` and `CLAUDE.md` instead (or copies across
   drives) and warns. Claude rewrites `settings.json` by replacing the
@@ -232,8 +283,13 @@ flowchart TD
 ```
 
 ```
+before switching main -> alt:
+  dies: background Bash commands and monitors, if any (Explore/Plan agents are one-shot)
+  stays on main: artifacts published this session (republishing needs edit rights), routines
+  follows the login: run /mcp on alt for claude.ai connectors and MCP OAuth; the Chrome extension must be signed into alt's org
 switching to 'alt': this session ends now and resumes there.
 >> claude-switch: main -> alt
+   resume note: ~/.claude-switch/requests/41236.note.md
 ```
 
 The same conversation reopens on `alt`. `/switch nope` instead prints
