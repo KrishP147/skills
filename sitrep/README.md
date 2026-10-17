@@ -40,11 +40,11 @@ type the slash command.
 1. **What's running.** Collects the IDs of background tasks from the conversation, skipping any whose completion notice already arrived.
    - Sources: `Bash`/`PowerShell` with `run_in_background`, `Monitor` loops, background `Agent` launches.
    - Reports each one's age and its last output line (read from the task's output file, or `TaskOutput`, now deprecated).
-   - Checks `ListAgents` (if available) for other agents you can message.
+   - Checks `ListAgents` (if available) and notes other agents that look stalled.
 2. **Git.** For each repo this session ran git in (not only the current one):
    - `git worktree list`.
-   - Per worktree, `git status --porcelain` and `git status --porcelain --ignored -- skilleddocs` (handoffs in an excluded `skilleddocs/`, or an `AGENTS.md`-set handoff folder).
-   - Per worktree, unpushed commits (`git log <ref>..`, `<ref>` = the upstream, else `origin/<branch>`, else `origin/<default>`; never the local default branch, which hides commits made on it).
+   - Per worktree, `git status --porcelain` and `git status --porcelain --ignored -- skilleddocs`. The second one finds handoffs in an excluded `skilleddocs/`, or in a handoff folder set in `AGENTS.md`.
+   - Per worktree, unpushed commits: `git log <ref>..`, where `<ref>` is the upstream, else `origin/<branch>`, else `origin/<default>`. Never the local default branch, which would hide commits made on it.
    - No remote ref: unpushed is "unknown", and that blocks SAFE.
    - A branch with 0 commits and a clean tree has nothing to push; "never pushed" is only for commits with no `origin/<branch>`.
 3. **PRs + CI.** `gh pr list --author @me` with checks status.
@@ -59,7 +59,7 @@ type the slash command.
      Saved on disk means untracked (the only option on forks) or, in commit mode, a dated handoff left uncommitted on a task branch.
      That file doesn't count as dirty, and `sitrep` never suggests committing it.
    - An untracked handoff covers only the work it describes.
-     The verdict is NOT SAFE when its worktree is a non-main one or was made by pair/meta-orchestrator (it would be removed with the worktree), or when unsure.
+     It is lost if its worktree is removed, so the verdict is NOT SAFE when that worktree isn't the main one, was made by pair or meta-orchestrator, or when unsure.
    - Otherwise NOT SAFE, with the specific reasons.
 7. **On "close" / "yes, stop them":** lists exactly what will be stopped and what (if anything) would be committed/pushed, and waits for an explicit yes before doing either.
    - On yes, stops background tasks with `TaskStop` (if available).

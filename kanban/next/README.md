@@ -21,13 +21,13 @@ Shows the next 1–3 tasks to work on, pulled from the repo's GitHub kanban boar
 
 ## How it works
 
-1. **Find the board** (the canonical lookup other kanban skills reuse): `gh project list --owner <owner>`, filtered to the title `<repo> Board` or boards linking this repo's issues.
+1. **Find the board** (the same lookup the other kanban skills use): `gh project list --owner <owner>`, filtered to the title `<repo> Board` or boards linking this repo's issues.
    - One match → use it; several → asks you.
    - None → `status:todo` / `status:in-progress` / `status:in-review` / `status:done` labels. Whichever skill applies one first creates it (`gh label create status:<name> --color <hex> --force`); each label has a fixed color, so repeat calls change nothing.
    - None → a roadmap doc (`ROADMAP.md`, `docs/roadmap.md`) whose execution order links issues.
    - Nothing → tells you to run `/kanban-setup`.
-2. **Burning priority:** workflow names come from `gh workflow list --json name -q '.[].name'`.
-   - The most recent *completed* run on the default branch, red only if its conclusion is `failure`.
+2. **Failing CI comes first:** workflow names come from `gh workflow list --json name -q '.[].name'`.
+   - It checks the most recent *completed* run on the default branch, which counts as red only if its conclusion is `failure`.
    - An old, since-fixed failure doesn't count.
    - `cancelled`/`timed_out` aren't treated as red.
    - Checked per workflow when there are several.
@@ -68,7 +68,7 @@ Shows the next 1–3 tasks to work on, pulled from the repo's GitHub kanban boar
 /next
 ```
 
-The board `myrepo Board` is found by title. The latest completed CI run on `main` passed, so nothing burns. Two Todo items come back, ordered by priority label:
+The board `myrepo Board` is found by title. The latest completed CI run on `main` passed, so nothing jumps the queue. Two Todo items come back, ordered by priority label:
 
 ```
 1. #31 Add CSV export (size:M, fast model: narrow, well-specified)

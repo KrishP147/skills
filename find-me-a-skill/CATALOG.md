@@ -93,7 +93,7 @@ human-in-the-loop points: nothing continues without you.
 4. you: Answer each round yourself, one ticket per session, until no tickets or fog remain.
 5. /divide (skill, opus · medium): Proposes 2+ session-sized issues from the map, each with a done-when; creates nothing yet.
 6. you: Say yes to the split: the issues go on the board at Todo, the map gets a Handed off list and closes.
-7. /meta-orchestrator (skill, opus · high): Loops planner, manager or implementer, its own merge gate and verifier per issue, logging each step to the ledger.
+7. /meta-orchestrator (skill, opus · high): For each issue, runs the planner, then a manager or implementer, its own merge gate and the verifier, logging each step to the ledger.
 
 ### pitch-an-idea: Pitch an idea against the plan
 
@@ -109,7 +109,7 @@ human-in-the-loop points: nothing continues without you.
 1. you: Start /meta-orchestrator on the repo and answer the setup interview that writes the scope contract.
 2. /lanes (skill, sonnet · medium): Groups the queued issues into file-disjoint lanes and proposes them with a cost line.
 3. you: Confirm the lanes with an explicit yes, or pin, rename or move issues first.
-4. /meta-orchestrator (skill, opus · high): Loops planner, manager or implementer, its own merge gate and verifier per issue, logging each step to the ledger.
+4. /meta-orchestrator (skill, opus · high): For each issue, runs the planner, then a manager or implementer, its own merge gate and the verifier, logging each step to the ledger.
 5. planner (agent, opus · medium): Runs next, picks exactly one issue and returns a kickoff brief of at most 40 lines.
 6. manager (agent, opus · high): Briefs an implementer, reviews every round inline and reruns the tests itself, for up to 3 rounds.
 7. implementer (agent, sonnet · medium): Implements on its branch, commits small, watches the tests pass and ends with session-handoff.
@@ -134,7 +134,7 @@ human-in-the-loop points: nothing continues without you.
 1. you: Label issues size:XS to size:XL if you know their size, and pick shape auto (or pin pair, swarm or flat) in the meta-orchestrator setup.
 2. /meta-orchestrator (skill, opus · high): Reads shape from scope.md (an old execution key counts as shape) and runs each brief in the shape it names.
 3. planner (agent, opus · medium): Rates size (a size label wins), recommends a shape and the implementer model, and batches trivial, file-disjoint, exact-spec issues into one swarm brief.
-4. implementer (agent, sonnet · medium): Swarm: one haiku implementer per item, each in its own worktree off the batch branch, one parallel slot each; flat: one per issue on the model its size calls for.
+4. implementer (agent, sonnet · medium): Swarm: one haiku implementer per item, each in its own worktree off the batch branch and using one parallel slot. Flat: one implementer per issue, on the model its size calls for.
 5. manager (agent, opus · high): Pair, the default: picks the implementer model by size (trivial haiku, small or medium sonnet, large or risky opus) and reviews every round; also takes the fix brief when a swarm batch's review finds a problem.
 6. verifier (agent, opus · high): Checks the merged issue or batch against git, tests and CI; skips its own code review after pair or swarm, which were already reviewed.
 7. you: With merge=ask, approve each PR: one per pair or flat issue, one per swarm batch closing all its items.
@@ -211,7 +211,7 @@ human-in-the-loop points: nothing continues without you.
 1. you: Run claude_switch.py setup (or migrate for existing ~/.claude-<name> dirs) once, then start Claude with claude or claude-<name> so a launcher watches the session.
 2. /switch (skill, haiku · low): /switch add <name> makes a new account that shares the first one's skills, settings and history and moves you into it to log in; remove, rename and list manage the rest.
 3. you: The statusline shows the account and its session and weekly use; near the limit a warning names the account with the most room. Type /switch or /switch <name>; it is user-only, so Claude can't start it.
-4. /switch (skill, haiku · low): A prompt hook writes a request for this terminal's launcher only, with no API call so it works at 100%; the launcher ends the session and resumes it on the target account (--continue when --resume fails).
+4. /switch (skill, haiku · low): A prompt hook writes a switch request for this terminal's launcher only. It makes no API call, so it works even at 100% usage. The launcher ends the session and resumes it on the target account (with --continue if --resume fails).
 5. /sitrep (skill, haiku · low): On the new account, lists what was running and asked vs done, so nothing from before the move is lost.
 6. /remind (skill, haiku · low): /remind when <old account>'s session limit resets takes the reset time from the usage cache and pops a toast then; the next prompt on any account says it once.
 7. you: Carry on; /switch with no name goes back to the account you came from.

@@ -138,7 +138,7 @@ class DetailPagesTest(unittest.TestCase):
             rest = page.replace(install, "")
             self.assertNotIn("Works on its own.", rest, name)
             self.assertNotIn("(installed with it).", rest, name)
-        self.assertIn('<p class="needs">Needs: <code>divide</code>, <code>next</code> (installed with it).</p>',
+        self.assertIn('<p class="needs">Needs: <code>divide</code>, <code>next</code>, the <code>guard-git</code> hook (installed with it).</p>',
                       self.pages["planner"])
 
     def test_pop_needs(self):

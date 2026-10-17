@@ -47,7 +47,7 @@ You can also run it directly:
 6. **Run + remind** - run the approved action, then remind about teardown
    or an auto-stop/idle-timeout for anything left running.
 7. **Approval token** - if `hooks/spend-guard.py` blocks the action, write
-   the approval it expects (see that hook's docs) only after step 4's yes.
+   the approval it expects (see [HOOK.md](HOOK.md)) only after step 4's yes.
 
 ## Design principles
 
@@ -65,8 +65,8 @@ You can also run it directly:
 - About to provision a GPU pod for a training/eval run.
 - About to call a paid API in a loop (batch scoring, embeddings) where the
   per-call cost adds up.
-- Reviewing whether a repo's existing spend approvals in `skilleddocs/
-  spend.md` still look right before continuing a paused job.
+- Reviewing whether a repo's existing spend approvals in
+  `skilleddocs/spend.md` still look right before continuing a paused job.
 
 ## Tips
 

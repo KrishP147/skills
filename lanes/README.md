@@ -2,7 +2,7 @@
 
 *`SKILL.md` is the prompt Claude follows; this file is for you.*
 
-Needs: `consult-plan`, `divide`, `handoff-auto`, `kanban-setup`, `meta-orchestrator`, `next`, `pair`, `progress-report`, `session-handoff`, `update-progress`, `implementer`, `manager`, `planner`, `verifier` (installed with it).
+Needs: `consult-plan`, `divide`, `handoff-auto`, `kanban-setup`, `meta-orchestrator`, `next`, `pair`, `progress-report`, `session-handoff`, `update-progress`, `implementer`, `manager`, `planner`, `verifier`, the `guard-git` hook (installed with it).
 
 ## What it does
 
@@ -22,7 +22,7 @@ Sets how many issues a [`meta-orchestrator`](../meta-orchestrator/) run works on
 ```
 
 - `/lanes 3`: regroup the queue into 3 lanes.
-- `/lanes increase` / `decrease`: usually ±1, chosen and explained by the model.
+- `/lanes increase`: usually one more lane. `/lanes decrease`: one fewer. Claude picks which lanes change and explains why.
 
 Also model-invocable: meta-orchestrator's setup calls it for `parallel:`.
 
@@ -38,7 +38,7 @@ Also model-invocable: meta-orchestrator's setup calls it for `parallel:`.
    - Issues whose file sets overlap share a lane, in queue order; the groups left are the independent streams.
    - Lanes get area names (`site`, `hooks`), not numbers.
 4. **Picks the count.**
-   - Asking for more lanes than there are independent streams, or more than 4, gets questions: a best-guess grouping and the options, never a silent cap.
+   - Ask for more lanes than there are independent streams, or more than 4, and it asks you first: it shows a best-guess grouping and the options. It never caps the count silently.
    - `increase` usually adds one by splitting the longest lane on file-disjoint issues.
    - `decrease` merges two colliding lanes, or folds the shortest into the nearest.
 5. **Proposes.**

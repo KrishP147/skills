@@ -32,7 +32,7 @@ flowchart TD
 Card status flow: todo → in-progress → in-review → done.
 
 - **todo**: set explicitly by `gh project item-edit` when an issue is added — `item-add` alone leaves Status empty.
-- **in-progress**: set by `pair`/`meta-orchestrator`, on branch create; guarded agents get read-only `gh`.
+- **in-progress**: set by `pair` or `meta-orchestrator` when they create the branch (their guarded agents can only read with `gh`).
 - **in-review**: set by `session-handoff`.
 - **done**: set by `update-progress`, once verified and merged; unmerged stays in-review.
 - Label-mode `status:*` labels are created on first use (`gh label create --color <hex> --force`, colors in [`next/BOARD.md`](next/BOARD.md)), not assumed to exist.
@@ -52,4 +52,4 @@ Card status flow: todo → in-progress → in-review → done.
 
 If a repo has no board yet, start with `kanban-setup`.
 
-Handoffs and decisions these skills produce land in the repo's `skilleddocs/` folder (root README, "Where skills write"); the board holds the queue, `skilleddocs/` holds the record.
+Handoffs and decisions these skills produce land in the repo's `skilleddocs/` folder (see [Where skills write](../README.md#where-skills-write-skilleddocs)). The board holds the queue; `skilleddocs/` holds the record.

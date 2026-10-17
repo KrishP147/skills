@@ -49,7 +49,7 @@ The skill turns your words into one `remind.py` command; the script does the res
    - A corrupt file is moved aside, never overwritten.
    - The script copies itself there too, so the hook survives skill updates.
 4. **Desktop notification** for timed reminders.
-   - Windows: a one-shot scheduled task (`schtasks /Create /XML`, ISO start time, no locale date formats) showing a toast via PowerShell 5.1, `msg` as fallback. It runs late if the PC slept (within a day), then deletes itself.
+   - Windows: a one-shot scheduled task (`schtasks /Create /XML` with an ISO start time, so locale date formats don't matter). It shows a toast via PowerShell 5.1, with `msg` as fallback. If the PC slept, it runs late (up to a day), then deletes itself.
    - macOS/Linux: an `at` job running `osascript` or `notify-send`. No `at` (or no `notify-send`): in-session only, and `add` says so.
    - "Under N%" has no fixed time: always in-session only.
 5. **In-session.** switch's `UserPromptSubmit` hook prints each due reminder once (next to its usage warning) and marks it done.
@@ -77,7 +77,7 @@ Most runs pair it with `switch` around a usage limit.
 
 A few setups need one extra step.
 
-- **Without switch**, `add` prints the exact hook command for your machine (absolute Python, forward slashes). Add it to `~/.claude/settings.json` only after your first `/remind` (which puts `remind.py` there): a missing script makes Python exit 2, which blocks the prompt.
+- **Without switch**, `add` prints the exact hook command for your machine (absolute Python path, forward slashes). Add it to `~/.claude/settings.json` only after your first `/remind`, which puts `remind.py` in place. If the script is missing, Python exits 2, and that blocks the prompt.
 
   ```json
   {"hooks": {"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "python3 ~/.claude-remind/remind.py hook", "timeout": 10}]}]}}

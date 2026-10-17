@@ -26,9 +26,9 @@ Runs the `grilling` interview on a plan or decision and leaves a paper trail in 
    - a `### Q<n>` block (topic / asked / recommended / answer / why) to the transcript
    - one `| D<k> | date | decision | why | source |` row to the decisions doc (created with a header if missing)
    - `Q<n>` counts across the whole session.
-   - The heading is bare `### Q<n>` so the register's `grills/<file>#q<n>` source resolves on GitHub (anchors are lowercase).
+   - The heading is just `### Q<n>`, so the register's source link (`grills/<file>#q<n>`) works on GitHub, where anchors are lowercase.
    - Delegated answers ("go with your recs") are recorded as `(delegated)`.
-4. When the frontier is empty and you confirm: sets `Status: settled`, adds `## Summary` and `## Open`, prints both paths. Nothing is committed unless you ask.
+4. When no open questions are left and you confirm: sets `Status: settled`, adds `## Summary` and `## Open`, prints both paths. Nothing is committed unless you ask.
 
 Writes `skilleddocs/grills/<date>-<slug>.md` and the decisions doc:
 
@@ -50,7 +50,7 @@ Writes `skilleddocs/grills/<date>-<slug>.md` and the decisions doc:
 
 ## Tips
 
-- To control the transcript filename, put a kebab-case slug after a doc path or a quoted subject (`/grill-docs "our caching plan" cache-plan`); otherwise Claude picks 2 to 4 topic words, and a hyphenated last word of a plain sentence (`e-books`) stays in the subject.
+- To set the transcript filename, put a kebab-case slug after a doc path or a quoted subject (`/grill-docs "our caching plan" cache-plan`). Otherwise Claude picks 2 to 4 topic words. A hyphenated last word in a plain sentence (`e-books`) stays part of the subject, not the slug.
 - Register tracked (say `docs/decisions.md`) but `skilleddocs/` not: the transcript goes in `docs/grills/` instead, so the rows' Source links work once you commit both.
 - "Go with your recs" is fine: delegated answers are recorded as `(delegated) <rec>`, so the register stays complete.
 - Files are left uncommitted unless you ask; commit them yourself if the repo tracks `skilleddocs/`.

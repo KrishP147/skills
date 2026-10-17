@@ -18,7 +18,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 
 ## planner
 
-Needs: `divide`, `next` (installed with it).
+Needs: `divide`, `next`, the `guard-git` hook (installed with it).
 
 - **Role:** picks the next single unit of work from the board and writes the kickoff brief.
   - Read-only: `disallowedTools: Edit, Write, NotebookEdit`; never creates issues.
@@ -59,7 +59,7 @@ Needs: `divide`, `next` (installed with it).
 
 ## manager
 
-Needs: `handoff-auto`, `kanban-setup`, `next`, `session-handoff`, `implementer` (installed with it).
+Needs: `handoff-auto`, `kanban-setup`, `next`, `session-handoff`, `implementer`, the `guard-git` hook (installed with it).
 
 - **Role:** owns one task end to end in a worktree.
   - Never implements itself: briefs an implementer, then reviews its work as if it didn't trust it.
@@ -78,7 +78,7 @@ Needs: `handoff-auto`, `kanban-setup`, `next`, `session-handoff`, `implementer` 
      - Only with no notification path does it return **INTERIM — implementer still running** (callers must not act on it).
   4. Reviews every round itself, inline:
      - Commit scope, `git diff <base>...HEAD`, reruns tests + lint.
-     - Checks `git diff --name-only <base>...HEAD` carries no `skilleddocs/HANDOFF.md` (nothing in the handoff folder, `AGENTS.md`/`CLAUDE.md`'s else `skilleddocs/handoffs/`, in commit mode; nothing under `skilleddocs/` or that folder when untracked).
+     - Checks that `git diff --name-only <base>...HEAD` holds no handoff files: never `skilleddocs/HANDOFF.md`. When handoffs are committed, nothing in the handoff folder (the one `AGENTS.md`/`CLAUDE.md` names, else `skilleddocs/handoffs/`). When they are untracked, nothing under `skilleddocs/` or that folder.
      - Fixes one-liners; larger gaps go to the next round.
      - Never spawns reviewer subagents.
   5. Retries with a **fresh** implementer + `skilleddocs/HANDOFF.md`/findings, up to `max_rounds`; deletes `HANDOFF.md` once picked up (in a commit if tracked).
@@ -113,20 +113,20 @@ Needs: `handoff-auto`, `kanban-setup`, `next`, `session-handoff`, `implementer` 
 
 ## implementer
 
-Needs: `handoff-auto`, `kanban-setup`, `next`, `session-handoff` (installed with it).
+Needs: `handoff-auto`, `kanban-setup`, `next`, `session-handoff`, the `guard-git` hook (installed with it).
 
 - **Role:** implements one well-specified issue from a kickoff brief on its own branch.
   - `maxTurns: 200`.
 - **You pass:** the kickoff brief verbatim + branch prefix + protected branch + `decisions` (from `manager` or the orchestrator).
 - **How it works:**
   - Branches off a freshly pulled default (the brief's Branch verbatim, else `<prefix>/issue-<n>-<kebab-title>`).
-  - If it created the branch, lists "card → In Progress + comment "Started on branch …"" as a manual step in its handoff (its `gh` is read-only, so its caller does it).
+  - If it created the branch, its handoff lists a manual step for the caller: move the card to In Progress and comment "Started on branch …". Its own `gh` is read-only.
   - Commits small.
   - Runs the repo's detected test command before claiming done.
   - Multi-session task or low turns → writes the handoff early.
   - Stuck or past ~100k tokens: writes `skilleddocs/HANDOFF.md` (done / not done / next step / failed attempts), then stops, so a manager can restart a fresh implementer from it. It commits that file only if [`TRACKING.md`](../handoff-auto/TRACKING.md) says so (never on a fork).
 - **You get back:**
-  - Calls `session-handoff` (which wraps `handoff-auto`).
+  - A handoff written by `session-handoff` (which wraps `handoff-auto`).
   - Final message ends with the handoff document's absolute path on its own line.
   - The handoff cites any open `A-n` it assumed.
 - **Guard:** `guard-git.py` hook (below).
@@ -149,11 +149,11 @@ Needs: `handoff-auto`, `kanban-setup`, `next`, `session-handoff` (installed with
 
 ## verifier
 
-Needs: `consult-plan`, `next`, `update-progress` (installed with it).
+Needs: `consult-plan`, `next`, `update-progress`, the `guard-git` hook (installed with it).
 
 - **Role:** verifies an implementation session and closes the loop.
   - `maxTurns: 120`.
-  - No guard hook.
+  - The guard hook doesn't apply to it.
 - **You pass:**
   - Handoff path (or saved manager report path).
   - Whether it may answer interview-style questions on your behalf.
@@ -191,8 +191,8 @@ Needs: `consult-plan`, `next`, `update-progress` (installed with it).
 
 **As a plugin.** Claude Code ignores `hooks` frontmatter in plugin agents, so the plugin wires the same command once, plugin-wide, in [`.claude-plugin/plugin.json`](../.claude-plugin/plugin.json), with `--plugin`.
 
-- That hook fires for every session, so with `--plugin` it reads `agent_type` from the hook input and enforces only for `implementer`/`manager` (bare or `<plugin>:`-prefixed); the main session and other agents pass through (exit 0).
-- Without Python 3.8+ the plugin command can't run guard-git, so it greps the hook input for the same `agent_type` match: those two agents are blocked (exit 2), everything else passes (exit 0), so a missing Python never locks your own session's Bash.
+- That hook fires in every session. With `--plugin` it reads `agent_type` from the hook input and enforces only for `implementer`/`manager` (bare or `<plugin>:`-prefixed); the main session and other agents pass through (exit 0).
+- Without Python 3.8+ the plugin command can't run guard-git. It then greps the hook input for the same `agent_type` match: those two agents are blocked (exit 2) and everything else passes (exit 0). A missing Python never locks your own session's Bash.
 
 **It is a guardrail, not a sandbox.** It stops an agent's honest mistakes and the obvious workarounds.
 
@@ -211,13 +211,16 @@ Needs: `consult-plan`, `next`, `update-progress` (installed with it).
   - **Card moves, issue comments and labels belong to the caller** (orchestrator, `pair`, verifier; none is guarded): implementer and manager list them in their handoff.
   - `gh api` is GET only: a non-GET method, or `-f`/`-F`/`--input` without `-X GET` (they imply POST), blocks; `gh api graphql` allows only a literal read query (no `mutation`).
 - `curl`/`wget`/`iwr`/`irm` to any `github.com` host (`github.com`, `api.github.com`, `uploads.github.com`) or `/api/v3/`: GET/HEAD only; any URL naming `git-receive-pack` (smart-HTTP push) blocks whatever the method.
-- local git (add, commit, branch, merge, rebase, stash, worktree, fetch, pull, checkout/switch, tag, …) stays allowed; `git send-pack`/`http-push` and an unknown git subcommand or `git-*` plugin that names push/merge/sync/delete/ship/land/submit/publish/deploy/traverse/propose (`git subtree push`, `git ship`, `git-ship origin main`) block; commands git runs for you (`rebase -x`, `submodule foreach`, `bisect run`, `-c key=<value>`) are read like any other command.
+- local git (add, commit, branch, merge, rebase, stash, worktree, fetch, pull, checkout/switch, tag, …) stays allowed. These block: `git send-pack`/`http-push`, and an unknown git subcommand or `git-*` plugin that names push/merge/sync/delete/ship/land/submit/publish/deploy/traverse/propose (`git subtree push`, `git ship`, `git-ship origin main`). Commands git runs for you (`rebase -x`, `submodule foreach`, `bisect run`, `-c key=<value>`) are read like any other command.
 - third-party push/merge/PR tools (#202) block their remote writes, reads pass:
   - `hub push|api|merge|fork|create|pull-request|sync|delete` and `hub pr|issue|release|gist` writes (hub is read as git too), `git town ship|sync|propose`, `gt`/`graphite submit|ss|merge|sync|land`, `ghstack` (bare = submit) `land|submit`, Sapling `sl push|pr|ghstack` (Bash only; PowerShell `sl` is Set-Location), `spr`/`git spr land|update|diff|merge`, `git machete traverse|github|gitlab`, `jj git push`, `arc land|diff`, and `gh-pages` (bin or `npx gh-pages`) on every run.
   - `hub status`, `gt log`, `sl log`, `git town status`, `git machete status`, `hub pr list` pass.
-  - Any other program whose arguments pair a push-like verb (push/ship/land/submit/sync/merge/publish/deploy/traverse/propose) with a protected branch, `origin`/`upstream` or a git URL blocks (`mytool ship origin main`; D373); image tools (`docker push`, `helm`, `kubectl`, …) are exempt.
+  - Any other program whose arguments pair a push-like verb (push/ship/land/submit/sync/merge/publish/deploy/traverse/propose) with a protected branch, `origin`/`upstream` or a git URL blocks (`mytool ship origin main`); image tools (`docker push`, `helm`, `kubectl`, …) are exempt.
 - unreadable code that could run a push fails closed: Bash `function f { … }` wrappers, a shell running `<(…)`, `script -c`, `xargs` feeding a shell or interpreter, PowerShell `(expr)` arguments (`git push origin ('ma'+'in')`), `[Diagnostics.Process]::Start`/`ProcessStartInfo` naming git/gh, and inline interpreter code (`deno eval`, `node -e`, …) that mentions push/merge next to a process call or a git/gh word.
-- backstop for runners it doesn't model: a command whose head isn't git/gh, a shell, an interpreter, an HTTP client, a handled wrapper or a reader (`echo`, `printf`, `grep`, `rg`, `cat`, `ls`, `test`, `Write-Host`, `Select-String`, …), and whose arguments name a push/merge-capable command (`git … push|send-pack|http-push|subtree|receive-pack`, `gh … pr merge|api|alias|repo`, a gh write as classified above, `api.github.com`, `git-receive-pack`), blocks: `parallel git push …`, `awk 'BEGIN{system("git push …")}'`, `sed '1e git push …'`, `lua -e`, `Rscript -e`.
+- backstop for runners it doesn't model. A command blocks when both are true:
+  - its first word isn't git/gh, a shell, an interpreter, an HTTP client, a handled wrapper or a reader (`echo`, `printf`, `grep`, `rg`, `cat`, `ls`, `test`, `Write-Host`, `Select-String`, …);
+  - its arguments name a push/merge-capable command (`git … push|send-pack|http-push|subtree|receive-pack`, `gh … pr merge|api|alias|repo`, a gh write as classified above, `api.github.com`, `git-receive-pack`).
+  - Examples: `parallel git push …`, `awk 'BEGIN{system("git push …")}'`, `sed '1e git push …'`, `lua -e`, `Rscript -e`.
   - `uv run`/`poetry run`/`pipenv run`, `npm exec`/`npx` (incl. `-c '…'`), `flock` (incl. `-c`), `strace`/`ltrace`, `coproc` and `trap '…'` are unwrapped and the inner command read as usual, so `uv run pytest` and `uv run git push origin krish/x` pass.
 - a shell or `.`/`source` reading its script from `/dev/stdin`, `/dev/fd/N` or `/proc/self/fd/N` is a stdin shell (`bash /dev/stdin <<< 'git push …'`).
 - write-then-run: a command that writes a file (`>`/`>>`, `tee`, PowerShell `Set-Content`/`Add-Content`/`Out-File`) and runs that same file (`sh x.sh`, `./x.sh`, `. x.sh`, `pwsh -File x.ps1`, `python x.py`) blocks when its text names a push/merge-capable command or a gh write.
@@ -351,9 +354,9 @@ Protected branches: `GUARD_PROTECTED_BRANCHES` (comma list), default `main,maste
 
 ## Example
 
-One issue through all three steps, as an orchestrator (or you) calls them.
-The manager briefs and spawns its own `implementer` inside its turn, so only
-its report comes back; you push and merge in between:
+One issue through planner, manager and verifier, as an orchestrator (or you)
+calls them. The manager briefs and spawns its own `implementer` inside its turn, so only
+the manager's report comes back. You push and merge in between:
 
 ```transcript
 ⏺ Agent(subagent_type="planner", prompt="~/code/myrepo; exclusions: label needs-design; order: priority label")

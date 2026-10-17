@@ -29,9 +29,9 @@ User-invoked only (`disable-model-invocation: true`):
    - Then grills you to name the destination, then grills breadth-first for the open decisions.
    - Creates the map issue (Destination, Notes, Decisions so far, Not yet specified, Out of scope), creates the tickets it can phrase now as sub-issues, then wires blocking with GitHub's issue-dependencies API (`Blocked by: #n` body lines if that API is unavailable).
    - Fires one `general-purpose` subagent per research ticket.
-2. **Work**: loads the map, picks the first open, unblocked, unassigned ticket (a ticket you name that is claimed by someone else or blocked: it asks first), assigns it to you (the claim), and resolves it by type:
-   - `wayfinder:research`: a subagent with web search; findings go in the resolution comment (long ones split over several comments, or a committed file if the repo tracks it; a gist only on your yes naming its content and destination; never a link to an untracked file).
-   - `wayfinder:prototype`: a rough artifact you react to, inline in the comment or a committed file (a gist only on your yes; one needing its own branch: it asks you).
+2. **Work**: loads the map and picks the first open, unblocked, unassigned ticket. If you name a ticket that someone else claimed or that is blocked, it asks first. It assigns the ticket to you (the claim) and resolves it by type:
+   - `wayfinder:research`: a subagent with web search. Findings go in the resolution comment; long ones are split over several comments, or go in a committed file if the repo tracks it. A gist only on your yes naming its content and destination. Never a link to an untracked file.
+   - `wayfinder:prototype`: a rough artifact you react to, inline in the comment or a committed file. A gist only on your yes; if it needs its own branch, it asks you.
    - `wayfinder:grilling`: runs `grill-docs`; transcript where `grill-docs` puts it, linked only once committed.
    - `wayfinder:task`: the manual work a decision waits on. If it needs you, you get a checklist; the ticket stays claimed and open until you report it done.
 3. **Record**:

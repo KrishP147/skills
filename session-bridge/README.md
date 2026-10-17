@@ -40,7 +40,8 @@ type the slash command.
    - Otherwise, fall back to that repo's transcripts under `~/.claude/projects/<encoded-cwd>/*.jsonl`.
    - `<encoded-cwd>` is the working directory path with every character other than letters and digits replaced by `-`.
    - If no target is found, it says so and stops.
-2. **Read-only snapshot.** Uses `ListAgents`/`SendMessage` if the session is reachable that way, or reads the other session's transcript with the bundled `scripts/snapshot.py`. It never dumps the raw `.jsonl` file (no `cat`).
+2. **Read-only snapshot.** For a transcript, it runs the bundled `scripts/snapshot.py`. It never dumps the raw `.jsonl` file (no `cat`).
+   - Asking a live session for its status is a message, so that goes through the step 4 gate first.
    - Extracts only the last user ask, the last N actions, and any branches/PRs/files mentioned.
    - Also checks `git`, `gh pr`, and that repo's `skilleddocs/` for its handoff/ledger.
    - Redacts anything that looks like a secret, token, or personal data before repeating it.
@@ -49,7 +50,7 @@ type the slash command.
 5. **Send.** `SendMessage` if available and the target is reachable that way; otherwise appends to a shared `skilleddocs/bridge.md` as a drop-off, since there's no live channel to that session.
 6. **Log.** Every exchange (sent and any reply) appended to `skilleddocs/bridge.md` with local timestamps, not UTC.
 7. **Report.** The reply, if one arrives — or "no reply" if not.
-   - Notes when a session (cloud, Remote-Control, or transcript-only) can't reply by design.
+   - Notes when a session can't reply by design (cloud, Remote Control, or transcript-only).
    - Reads its transcript/handoff/PR instead where accessible.
 
 Reads: `ListAgents` (if available), transcript files under `~/.claude/projects/`, `git`, `gh`, a repo's `skilleddocs/`.
