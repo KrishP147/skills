@@ -4,11 +4,14 @@
 
 ## What it does
 
-Answers "how's it going" in **10 lines or fewer**: what's running right now,
-git state (worktrees, dirty/unpushed work), open PRs and their CI, an
-asked-vs-done checklist for this conversation, anything that needs you, and
-a verdict on whether it's safe to close the session. It's a live, spoken
-answer, not a document.
+Answers "how's it going" in **10 lines or fewer**. It's a live, spoken answer, not a document.
+
+- What's running right now.
+- Git state (worktrees, dirty/unpushed work).
+- Open PRs and their CI.
+- An asked-vs-done checklist for this conversation.
+- Anything that needs you.
+- A verdict on whether it's safe to close the session.
 
 ## When to use
 
@@ -27,58 +30,51 @@ answer, not a document.
 /sitrep
 ```
 
-Model-invocable, so any of the trigger phrases above work without typing the
-slash command.
+Claude also runs it when you say one of the phrases above, so you don't have to
+type the slash command.
 
 ## How it works
 
-1. **What's running.** Collects background task IDs from the transcript
-   (`Bash`/`PowerShell` with `run_in_background`, `Monitor` loops,
-   background `Agent` launches) minus those whose completion notification
-   already arrived; reports each one's age and its last output line (read
-   from the task's output file, or `TaskOutput`, now deprecated). Checks `ListAgents` (if available) for
-   other addressable agents.
-2. **Git.** For each repo this session ran git in (not only the current
-   one): `git worktree list`; per worktree, `git status --porcelain` and
-   `git status --porcelain --ignored -- skilleddocs` (handoffs in an excluded
-   `skilleddocs/`, or an `AGENTS.md`-set handoff folder), and unpushed commits (`git log <ref>..`, `<ref>` = the
-   upstream, else `origin/<branch>`, else `origin/<default>`; never the local
-   default branch, which hides commits made on it). No remote ref → unpushed
-   is "unknown" and blocks SAFE. A branch with 0 commits and a clean tree has
-   nothing to push; "never pushed" is only for commits with no
-   `origin/<branch>`.
+1. **What's running.** Collects the IDs of background tasks from the conversation, skipping any whose completion notice already arrived.
+   - Sources: `Bash`/`PowerShell` with `run_in_background`, `Monitor` loops, background `Agent` launches.
+   - Reports each one's age and its last output line (read from the task's output file, or `TaskOutput`, now deprecated).
+   - Checks `ListAgents` (if available) for other agents you can message.
+2. **Git.** For each repo this session ran git in (not only the current one):
+   - `git worktree list`.
+   - Per worktree, `git status --porcelain` and `git status --porcelain --ignored -- skilleddocs` (handoffs in an excluded `skilleddocs/`, or an `AGENTS.md`-set handoff folder).
+   - Per worktree, unpushed commits (`git log <ref>..`, `<ref>` = the upstream, else `origin/<branch>`, else `origin/<default>`; never the local default branch, which hides commits made on it).
+   - No remote ref: unpushed is "unknown", and that blocks SAFE.
+   - A branch with 0 commits and a clean tree has nothing to push; "never pushed" is only for commits with no `origin/<branch>`.
 3. **PRs + CI.** `gh pr list --author @me` with checks status.
 4. **Asked vs. done.** A short checklist built from this conversation's user
    messages — not the whole backlog.
 5. **Needs-you items.** Missing keys/approvals/manual steps/unanswered
    questions, or "none".
-6. **Verdict.** SAFE to close only if nothing's running, nothing's
-   dirty/unpushed (or it's intentional and already handed off), and any
-   mid-flight work has a handoff: committed and pushed, or saved on disk per
-   [`TRACKING.md`](../handoff-auto/TRACKING.md) (untracked, the only option
-   on forks; or, in commit mode, a dated handoff held uncommitted on a task
-   branch, which doesn't count as dirty and is never suggested for commit). An untracked handoff covers only the work it describes, and
-   is NOT SAFE when its worktree is a non-main one or was made by
-   pair/meta-orchestrator (it would be removed with the worktree), or when
-   unsure. Otherwise NOT SAFE, with the specific reasons.
-7. **On "close" / "yes, stop them":** lists exactly what will be stopped and
-   what (if anything) would be committed/pushed, and waits for an explicit
-   yes before doing either. On yes, stops background tasks with `TaskStop`
-   (if available); calls `handoff-auto` to write the handoff if anything was
-   mid-flight, and prints its path.
+6. **Verdict.** SAFE to close only if all of these hold:
+   - Nothing's running.
+   - Nothing's dirty/unpushed (or it's intentional and already handed off).
+   - Any unfinished work has a handoff: committed and pushed, or saved on disk per [`TRACKING.md`](../handoff-auto/TRACKING.md).
+     Saved on disk means untracked (the only option on forks) or, in commit mode, a dated handoff left uncommitted on a task branch.
+     That file doesn't count as dirty, and `sitrep` never suggests committing it.
+   - An untracked handoff covers only the work it describes.
+     The verdict is NOT SAFE when its worktree is a non-main one or was made by pair/meta-orchestrator (it would be removed with the worktree), or when unsure.
+   - Otherwise NOT SAFE, with the specific reasons.
+7. **On "close" / "yes, stop them":** lists exactly what will be stopped and what (if anything) would be committed/pushed, and waits for an explicit yes before doing either.
+   - On yes, stops background tasks with `TaskStop` (if available).
+   - Calls `handoff-auto` to write the handoff if anything was unfinished, and prints its path.
 
 Reads: background-task tools (if available), `git`, `gh`, this conversation.
 Writes: nothing, except a handoff document via `handoff-auto` when closing
-mid-flight work, saved under `skilleddocs/handoffs/`.
+unfinished work, saved under `skilleddocs/handoffs/`.
 
 ## Design principles
 
 - **Live and conversational, not a document.** `progress-report` already
   covers the ledger-scoped, written case; `sitrep` fills the gap of "just
   tell me, right now, in chat."
-- **Read-only by default.** Reconnaissance only reads state; the one path
-  that changes anything (stopping background work, writing a handoff) is
-  gated behind an explicit yes.
+- **Read-only by default.** Looking around only reads state. The one path
+  that changes anything (stopping background work, writing a handoff) needs
+  an explicit yes.
 - **Short on purpose.** A status check that takes longer to read than the
   work itself defeats the point — hence the 10-line cap and "drop empty
   lines rather than padding them."
@@ -95,14 +91,12 @@ mid-flight work, saved under `skilleddocs/handoffs/`.
 
 ## Tips
 
-- If `ListAgents` isn't enabled, or a background task's output file path
-  isn't in the transcript, `sitrep` still works from the transcript alone and
-  says the last-output check was skipped. (`TaskOutput` is deprecated in
-  favor of `Read` on the output file.) `TaskList` is the session to-do list, not background work; it
-  only feeds the asked-vs-done line.
+- If `ListAgents` isn't enabled, or a background task's output file path isn't in the transcript, `sitrep` still works from the transcript alone and says the last-output check was skipped.
+  - `TaskOutput` is deprecated in favor of `Read` on the output file.
+  - `TaskList` is the session to-do list, not background work; it only feeds the asked-vs-done line.
 - "Can I close this?" and "close this" are different asks: the former is a
-  read-only verdict (§2); only the latter (or an explicit "yes, stop them")
-  triggers the gated stop-and-handoff flow in §4.
+  read-only verdict (step 6); only the latter (or an explicit "yes, stop them")
+  starts the stop-and-handoff flow in step 7, which waits for your yes.
 - Ask again after fixing a NOT SAFE reason — it's cheap and re-checks
   everything, not just the item you fixed.
 

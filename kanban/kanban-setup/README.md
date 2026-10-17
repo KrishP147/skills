@@ -17,15 +17,29 @@ Creates a GitHub Projects (v2) board for a repo if it has none, then backfills i
 /kanban-setup [current | retroactive | both]
 ```
 
-Default `current`. User-invoked only (`disable-model-invocation: true`) because it creates real, visible issues.
+Default `current`. Only you can run it (`disable-model-invocation: true`), because it creates real, visible issues.
 
 ## How it works
 
-1. **Prereq:** `gh auth status` must list the `project` scope; otherwise offers `gh auth refresh -s project -s read:project` (you run it) or label mode, and stops until you pick.
-2. **Board (read-only until you say yes):** looks for `<repo> Board` per `next`'s [`BOARD.md`](../next/BOARD.md) and, if it exists, checks the Status field via `gh project field-list` for an "In Review" option (the default only has Todo/In Progress/Done). Nothing is created in this step. Label mode (four `status:*` labels instead of a board) is used when you ask for it, the `project` scope isn't granted, or the owner can't create projects.
+1. **Prereq:** `gh auth status` must list the `project` scope.
+   - Otherwise offers `gh auth refresh -s project -s read:project` (you run it) or label mode.
+   - Stops until you pick.
+2. **Board (read-only until you say yes):** looks for `<repo> Board` per `next`'s [`BOARD.md`](../next/BOARD.md) and, if it exists, checks the Status field via `gh project field-list` for an "In Review" option (the default only has Todo/In Progress/Done).
+   - Nothing is created in this step.
+   - Label mode (four `status:*` labels instead of a board) is used when you ask for it, the `project` scope isn't granted, or the owner can't create projects.
 3. **Scan:** README "Roadmap"/"TODO" sections, `TODO`/`FIXME` comments, `CHANGELOG.md`, `docs/` and plan-like docs; skips `skilleddocs/`, `node_modules`, `.venv` and vendored dirs.
-4. **Candidates per mode:** both modes drop items that already have an issue (open or closed); `current` = undone items; `retroactive` = finished items from CHANGELOG / git log / resolved TODOs; `both` = both, separated.
-5. **Preview, then create:** shows the board actions (create the board, `gh project link <n> --owner <owner> --repo <owner>/<repo>`, add In Review via the `updateProjectV2Field` GraphQL mutation via `gh api graphql` replaying every existing option plus the new one (`gh` can't add an option to an existing field; or add it by hand in the UI), or the label creation) and every issue (title, mode, target column), then waits. On yes: board actions first, then `current` → create + `item-add` + `item-edit` to Todo; `retroactive` → create, close, `item-add` + `item-edit` to Done (`item-add` alone leaves Status empty, so the `item-edit` step is required, not optional). Label mode: each issue is created with `status:todo`, or `status:done` and closed.
+4. **Candidates per mode:**
+   - Both modes drop items that already have an issue (open or closed).
+   - `current` = undone items.
+   - `retroactive` = finished items from CHANGELOG / git log / resolved TODOs.
+   - `both` = both, separated.
+5. **Preview, then create:** shows the board actions and every issue (title, mode, target column), then waits.
+   - The board actions are: create the board; `gh project link <n> --owner <owner> --repo <owner>/<repo>`; add In Review; or, in label mode, create the labels.
+   - To add In Review it runs the `updateProjectV2Field` GraphQL mutation via `gh api graphql`, replaying every existing option plus the new one (`gh` can't add an option to an existing field). You can add it by hand in the UI instead.
+   - On yes: board actions first.
+   - Then `current` → create + `item-add` + `item-edit` to Todo.
+   - `retroactive` → create, close, `item-add` + `item-edit` to Done (`item-add` alone leaves Status empty, so the `item-edit` step is required, not optional).
+   - Label mode: each issue is created with `status:todo`, or `status:done` and closed.
 
 ## Design principles
 
@@ -66,4 +80,6 @@ Default `current`. User-invoked only (`disable-model-invocation: true`) because 
 
 ## Prereqs
 
-`gh`, authenticated, `origin` on GitHub (otherwise it stops and says so). The `project` OAuth scope is needed for a Projects v2 board: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)). It checks for the scope itself and stops if missing.
+- `gh`, authenticated, `origin` on GitHub (otherwise it stops and says so).
+- The `project` OAuth scope is needed for a Projects v2 board: run `gh auth refresh -s project -s read:project` once (see [`kanban/README.md`](../README.md#prerequisite-the-project-oauth-scope)).
+- It checks for the scope itself and stops if missing.

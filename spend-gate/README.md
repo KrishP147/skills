@@ -4,10 +4,11 @@
 
 ## What it does
 
-Stops Claude from running a billable action (spinning up a GPU pod, calling
-a paid API, buying a paid tier, spending cloud credits) without first
-estimating the cost, checking a live balance where possible, and getting
-your explicit yes for that one action.
+Stops Claude from running a billable action (spinning up a GPU pod, calling a paid API, buying a paid tier, spending cloud credits) without first:
+
+- Estimating the cost.
+- Checking a live balance where possible.
+- Getting your explicit yes for that one action.
 
 ## When to use
 
@@ -21,8 +22,8 @@ your explicit yes for that one action.
 
 ## How to invoke
 
-Model-invocable - Claude reaches for it on its own before a billable action.
-You can also invoke it directly:
+Claude runs it on its own before a billable action.
+You can also run it directly:
 
 ```
 /spend-gate
@@ -34,11 +35,11 @@ You can also invoke it directly:
    ambiguous, treat it as billable.
 2. **Estimate** - unit price x hours/tokens = total, citing a price source
    (URL or tool output, dated).
-3. **Check live balance/credit** - read-only calls only, never a call that
-   provisions or spends. No free balance read → say so and ask you for the
-   balance; the step is never skipped.
-4. **Gate** - show the number, wait for an explicit yes to *this* action. A
-   budget cap or an earlier "go ahead" doesn't count.
+3. **Check live balance/credit** - read-only calls only, never a call that provisions or spends.
+   - No free balance read → say so and ask you for the balance.
+   - The step is never skipped.
+4. **Gate** - show the number, wait for an explicit yes to *this* action.
+   - A budget cap or an earlier "go ahead" doesn't count.
 5. **Log** - append the approved amount, purpose, price source, and
    resource id to `skilleddocs/spend.md`.
 6. **Run + remind** - run the approved action, then remind about teardown
@@ -81,24 +82,25 @@ You can also invoke it directly:
 /spend-gate
 ```
 
-Claude is about to run `runpodctl create pod --gpuType RTX4090`. It reads
-the live rate (illustrative: on one day a 4090 listed $0.89/h secure cloud,
-$0.34/h community; prices drift, so never reuse these), estimates a 2-hour
-secure job at ~$1.78, checks the balance via a read-only billing call (or
-says none is readable and asks you), shows both numbers, and waits. You
-reply "yes, go ahead." Claude logs the row to `skilleddocs/spend.md`,
-creates the pod, and reminds you to stop it (or that it will auto-stop)
-once the job finishes.
+Claude is about to run `runpodctl create pod --gpuType RTX4090`.
+
+- It reads the live rate (illustrative: on one day a 4090 listed $0.89/h secure cloud, $0.34/h community; prices drift, so never reuse these).
+- It estimates a 2-hour secure job at ~$1.78.
+- It checks the balance via a read-only billing call (or says none is readable and asks you).
+- It shows both numbers, and waits.
+- You reply "yes, go ahead."
+- Claude logs the row to `skilleddocs/spend.md`, creates the pod, and reminds you to stop it (or that it will auto-stop) once the job finishes.
 
 ## Related
 
-[`hooks/spend-guard.py`](../hooks/spend-guard.py) - optional `PreToolUse`
-hook that enforces the same gate at the tool-call level, blocking a
-matching command/MCP call unless an approval file exists (written after the
-explicit yes at step 4, Gate; see [HOOK.md](HOOK.md)).
+[`hooks/spend-guard.py`](../hooks/spend-guard.py) - optional `PreToolUse` hook that enforces the same gate at the tool-call level.
+
+- It blocks a matching command/MCP call unless an approval file exists.
+- The approval file is written after the explicit yes at step 4, Gate; see [HOOK.md](HOOK.md).
 
 ## Prereqs
 
-None. Reads whatever pricing/balance tools the billable provider already
-exposes (its CLI, MCP server, or pricing page) - nothing extra to install
-for the skill itself.
+None.
+
+- Reads whatever pricing/balance tools the billable provider already exposes (its CLI, MCP server, or pricing page).
+- Nothing extra to install for the skill itself.
