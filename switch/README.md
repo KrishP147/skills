@@ -12,7 +12,7 @@ Runs several Claude Code accounts side by side, each with its own config dir, an
 - Inside a session, `/switch` closes it and reopens the same conversation on your previous account, `/switch <name>` on a named one.
 - `/switch setup` does the one-time setup from inside Claude.
 - `/switch add|remove|rename|list` manages the accounts; new ones share skills, settings and history with the first. `list` shows who is logged in where and how much usage each account has left.
-- Before each switch it prints what stays with the old account (artifacts, routines) and what ends or pauses (Remote Control, running subagents, background commands); it never asks.
+- Before each switch it prints what ends or pauses (Remote Control, running subagents, background commands). It never asks.
 - A statusline shows which account you're on and how much of its session and weekly limits is used, and warns you near the limit with the account that has the most room left.
 
 ## When to use
@@ -154,7 +154,7 @@ flowchart TD
 
 Login, settings and transcripts belong to a config dir; some features belong to the claude.ai account that is logged in there.
 
-Before every switch `/switch` prints a line for what ends or pauses (Remote Control, subagents, background commands); none of it stops the switch. The last two items below are only described here:
+Before every switch `/switch` prints a line for what ends or pauses (Remote Control, subagents, background commands). None of it stops the switch. Artifacts, routines and connectors (the last two items below) are not printed:
 
 - **Remote Control** ends with the old Claude process.
   - When it was on, `/switch` says so.
