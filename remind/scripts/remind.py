@@ -541,7 +541,9 @@ def cmd_cancel(args):
             raise SystemExit("remind: no reminder %d (see: list)" % args.id)
         data["reminders"].remove(r)
         write_store(data, now())
-    note = unschedule(r.get("notify")) if not r.get("done") else None
+    note = unschedule(r.get("notify"))  # a fired task lingers until it expires: remove it too
+    if r.get("done"):
+        note = None
     print("cancelled %d: %s%s" % (r["id"], describe(r), "; " + note if note else ""))
     return 0
 

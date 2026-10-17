@@ -286,13 +286,14 @@ class HookTest(Base):
         self.main("add", "in", "--", "5m", "x")
         self.assertEqual([r["id"] for r in self.store()["reminders"]], [2])  # old done one pruned
 
-    def test_cancel_after_fired_leaves_task_alone(self):
+    def test_cancel_after_fired_removes_leftover_task(self):
         self.main("add", "in", "--", "5m", "tea")
         self.t = NOW + 600
         self.hook()
         self.calls.clear()
-        self.assertIn("cancelled 1", self.main("cancel", "1")[1])
-        self.assertEqual(self.calls, [])
+        self.run_result = (1, "", "ERROR: The system cannot find the file specified.")
+        self.assertEqual(self.main("cancel", "1")[1], "cancelled 1: tea\n")  # gone already: no note
+        self.assertEqual(self.calls[0][0], ["schtasks", "/Delete", "/TN", "claude-remind-1", "/F"])
 
     def test_stale_lock_broken(self):
         self.main("add", "in", "--", "5m", "tea")
