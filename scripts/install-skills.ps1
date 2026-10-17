@@ -13,10 +13,20 @@
 #   -NoShCheck  proceed even if Git Bash isn't found. The guard-git hook
 #               command in agents/*.md is POSIX sh; without Git Bash, Claude
 #               Code can't run it, so the hook blocks nothing (fails open).
+#   -Workflow a,b  install only what those sample workflows
+#               (site/data/workflows.json) need: their skills, agents and
+#               hooks plus dependencies (scripts\workflow_deps.py). Nothing
+#               outside the selection is touched or warned about. Hooks are
+#               copied to $env:CLAUDE_HOOKS_DIR (default: hooks\ next to the
+#               skills dir) and their settings.json snippet printed, never
+#               wired. Needs python 3, even with -NoLint.
+#   -ListWorkflows  print the workflow names and exit
 param(
     [switch]$NoLint,
     [switch]$Force,
-    [switch]$NoShCheck
+    [switch]$NoShCheck,
+    [string[]]$Workflow,
+    [switch]$ListWorkflows
 )
 $ErrorActionPreference = "Stop"
 
@@ -25,6 +35,41 @@ $Marker = ".from-krishp147-skills"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $target = if ($env:CLAUDE_SKILLS_DIR) { $env:CLAUDE_SKILLS_DIR } else { Join-Path $env:USERPROFILE ".claude\skills" }
 $agentsTarget = if ($env:CLAUDE_AGENTS_DIR) { $env:CLAUDE_AGENTS_DIR } else { Join-Path $env:USERPROFILE ".claude\agents" }
+
+function Get-WorkingPython3 {
+    # first candidate that actually runs Python 3. The probe skips the
+    # Windows Store python stub (WindowsApps alias that refuses to run
+    # code) while keeping a real Store-installed Python, which lives there too.
+    $candidates = @(
+        @{ Cmd = "python"; Args = @() },
+        @{ Cmd = "python3"; Args = @() },
+        @{ Cmd = "py"; Args = @("-3") }
+    )
+    foreach ($c in $candidates) {
+        $cmd = Get-Command $c.Cmd -ErrorAction SilentlyContinue
+        if (-not $cmd) { continue }
+        try {
+            & $cmd.Source @($c.Args) -c "import sys;sys.exit(0 if sys.version_info[0]==3 else 1)" 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                return [PSCustomObject]@{ Path = $cmd.Source; Args = $c.Args }
+            }
+        } catch {
+            continue
+        }
+    }
+    return $null
+}
+
+$py = Get-WorkingPython3
+$deps = Join-Path $repoRoot "scripts\workflow_deps.py"
+if ($ListWorkflows) {
+    if (-not $py) {
+        [Console]::Error.WriteLine("error: -ListWorkflows needs python 3 (checked python, python3, py -3).")
+        exit 1
+    }
+    & $py.Path @($py.Args) $deps list
+    exit $LASTEXITCODE
+}
 
 function Find-GitBash {
     # Where Claude Code gets a POSIX shell on Windows: CLAUDE_CODE_GIT_BASH_PATH,
@@ -67,31 +112,6 @@ if (-not $gitBash) {
     }
 }
 
-function Get-WorkingPython3 {
-    # first candidate that actually runs Python 3. The probe skips the
-    # Windows Store python stub (WindowsApps alias that refuses to run
-    # code) while keeping a real Store-installed Python, which lives there too.
-    $candidates = @(
-        @{ Cmd = "python"; Args = @() },
-        @{ Cmd = "python3"; Args = @() },
-        @{ Cmd = "py"; Args = @("-3") }
-    )
-    foreach ($c in $candidates) {
-        $cmd = Get-Command $c.Cmd -ErrorAction SilentlyContinue
-        if (-not $cmd) { continue }
-        try {
-            & $cmd.Source @($c.Args) -c "import sys;sys.exit(0 if sys.version_info[0]==3 else 1)" 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                return [PSCustomObject]@{ Path = $cmd.Source; Args = $c.Args }
-            }
-        } catch {
-            continue
-        }
-    }
-    return $null
-}
-
-$py = Get-WorkingPython3
 if ($py) {
     # lint WARN lines go to stderr; under "Stop", PS 5.1 turns redirected
     # native stderr into a terminating error, so relax it for this call.
@@ -110,23 +130,55 @@ if ($py) {
     exit 1
 }
 
+# -Workflow: resolve before creating or copying anything; an unknown name
+# makes the resolver list the workflows and exit non-zero.
+$partial = $PSBoundParameters.ContainsKey("Workflow")
+$selSkills = @()
+$selAgents = @()
+$selHooks = @()
+$agentHooks = $false
+$wfNames = @()
+if ($partial) {
+    $wfNames = @($Workflow | ForEach-Object { "$_" -split "," } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    if (-not $py) {
+        [Console]::Error.WriteLine("error: -Workflow needs python 3 to resolve the workflow (checked python, python3, py -3).")
+        [Console]::Error.WriteLine("Install Python 3; -NoLint does not skip this step.")
+        exit 1
+    }
+    $ErrorActionPreference = "Continue"
+    $resolved = @(& $py.Path @($py.Args) $deps resolve @wfNames)
+    $resolveExit = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
+    if ($resolveExit -ne 0) { exit $resolveExit }
+    foreach ($raw in $resolved) {
+        $line = "$raw".TrimEnd("`r")
+        if ($line -like "skill *") { $selSkills += $line.Substring(6) }
+        elseif ($line -like "agent *") { $selAgents += $line.Substring(6) }
+        elseif ($line -like "hook *") { $selHooks += $line.Substring(5) }
+        elseif ($line -eq "agent-hooks") { $agentHooks = $true }
+        elseif ($line) {
+            [Console]::Error.WriteLine("error: unexpected resolver output: $line")
+            exit 1
+        }
+    }
+}
+
 New-Item -ItemType Directory -Force -Path $target | Out-Null
-New-Item -ItemType Directory -Force -Path $agentsTarget | Out-Null
+if ((-not $partial) -or $selAgents.Count -gt 0) {
+    New-Item -ItemType Directory -Force -Path $agentsTarget | Out-Null
+}
 
 $templatesPath = Join-Path $repoRoot "templates"
 $installed = @()
 $skippedForeign = @()
 $repoSkills = @()
-Get-ChildItem -Path $repoRoot -Recurse -Filter "SKILL.md" -Depth 2 | Where-Object {
-    -not $_.FullName.StartsWith($templatesPath + [System.IO.Path]::DirectorySeparatorChar)
-} | ForEach-Object {
-    $skillDir = $_.Directory
+function Install-Skill($skillDir) {
     $name = $skillDir.Name
     $dest = Join-Path $target $name
     $script:repoSkills += $name
     if ((Test-Path $dest) -and -not (Test-Path (Join-Path $dest $Marker)) -and -not $Force) {
         Write-Warning "$dest exists and wasn't installed by this repo, skipping (use -Force to replace)"
-        $skippedForeign += $name
+        $script:skippedForeign += $name
         return
     }
     if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
@@ -134,24 +186,80 @@ Get-ChildItem -Path $repoRoot -Recurse -Filter "SKILL.md" -Depth 2 | Where-Objec
     Get-ChildItem -Path $dest -Recurse -Filter "__pycache__" -Directory -ErrorAction SilentlyContinue |
         ForEach-Object { Remove-Item -Recurse -Force $_.FullName }
     New-Item -ItemType File -Force -Path (Join-Path $dest $Marker) | Out-Null
-    $installed += $name
+    $script:installed += $name
 }
 
 $installedAgents = @()
-Get-ChildItem -Path (Join-Path $repoRoot "agents") -Filter "*.md" -File | Where-Object { $_.Name -ne "README.md" } | ForEach-Object {
-    $dest = Join-Path $agentsTarget $_.Name
-    Copy-Item -Force $_.FullName $dest
-    $installedAgents += [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
+function Install-Agent($agentFile) {
+    $dest = Join-Path $agentsTarget $agentFile.Name
+    Copy-Item -Force $agentFile.FullName $dest
+    $script:installedAgents += [System.IO.Path]::GetFileNameWithoutExtension($agentFile.Name)
 }
 
-$hooksSrc = Join-Path $repoRoot "agents\hooks"
-$hooksDest = Join-Path $agentsTarget "hooks"
-if (Test-Path $hooksSrc) {
-    New-Item -ItemType Directory -Force -Path $hooksDest | Out-Null
-    Copy-Item -Force -Recurse (Join-Path $hooksSrc "*") $hooksDest
-    Get-ChildItem -Path $hooksDest -Recurse -Filter "__pycache__" -Directory -ErrorAction SilentlyContinue |
-        ForEach-Object { Remove-Item -Recurse -Force $_.FullName }
+function Install-AgentHooks {
+    $hooksSrc = Join-Path $repoRoot "agents\hooks"
+    $hooksDest = Join-Path $agentsTarget "hooks"
+    if (Test-Path $hooksSrc) {
+        New-Item -ItemType Directory -Force -Path $hooksDest | Out-Null
+        Copy-Item -Force -Recurse (Join-Path $hooksSrc "*") $hooksDest
+        Get-ChildItem -Path $hooksDest -Recurse -Filter "__pycache__" -Directory -ErrorAction SilentlyContinue |
+            ForEach-Object { Remove-Item -Recurse -Force $_.FullName }
+    }
 }
+
+if ($partial) {
+    foreach ($d in $selSkills) { Install-Skill (Get-Item -LiteralPath (Join-Path $repoRoot $d)) }
+    foreach ($a in $selAgents) { Install-Agent (Get-Item -LiteralPath (Join-Path $repoRoot "agents\$a.md")) }
+    if ($agentHooks) { Install-AgentHooks }
+
+    # hooks\<name>.py: copied, never wired into settings.json. A different
+    # file already there is left alone unless -Force.
+    $hooksTarget = if ($env:CLAUDE_HOOKS_DIR) { $env:CLAUDE_HOOKS_DIR } else { Join-Path (Split-Path -Parent $target) "hooks" }
+    $copiedHooks = @()
+    $skippedHooks = @()
+    foreach ($h in $selHooks) {
+        $src = Join-Path $repoRoot "hooks\$h.py"
+        $dest = Join-Path $hooksTarget "$h.py"
+        if ((Test-Path -LiteralPath $dest) -and -not $Force -and
+            (Get-FileHash -LiteralPath $src).Hash -ne (Get-FileHash -LiteralPath $dest).Hash) {
+            Write-Warning "$dest exists and differs from this repo's copy, skipping (use -Force to replace)"
+            $skippedHooks += $h
+            continue
+        }
+        New-Item -ItemType Directory -Force -Path $hooksTarget | Out-Null
+        Copy-Item -Force -LiteralPath $src -Destination $dest
+        $copiedHooks += $h
+    }
+
+    Write-Host "Workflow(s): $($wfNames -join ' ')"
+    Write-Host "Installed $($installed.Count) skill(s) to $target :"
+    $installed | ForEach-Object { Write-Host "  - $_" }
+    if ($skippedForeign.Count -gt 0) {
+        Write-Warning "skipped $($skippedForeign.Count) foreign skill dir(s) without marker (use -Force): $($skippedForeign -join ', ')"
+    }
+    if ($installedAgents.Count -gt 0) {
+        Write-Host "Installed $($installedAgents.Count) agent(s) to $agentsTarget (with the guard-git hook in hooks\):"
+        $installedAgents | ForEach-Object { Write-Host "  - $_" }
+    }
+    if ($copiedHooks.Count -gt 0) {
+        Write-Host "Copied $($copiedHooks.Count) hook(s) to $hooksTarget, NOT wired. To enable, add this to the `"hooks`" block of ~/.claude/settings.json (see hooks/README.md):"
+        & $py.Path @($py.Args) $deps snippet $hooksTarget @copiedHooks | ForEach-Object { Write-Host $_ }
+    }
+    if ($skippedForeign.Count -gt 0 -or $skippedHooks.Count -gt 0) {
+        exit 1
+    }
+    exit 0
+}
+
+Get-ChildItem -Path $repoRoot -Recurse -Filter "SKILL.md" -Depth 2 | Where-Object {
+    -not $_.FullName.StartsWith($templatesPath + [System.IO.Path]::DirectorySeparatorChar)
+} | ForEach-Object { Install-Skill $_.Directory }
+
+Get-ChildItem -Path (Join-Path $repoRoot "agents") -Filter "*.md" -File | Where-Object { $_.Name -ne "README.md" } | ForEach-Object {
+    Install-Agent $_
+}
+
+Install-AgentHooks
 
 Write-Host "Installed $($installed.Count) skill(s) to $target :"
 $installed | ForEach-Object { Write-Host "  - $_" }
