@@ -65,7 +65,7 @@ Follow Matt Pocock's [`writing-for-agents`](https://github.com/mattpocock/skills
 - **Plugin version and CHANGELOG.** The repo is also the `krish` plugin
   ([`.claude-plugin/plugin.json`](.claude-plugin/plugin.json)); a new skill
   directory at the root or under `kanban/` ships in it automatically.
-  Plugin users only get changes when `version` there changes, so add a line
+  Plugin users only get changes when `version` there changes. So add a line
   to [`CHANGELOG.md`](CHANGELOG.md) for each user-visible change, and on a
   release bump `version` and the top `## ` heading together
   (`scripts/lint.py` fails when they differ).
@@ -84,9 +84,9 @@ python scripts/lint.py
 ```
 
 Fix anything it reports as a failure. It also prints `WARN:` lines (to
-stderr) for a skill README missing one of the required headings above —
-warnings don't fail the run, but fix them before submitting if they're
-about your own skill. To test the forbidden-word check locally, drop a
+stderr) for a skill README missing one of the required headings above.
+Warnings don't fail the run, but fix any about your own skill before
+submitting. To test the forbidden-word check locally, drop a
 throwaway word into `.lint-forbidden.txt` at the repo root (gitignored),
 confirm `python scripts/lint.py` fails naming it, then delete the file.
 
