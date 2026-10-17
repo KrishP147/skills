@@ -704,5 +704,39 @@ class ListTest(Base):
         self.assertEqual(cs.list_lines(cs.load(), NOW), ["no accounts; run /switch setup, or migrate"])
 
 
+class SkillRoutingTest(unittest.TestCase):
+    """SKILL.md: every command it tells Claude to run is pre-allowed, and
+    setup is two steps like remove."""
+    def setUp(self):
+        text = (SCRIPT.parents[1] / "SKILL.md").read_text(encoding="utf-8")
+        head, self.body = text.split("\n---\n", 1)
+        self.allowed = [line.strip()[len("- Bash("):-len(":*)")] for line in head.splitlines()
+                        if line.strip().startswith("- Bash(")]
+        self.hint = next(line for line in head.splitlines() if line.startswith("argument-hint:"))
+
+    def test_every_command_allowed(self):
+        cmds = [line.strip() for line in self.body.splitlines() if "claude_switch.py" in line
+                and line.strip().startswith(('"${CLAUDE_SWITCH_PYTHON', 'python "'))]
+        self.assertGreaterEqual(len(cmds), 8)
+        for cmd in cmds:
+            sub = "setup" if cmd.startswith("python ") else None
+            words = cmd.split(" $ARGUMENTS")[0]
+            self.assertTrue(any(a.startswith(words) for a in self.allowed), cmd)
+            if sub:
+                self.assertIn(words + " setup", self.allowed)
+
+    def test_setup_route(self):
+        self.assertIn("setup [name]", self.hint)
+        sec = self.body.split("**`setup [name]`**", 1)[1].split("\n**", 1)[0]
+        self.assertIn("$ARGUMENTS --dry-run", sec)
+        self.assertIn("$ARGUMENTS --yes", sec)
+        self.assertIn('"Write these changes? (yes/no)"', sec)
+        self.assertIn("explicit yes", sec)
+        self.assertIn("open a new terminal", sec)
+        for py in ('"${CLAUDE_SWITCH_PYTHON:-python3}"', "python"):
+            self.assertIn('%s "${CLAUDE_SKILL_DIR}/scripts/claude_switch.py" setup' % py, self.allowed)
+        self.assertIn("setup", cs.SUBCOMMANDS)
+
+
 if __name__ == "__main__":
     unittest.main()

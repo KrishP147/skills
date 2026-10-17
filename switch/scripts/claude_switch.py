@@ -4,8 +4,8 @@ live conversation between them. Stdlib only.
 
   run [name|-] [claude args]   launcher loop; '-' or no name = most recent
   request [name] --session ID  pre-switch notes, then ask this session's launcher to switch
-  setup [--account NAME=DIR ...] [--profile SHELL=PATH ...] [--yes]
-                               register accounts, write shell wrappers
+  setup [name] [--account NAME=DIR ...] [--profile SHELL=PATH ...] [--yes|--dry-run]
+                               register accounts (name = this config dir), write shell wrappers
   add NAME [--dir DIR]         new account sharing the first one's items
   remove NAME [--delete-dir] [--yes] [--dry-run]
   rename OLD NEW | list | migrate
@@ -197,8 +197,8 @@ def setup_command():
 def setup_steps():
     return (
         "this session was not started by the claude-switch launcher, so it can't switch.\n"
-        "set up once, then start Claude with `claude` or `claude-<name>` from a new shell:\n  "
-        + setup_command()
+        "set up once with /switch setup (or from a shell, below), then start Claude with `claude` "
+        "or `claude-<name>` from a new terminal:\n  " + setup_command()
     )
 
 
@@ -676,7 +676,7 @@ def read_text(p):
     """(text, had_bom); missing file = ('', False)."""
     try:
         raw = Path(p).read_bytes()
-    except FileNotFoundError:
+    except (FileNotFoundError, NotADirectoryError):
         return "", False
     bom = raw.startswith(b"\xef\xbb\xbf")
     try:
@@ -742,18 +742,45 @@ def install_copy():
         _retry(lambda: os.replace(tmp, dst))
 
 
+def config_dir():
+    """The config dir this process runs under: $CLAUDE_CONFIG_DIR, else ~/.claude."""
+    return Path(os.environ.get("CLAUDE_CONFIG_DIR") or (Path.home() / ".claude")).absolute()
+
+
+def name_current_dir(reg, name):
+    """setup NAME: register the config dir this runs under as NAME. Refuses
+    to give that dir a second name or to move NAME off another dir."""
+    if not NAME_RE.match(name):
+        raise SystemExit("claude-switch: bad account name %r (use a-z, 0-9, -, _)" % name)
+    d = config_dir()
+    holder = next((a for a in reg["accounts"] if _norm(a["dir"]) == _norm(d)), None)
+    if holder and holder["name"] != name:
+        raise SystemExit("claude-switch: %s is already account '%s'; to rename it: /switch rename %s %s"
+                         % (d, holder["name"], holder["name"], name))
+    a = find(reg, name)
+    if a and not holder:
+        raise SystemExit("claude-switch: account '%s' is already %s; pick another name" % (name, a["dir"]))
+    if not a:
+        upsert(reg, name, str(d))
+
+
 def cmd_setup(args):
-    ensure_home()
-    reg = load()
+    reg = load()  # everything up to the plan is in memory: a refusal or --dry-run writes nothing
     if args.uninstall:
+        if args.name:
+            raise SystemExit("claude-switch: setup --uninstall takes no account name")
+        if not args.dry_run:
+            ensure_home()
         return setup_uninstall(reg, args)
+    if args.name or not (reg["accounts"] or args.account):
+        name_current_dir(reg, args.name or "main")  # first run: the account you're on is main
     for spec in args.account or []:
         name, sep, d = spec.partition("=")
         if not sep or not d:
             raise SystemExit("claude-switch: --account wants NAME=DIR, got %r" % spec)
         upsert(reg, name.strip(), d.strip())
-    if not reg["accounts"]:
-        upsert(reg, "main", str(Path.home() / ".claude"))  # D418
+    if not args.dry_run:
+        ensure_home()
     if args.profile:
         targets = {}
         for spec in args.profile:
@@ -771,9 +798,12 @@ def cmd_setup(args):
         if not Path(a["dir"]).is_dir():
             print("note: %s does not exist yet; claude creates it on first login as '%s'" % (a["dir"], a["name"]))
     if not plan:
-        install_copy()
+        if not args.dry_run:
+            install_copy()
         print("claude-switch: everything is up to date")
         return 0
+    if args.dry_run:
+        return dry_run(plan)
     if not confirm_plan(plan, args.yes):
         return 1
     install_copy()
@@ -784,16 +814,26 @@ def cmd_setup(args):
     return 0
 
 
+def dry_run(plan):
+    show_plan(plan)
+    print("dry run: nothing changed")
+    return 0
+
+
 def confirm_plan(plan, yes):
+    show_plan(plan)
+    if yes or ask("Write these changes? [y/N] "):
+        return True
+    print("nothing written")
+    return False
+
+
+def show_plan(plan):
     for path, old, new, _ in plan:
         for line in difflib.unified_diff(
                 old.replace("\r\n", "\n").splitlines(True), (new or "").replace("\r\n", "\n").splitlines(True),
                 str(path) if old else "/dev/null", str(path) if new is not None else "/dev/null"):
             sys.stdout.write(line if line.endswith("\n") else line + "\n")  # last line without one: no gluing
-    if yes or ask("Write these changes? [y/N] "):
-        return True
-    print("nothing written")
-    return False
 
 
 def ask(prompt):
@@ -830,6 +870,8 @@ def setup_uninstall(reg, args):
     if not plan:
         print("claude-switch: no statusline or hook of ours in %s" % files)
         return 0
+    if args.dry_run:
+        return dry_run(plan)
     if not confirm_plan(plan, args.yes):
         return 1
     write_plan(plan)
@@ -1639,7 +1681,11 @@ def main(argv=None):
     r.add_argument("words", nargs="*", metavar="name", help="account (default: the previous one)")
     r.add_argument("--session", default="")
     s = sub.add_parser("setup", help="register accounts and write shell wrappers")
+    s.add_argument("name", nargs="?",
+                   help="account name for the config dir you're on ($CLAUDE_CONFIG_DIR, else ~/.claude); "
+                        "first run default: main")
     s.add_argument("--account", action="append", metavar="NAME=DIR")
+    s.add_argument("--dry-run", action="store_true", help="print the diff, write nothing")
     s.add_argument("--profile", action="append", metavar="SHELL=PATH",
                    help="write only these (%s; cmd takes the shim dir)" % ", ".join(SHELLS))
     s.add_argument("--yes", action="store_true", help="write without asking")

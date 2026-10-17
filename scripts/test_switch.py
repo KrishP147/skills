@@ -327,6 +327,60 @@ class SetupTest(Base):
         self.assertFalse(any(v.exists() for v in self.profiles().values()))
         self.assertFalse(cs.registry_path().exists())
 
+    def tree(self):
+        return {str(p): p.read_bytes() if p.is_file() else None for p in self.tmp.rglob("*")}
+
+    def test_dry_run_writes_nothing(self):
+        before = self.tree()
+        rc, out = self.main("setup", "work", "--dry-run", *["--profile=%s=%s" % kv for kv in self.profiles().items()])
+        self.assertEqual(rc, 0)
+        self.assertIn("+claude-work() {", out)
+        self.assertTrue(out.rstrip().endswith("dry run: nothing changed"), out)
+        self.assertEqual(self.tree(), before)
+        self.assertFalse(self.sw.exists())
+        self.setup()  # written; a rerun dry run is up to date and still writes nothing
+        before = self.tree()
+        rc, out = self.main("setup", "main", "--dry-run", *["--profile=%s=%s" % kv for kv in self.profiles().items()])
+        self.assertEqual((rc, out.strip()), (0, "claude-switch: everything is up to date"))
+        rc, out = self.main("setup", "--uninstall", "--dry-run")
+        self.assertEqual(rc, 0)
+        self.assertIn('-  "statusLine"', out)
+        self.assertTrue(out.rstrip().endswith("dry run: nothing changed"), out)
+        self.assertEqual(self.tree(), before)
+
+    def test_name_registers_current_dir(self):
+        cfg = self.tmp / "cfg-work"
+        argv = ["--profile=%s=%s" % kv for kv in self.profiles().items()] + ["--yes"]
+        rc, out = self.main("setup", "work", *argv, env={"CLAUDE_CONFIG_DIR": str(cfg)})
+        self.assertEqual(rc, 0, out)
+        self.assertEqual([(a["name"], a["dir"]) for a in cs.load()["accounts"]], [("work", str(cfg.absolute()))])
+        rc, out = self.main("setup", "home", *argv)  # CLAUDE_CONFIG_DIR unset: ~/.claude
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(cs.find(cs.load(), "home")["dir"], str((self.home / ".claude").absolute()))
+        self.assertIn("claude-home()", self.profiles()["bash"].read_text())
+        rc, out = self.main("setup", "work", *argv, env={"CLAUDE_CONFIG_DIR": str(cfg)})
+        self.assertEqual((rc, out.splitlines()[-1]), (0, "claude-switch: everything is up to date"))
+
+    def test_first_run_main_is_current_dir(self):
+        cfg = self.tmp / "cfg-x"
+        rc, out = self.main("setup", "--yes", "--profile=bash=%s" % self.profiles()["bash"],
+                            env={"CLAUDE_CONFIG_DIR": str(cfg)})
+        self.assertEqual(rc, 0, out)
+        self.assertEqual([(a["name"], a["dir"]) for a in cs.load()["accounts"]], [("main", str(cfg.absolute()))])
+
+    def test_name_refusals_write_nothing(self):
+        self.setup()  # main = ~/.claude
+        before = self.tree()
+        cases = [(("setup", "work"), {}, "is already account 'main'; to rename it: /switch rename main work"),
+                 (("setup", "main"), {"CLAUDE_CONFIG_DIR": str(self.tmp / "cfg-y")}, "account 'main' is already"),
+                 (("setup", "Bad Name"), {}, "bad account name"),
+                 (("setup", "work", "--uninstall"), {}, "takes no account name")]
+        for argv, env, want in cases:
+            with self.assertRaises(SystemExit, msg=argv) as cm:
+                self.main(*argv, "--yes", env=env)
+            self.assertIn(want, str(cm.exception))
+        self.assertEqual(self.tree(), before)
+
     @unittest.skipUnless(shutil.which("bash") and os.name != "nt", "posix bash")
     def test_bash_block_runs_fake(self):
         self.setup("alt=%s" % (self.tmp / "alt"))
