@@ -276,6 +276,20 @@ class SetupTest(Base):
         self.assertIn("not UTF-8", str(e.exception))
         self.assertEqual(p.read_bytes(), b"# caf\xe9\r\n")
 
+    def test_cp1252_console_diff(self):
+        p = self.profiles()["bash"]
+        p.parent.mkdir(parents=True)
+        p.write_text("# a → b\n", encoding="utf-8")
+        raw = io.BytesIO()
+        out = io.TextIOWrapper(raw, encoding="cp1252")
+        argv = ["setup", "--profile=bash=%s" % p, "--yes"]
+        with contextlib.redirect_stdout(out):
+            rc = cs.main(argv)
+        out.flush()
+        self.assertEqual(rc, 0)
+        self.assertIn(b"+claude() {", raw.getvalue())
+        self.assertIn("# a → b\n", p.read_text(encoding="utf-8"))
+
     def test_no_yes_writes_nothing(self):
         with mock.patch("builtins.input", side_effect=EOFError):
             rc, out = self.setup("alt=%s" % self.tmp, yes=False)

@@ -869,6 +869,9 @@ def cmd_migrate(args):
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    for stream in (sys.stdout, sys.stderr):  # cp1252 console + non-ASCII profile diff: no crash
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     if argv and argv[0] == "run":
         return cmd_run(argv[1:])
     p = argparse.ArgumentParser(prog="claude_switch.py", description=__doc__.split("\n\n")[0])
