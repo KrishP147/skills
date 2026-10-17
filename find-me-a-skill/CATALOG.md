@@ -202,7 +202,7 @@ human-in-the-loop points: nothing continues without you.
 
 1. you: Run claude_switch.py setup (or migrate for existing ~/.claude-<name> dirs) once, then start Claude with claude or claude-<name> so a launcher watches the session.
 2. /switch (skill, haiku · low): /switch add <name> makes a new account that shares the first one's skills, settings and history and moves you into it to log in; remove, rename and list manage the rest.
-3. you: An account hits its usage limit mid-task: type /switch or /switch <name>; it is user-only, so Claude can't start it.
-4. /switch (skill, haiku · low): Writes a request for this terminal's launcher only, which ends the session and resumes it on the target account (--continue when --resume fails).
+3. you: The statusline shows the account and its session and weekly use; near the limit a warning names the account with the most room. Type /switch or /switch <name>; it is user-only, so Claude can't start it.
+4. /switch (skill, haiku · low): A prompt hook writes a request for this terminal's launcher only, with no API call so it works at 100%; the launcher ends the session and resumes it on the target account (--continue when --resume fails).
 5. /sitrep (skill, haiku · low): On the new account, lists what was running and asked vs done, so nothing from before the move is lost.
 6. you: Carry on; /switch with no name goes back to the account you came from.
