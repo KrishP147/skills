@@ -175,15 +175,16 @@ flowchart TD
 
 Login, settings and transcripts belong to a config dir; some features
 belong to the claude.ai account that is logged in there. Before every
-switch `/switch` prints what each of them does; none of it stops the
-switch:
+switch `/switch` prints a line for what ends or pauses (Remote Control,
+subagents, background commands); none of it stops the switch. The last
+two items below are only described here:
 
 - **Remote Control** ends with the old Claude process. When it was on,
   `/switch` says so; run `/remote-control` on the target if you want it
   there.
 - **Subagents**. A subagent whose transcript (under the
-  session's `subagents/` folder) has no final reply yet, or changed in
-  the last 10 minutes, counts as running. The switch pauses it; after
+  session's `subagents/` folder) has no final reply yet counts as
+  running, however long ago it last wrote. The switch pauses it; after
   the relaunch, `SendMessage` to its id resumes it with its history.
   Explore and Plan agents are one-shot and can't be resumed.
 - **Background Bash commands and monitors** end with the old process
@@ -280,15 +281,15 @@ you need it.
 ```
 before switching main -> alt:
   dies: background Bash commands and monitors, if any (Explore/Plan agents are one-shot)
-  stays on main: artifacts published this session (republishing needs edit rights), routines
-  follows the login: run /mcp on alt for claude.ai connectors and MCP OAuth; the Chrome extension must be signed into alt's org
 switching to 'alt': this session ends now and resumes there.
 >> claude-switch: main -> alt
    resume note: ~/.claude-switch/requests/41236.note.md
 ```
 
 The same conversation reopens on `alt`. `/switch nope` instead prints
-`unknown account 'nope'. accounts: main (current), alt` and does nothing.
+`unknown account 'nope'. accounts: main (current), alt` and does nothing;
+`/switch alt now` (anything after the name but `yes`) prints
+`usage: /switch [name]`.
 
 ## Related
 
