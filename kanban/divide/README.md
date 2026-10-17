@@ -17,7 +17,7 @@ Splits an issue (or a described task) that's too big for one session into two or
 
 ## How to invoke
 
-`/divide <issue number or task description>` — model-invocable.
+`/divide <issue number or task description>`. Claude can also run it itself.
 
 ## How it works
 
@@ -26,7 +26,8 @@ Splits an issue (or a described task) that's too big for one session into two or
    - Otherwise proposes 2+ pieces (or uses your split) and **shows it before creating anything**.
    - If you revise the split, it shows it again.
 3. On confirmation: `gh issue create` per piece ("Part of #n").
-   - Adds a task-list checkbox per child to the parent's body (or attaches each as a sub-issue when the parent already uses them; work an existing child covers is never re-split).
+   - Adds a task-list checkbox per child to the parent's body. If the parent already uses sub-issues, it attaches each child as one instead.
+   - Work an existing child covers is never re-split.
    - A free-text target has no parent issue, so "Part of", the checkboxes and the roadmap link are skipped.
 4. Adds each child to the board.
    - Projects v2 → `gh project item-add` then `gh project item-edit` to set Status=Todo (`item-add` alone leaves Status empty).
