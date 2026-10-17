@@ -526,6 +526,20 @@ class WorkflowsValidationTest(unittest.TestCase):
         raw = [wf for wf in self.copy() if wf["name"] != "go-public"]
         self.fails(raw, "skills in no workflow: repo-scrub, repo-showcase")
 
+    def test_every_agent_and_hook_covered(self):
+        used = {s.get("name") for wf in self.raw for s in wf["steps"]}
+        for group in ("agents", "hooks"):
+            names = [e["name"] for e in self.entries if e["group"] == group]
+            self.assertTrue(names, group)
+            self.assertEqual([n for n in names if n not in used], [], group)
+
+    def test_uncovered_agent_or_hook_fails(self):
+        for kind, name in (("agent", "planner"), ("hook", "spend-guard")):
+            raw = self.copy()
+            for wf in raw:
+                wf["steps"] = [s for s in wf["steps"] if s.get("name") != name]
+            self.fails(raw, "%ss in no workflow: %s" % (kind, name))
+
     def test_bad_steps_fail(self):
         cases = [
             ({"kind": "human", "name": "pair", "why": "x"}, "human step has no name"),
@@ -612,6 +626,17 @@ class WorkflowsPageTest(unittest.TestCase):
                 else:
                     self.assertIn('href="/skills/%s">/%s</a>' % (st["name"], st["name"]), li)
                     self.assertTrue(os.path.isfile(os.path.join(self.out, st["name"], "index.html")))
+
+    def test_install_command_per_workflow(self):
+        # Each workflow section ends with its bash + PowerShell install one-liners.
+        for wf in self.raw:
+            m = re.search(r'<section class="sec wf" aria-labelledby="%s">(.*?)</section>' % wf["name"], self.page, re.S)
+            self.assertIsNotNone(m, wf["name"])
+            self.assertIn("./scripts/install-skills.sh --workflow %s " % wf["name"], m.group(1))
+            self.assertIn(".\\scripts\\install-skills.ps1 -Workflow %s " % wf["name"], m.group(1))
+        detail = os.path.join(self.out, "next", "index.html")
+        with open(detail, encoding="utf-8") as f:
+            self.assertIn("<code>./scripts/install-skills.sh --workflow close-the-loop</code>", f.read())
 
     def test_page_shell(self):
         # Same chrome as a detail page: slash prompt, nav data, back link, one h1.
