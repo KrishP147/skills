@@ -10,7 +10,8 @@ Runs several Claude Code accounts side by side, each with its own config dir, an
 
 - Start Claude with `claude` (the account you used last) or `claude-<name>`.
 - Inside a session, `/switch` closes it and reopens the same conversation on your previous account, `/switch <name>` on a named one.
-- `/switch add|remove|rename|list` manages the accounts; new ones share skills, settings and history with the first.
+- `/switch setup` does the one-time setup from inside Claude.
+- `/switch add|remove|rename|list` manages the accounts; new ones share skills, settings and history with the first. `list` shows who is logged in where and how much usage each account has left.
 - Before each switch it prints what stays with the old account (artifacts, routines) and what ends or pauses (Remote Control, running subagents, background commands); it never asks.
 - A statusline shows which account you're on and how much of its session and weekly limits is used, and warns you near the limit with the account that has the most room left.
 
@@ -28,9 +29,9 @@ Runs several Claude Code accounts side by side, each with its own config dir, an
 **First time**, start to finish:
 
 1. Install the skills: `scripts/install-skills.sh` (on Windows, `scripts/install-skills.ps1`).
-2. Name the account you already use: `python3 ~/.claude/skills/switch/scripts/claude_switch.py setup --account work=~/.claude` (on Windows, `python`).
-   - It shows the profile and settings diff and writes only after you type `y`.
-   - Without `--account` (and with no accounts registered yet) it registers `~/.claude` as `main`. Rename it later with `/switch rename main work`.
+2. Start Claude as usual and type `/switch setup work` to name the account you're on `work` (plain `/switch setup` calls it `main`).
+   - Claude shows the shell profile and settings changes it would make and asks "Write these changes?". Nothing is written until you say yes.
+   - Called it `main` and want another name? `/switch rename main work`.
 3. Open a new terminal, because shell profiles only load in new shells (or reload with `source ~/.bashrc` / `. $PROFILE`). Then run `claude` (or `claude-work`).
 4. Inside that session, run `/switch add personal`.
    - It creates `~/.claude-personal`, links your first account's skills, settings and history into it, and reopens this conversation there.
@@ -38,10 +39,15 @@ Runs several Claude Code accounts side by side, each with its own config dir, an
    - This switch-in only happens when Claude was started by the launcher (`claude` or `claude-<name>`). Otherwise it only adds the account and tells you to start it with `claude-personal` from a new shell.
 5. From then on, `/switch` flips back to the other account, `claude-personal` starts on it directly, and `/switch list` shows both.
 
-To register two accounts in one go, run this from a shell (use the installed copy, e.g.
-`~/.claude/skills/switch/scripts/claude_switch.py`). On Windows type
-`python` (or `py`) wherever these examples say `python3`: there
-`python3` is usually the Microsoft Store stub.
+Claude not running, or you only use cmd? Run step 2 from a shell instead, with the installed copy of the script.
+On Windows type `python` (or `py`) wherever these examples say `python3`: there `python3` is usually the Microsoft Store stub.
+
+```
+python3 ~/.claude/skills/switch/scripts/claude_switch.py setup work
+```
+
+It prints the same diff and writes only after you type `y`; `--dry-run` prints it and writes nothing.
+To register two accounts in one go:
 
 ```
 python3 claude_switch.py setup --account work=~/.claude --account personal=~/.claude-personal
@@ -55,6 +61,7 @@ Then, in a new shell, run `claude` or `claude-personal`. Inside a session you ha
 
 ```
 /switch [name]
+/switch setup [name]
 /switch add <name> [--dir DIR]
 /switch remove <name> [--delete-dir]
 /switch rename <old> <new>
@@ -69,7 +76,9 @@ statusline and hook back out of `settings.json`:
 ## How it works
 
 1. **Setup** (`claude_switch.py setup`) registers each `--account NAME=DIR` in `~/.claude-switch/accounts.json` (name, dir, colour, theme, last-used; written atomically). It also copies the script there. The wrappers call that copy, so updating or uninstalling the skill doesn't break your shells.
-   - No `--account` on a first run registers `main` = `~/.claude`.
+   - `setup <name>` registers the config dir you're on (`$CLAUDE_CONFIG_DIR`, else `~/.claude`) as `<name>`. It refuses a name or dir that is already registered differently.
+   - With neither, a first run registers the config dir you're on as `main`.
+   - `--dry-run` prints the diff and writes nothing. `/switch setup` runs that first, then `--yes` after you agree in chat.
    - It then writes a block between `# >>> claude-switch >>>` markers into each shell profile it finds (bash, zsh, fish, PowerShell 5.1 and 7) and `claude.cmd` / `claude-<name>.cmd` shims for cmd.
    - It shows the unified diff and writes only after `y`.
    - Rerunning replaces only its own block.
@@ -101,7 +110,10 @@ statusline and hook back out of `settings.json`:
    - It refuses the account you're on, the last one, and the first one while others link into it.
 8. **`rename`, `list` and `migrate`.**
    - `rename <old> <new>` changes the name and the shell commands; the dir is not moved.
-   - `list` shows each account's colour, dir, last use and which one you're on.
+   - `list` shows one line per account: colour, logged in or out, email, last seen session and weekly usage with time left, last use, dir, and which one you're on.
+     - Logged in means the account's dir holds `.credentials.json`. On macOS, where the login lives in the Keychain (never read), an `oauthAccount` in its `.claude.json` counts instead.
+     - The email comes from that `.claude.json` (`~/.claude.json` for `~/.claude`), `-` when there is none.
+     - Usage comes from the statusline's cache: `-` before the account has reported any, `0%` once a window has reset.
    - `migrate` registers `~/.claude` and every `~/.claude-<name>` dir holding `.credentials.json`, `.claude.json` or `projects/`; it links nothing, and once setup has run it adds the statusline and hook to each one's `settings.json`.
    - Renaming the account you're on is fine: the launcher looks it up by its dir at the next switch.
 9. **Statusline.** Setup also writes a `statusLine` (refreshed every 60 s), and the hook below, into every account's `settings.json`.
@@ -114,7 +126,8 @@ statusline and hook back out of `settings.json`:
     - With two or more accounts, a `UserPromptSubmit` hook warns once when the account crosses 90% and once at 97% in a window: `work at 91%: run /switch personal`, naming the account with the most room (a window past its reset counts as empty).
 11. **`/switch` at 100%.** The same hook catches a typed `/switch` or `/switch <name>`, writes the launcher's request and blocks the prompt, so the switch makes no API call and works on an account that is out of usage.
     - Claude Code gives this hook the line exactly as typed, before the skill expands (hooks reference, section "UserPromptSubmit input"; blocking per "UserPromptSubmit decision control").
-    - `add`, `remove`, `rename`, `list` and `theme` still go through the skill.
+    - It answers `/switch list` too, with or without the launcher, so the list also needs no API call.
+    - `setup`, `add`, `remove`, `rename` and `theme` still go through the skill.
 12. **Theme and title.** `/switch theme <name> <theme>` gives an account its own Claude theme.
     - The launcher passes it as `--settings '{"theme":...}'`, merged with a `--settings` you passed yourself (yours wins on the same key).
     - It also sets the terminal tab title to `claude: <name>` at each start and switch, and prints the switch line in the target account's colour.
@@ -248,6 +261,15 @@ The same conversation reopens on `personal`.
 - `/switch nope` instead prints `unknown account 'nope'. accounts: work (current), personal` and does nothing.
 - `/switch personal now` (anything after the name but `yes`) prints `usage: /switch [name]`.
 
+```
+/switch list
+```
+
+```
+work      cyan     logged in   sam@example.com  session 42% (2h13m left)  week 18% (4d6h left)  last used 2026-10-17 09:12 UTC  /home/sam/.claude  (current)
+personal  magenta  logged out  -                session -                 week -                last used never                 /home/sam/.claude-personal
+```
+
 ## Related
 
 - [`session-handoff`](../kanban/session-handoff/README.md): when the
@@ -256,4 +278,4 @@ The same conversation reopens on `personal`.
 
 ## Prereqs
 
-Python 3.8+ (stdlib only) and Claude Code on `PATH`. Run `setup` once.
+Python 3.8+ (stdlib only) and Claude Code on `PATH`. Run `/switch setup` once.
