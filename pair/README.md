@@ -26,11 +26,28 @@ Model-invocable, so "pair on issue 12" also works.
 
 ## How it works
 
-1. **Resolve the task.** Issue number → `gh issue view`; text → Claude writes a 3–6 item acceptance checklist. Collects default branch, branch prefix (from your `CLAUDE.md`, else `feat`), test command, `CONTRIBUTING.md`/`AGENTS.md`. On a fork (`upstream` remote): fetches upstream, fast-forwards the default branch, and checks every file/symbol the issue cites still exists.
-2. **Isolate.** `git worktree add ../_worktrees/<repo>-<slug> -b <prefix>/<slug> <default>` (slug = `issue-<n>-<kebab-title>`). Reuses an existing worktree/branch if present. A relative `origin` URL (`../origin.git`) is first made absolute with `git remote set-url` (same target), since a worktree resolves it from its own root. Deps (`node_modules`/`.venv`) are linked from the main checkout (a `mklink /J` junction on Windows, paths built with `cygpath -wa` and run with `MSYS_NO_PATHCONV=1` from Git Bash, refused unless both paths are absolute; `ln -s` elsewhere), not reinstalled. For an issue, your session then marks it started (card → In Progress, or `status:todo` → `status:in-progress`, creating that label first if missing; skipped with no board) and comments "Started on branch …"; a board error is reported, never blocking.
+1. **Resolve the task.**
+   - Issue number → `gh issue view`; text → Claude writes a 3–6 item acceptance checklist.
+   - Collects default branch, branch prefix (from your `CLAUDE.md`, else `feat`), test command, `CONTRIBUTING.md`/`AGENTS.md`.
+   - On a fork (`upstream` remote): fetches upstream, fast-forwards the default branch, and checks every file/symbol the issue cites still exists.
+2. **Isolate.**
+   - `git worktree add ../_worktrees/<repo>-<slug> -b <prefix>/<slug> <default>` (slug = `issue-<n>-<kebab-title>`).
+   - Reuses an existing worktree/branch if present.
+   - A relative `origin` URL (`../origin.git`) is first made absolute with `git remote set-url` (same target), since a worktree resolves it from its own root.
+   - Deps (`node_modules`/`.venv`) are linked from the main checkout (a `mklink /J` junction on Windows, paths built with `cygpath -wa` and run with `MSYS_NO_PATHCONV=1` from Git Bash, refused unless both paths are absolute; `ln -s` elsewhere), not reinstalled.
+   - For an issue, your session then marks it started (card → In Progress, or `status:todo` → `status:in-progress`, creating that label first if missing; skipped with no board) and comments "Started on branch …"; a board error is reported, never blocking.
 3. **Delegate.** One `Agent(subagent_type="manager")` call with working dir, task + checklist, verified/missing files, rules, implementer model, `max_rounds: 3`, "never push, merge, or open a PR". Not `fork`.
-4. **On return.** Ignores a report titled **INTERIM** (implementer still running) and waits for the manager's next handback; a handback without its Branch, Tests and Rounds sections (a placeholder) is no result either: it asks once, then reruns. Then shows the manager's report verbatim; reruns tests if the report is thin or risky; if `skilleddocs/HANDOFF.md` exists (unfinished), offers another round. Before pushing, checks `git diff --name-only <default>...HEAD` carries no `skilleddocs/HANDOFF.md` and, in commit mode, nothing in the handoff folder (`AGENTS.md`/`CLAUDE.md`'s, else `skilleddocs/handoffs/`; nothing under `skilleddocs/` or that folder when handoffs are untracked, always the case on a fork; see [`TRACKING.md`](../handoff-auto/TRACKING.md)) and removes any hit in a commit. Pushes + `gh pr create … Closes #<n>` on `--push` or your go. Never merges. PR review feedback later → step 3 again in the same worktree.
-5. **Print.** Branch, worktree path, PR URL (or "not pushed"), test result, rounds used, `skilleddocs/HANDOFF.md` path. Doesn't clean up the worktree until the PR merges. Then it moves the worktree's dated handoffs into the main checkout's handoff folder (where `update-progress` finds them), unlinks `node_modules`/`.venv` (link only, never a recursive delete) and runs `git worktree remove` only after a check confirms neither path is left, dangling links included. Never `--force`: if git still refuses, it stops and reports what's left.
+4. **On return.**
+   - Ignores a report titled **INTERIM** (implementer still running) and waits for the manager's next handback; a handback without its Branch, Tests and Rounds sections (a placeholder) is no result either: it asks once, then reruns.
+   - Then shows the manager's report verbatim; reruns tests if the report is thin or risky; if `skilleddocs/HANDOFF.md` exists (unfinished), offers another round.
+   - Before pushing, checks `git diff --name-only <default>...HEAD` carries no `skilleddocs/HANDOFF.md` and, in commit mode, nothing in the handoff folder (`AGENTS.md`/`CLAUDE.md`'s, else `skilleddocs/handoffs/`; nothing under `skilleddocs/` or that folder when handoffs are untracked, always the case on a fork; see [`TRACKING.md`](../handoff-auto/TRACKING.md)) and removes any hit in a commit.
+   - Pushes + `gh pr create … Closes #<n>` on `--push` or your go. Never merges.
+   - PR review feedback later → step 3 again in the same worktree.
+5. **Print.**
+   - Branch, worktree path, PR URL (or "not pushed"), test result, rounds used, `skilleddocs/HANDOFF.md` path.
+   - Doesn't clean up the worktree until the PR merges.
+   - Then it moves the worktree's dated handoffs into the main checkout's handoff folder (where `update-progress` finds them), unlinks `node_modules`/`.venv` (link only, never a recursive delete) and runs `git worktree remove` only after a check confirms neither path is left, dangling links included.
+   - Never `--force`: if git still refuses, it stops and reports what's left.
 
 Writes: a worktree + branch; commits (via agents); `skilleddocs/HANDOFF.md` in the worktree if unfinished (untracked unless the repo tracks `skilleddocs/`; never pushed).
 
@@ -64,9 +81,12 @@ flowchart TD
 
 - Set your branch prefix in your `CLAUDE.md`; otherwise branches start with `feat/`.
 - An **INTERIM** report means the implementer is still running; wait for the real one.
-- Decisions register in an untracked `skilleddocs/`: the brief passes main's header so every assumed `A-n` is a row teardown can carry. A heading or prose entry stops teardown with the lines listed instead of being lost; turn them into rows and rerun.
+- Decisions register in an untracked `skilleddocs/`: the brief passes main's header so every assumed `A-n` is a row teardown can carry.
+  - A heading or prose entry stops teardown with the lines listed instead of being lost; turn them into rows and rerun.
 - Leave the worktree alone while the manager runs.
-- Tear down only after the PR merges, with the exact commands in `TEARDOWN.md`: move every untracked record in the worktree's doc folders (dated handoffs, `HANDOFF.md` renamed to a dated handoff, decisions register rows) to the main checkout without overwriting, unlink, check that no link and no record is left, then `git worktree remove`. `git worktree remove` deletes git-excluded files silently, so a record left behind is lost. Never remove the worktree while a link exists: `git worktree remove` or a recursive delete follows it and empties the main checkout's copy.
+- Tear down only after the PR merges, with the exact commands in `TEARDOWN.md`: move every untracked record in the worktree's doc folders (dated handoffs, `HANDOFF.md` renamed to a dated handoff, decisions register rows) to the main checkout without overwriting, unlink, check that no link and no record is left, then `git worktree remove`.
+  - `git worktree remove` deletes git-excluded files silently, so a record left behind is lost.
+  - Never remove the worktree while a link exists: `git worktree remove` or a recursive delete follows it and empties the main checkout's copy.
 - Unfinished after 3 rounds? Accept the offer of another round; it restarts from `skilleddocs/HANDOFF.md`.
 
 ## Example
@@ -110,4 +130,5 @@ in `CLAUDE.md` (so `feat`). `--push` means no question before the push:
 
 ## Prereqs
 
-`gh`, authenticated, and `origin` on GitHub for the issue lookup and the PR step. The [`manager`](../agents/README.md#manager) and [`implementer`](../agents/README.md#implementer) agents installed (the install scripts do this), with their guard-hook needs: Python 3.8+, and Git Bash on Windows.
+- `gh`, authenticated, and `origin` on GitHub for the issue lookup and the PR step.
+- The [`manager`](../agents/README.md#manager) and [`implementer`](../agents/README.md#implementer) agents installed (the install scripts do this), with their guard-hook needs: Python 3.8+, and Git Bash on Windows.
