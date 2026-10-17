@@ -4,9 +4,9 @@
 
 ## What it does
 
-Same handoff document as [`handoff`](../handoff/), but Claude (or a skill/subagent) can call it without you typing a command.
+Same handoff document as [`handoff`](../handoff/), but Claude (or a skill or subagent) can call it without you typing a command.
 
-- Prints the document's absolute path as the very last line so orchestrators can parse it.
+- Prints the document's absolute path as the very last line, so orchestrators can read it.
 
 ## When to use
 
@@ -15,7 +15,7 @@ Same handoff document as [`handoff`](../handoff/), but Claude (or a skill/subage
 
 ## How to invoke
 
-Model-invocable: another skill calls the Skill tool with `handoff-auto` (optional argument = next-session focus).
+Claude can call it: another skill uses the Skill tool with `handoff-auto`. The optional argument says what the next session will focus on.
 
 - You can also type `/handoff-auto [focus]`.
 
@@ -36,7 +36,7 @@ Model-invocable: another skill calls the Skill tool with `handoff-auto` (optiona
 
 ## Design principles
 
-- **Machine-readable ending.** The absolute path is always the very last line, so a calling skill or orchestrator can parse it without guessing.
+- **An ending a program can read.** The absolute path is always the very last line, so a calling skill or orchestrator never has to guess.
 - **Same document as `handoff`.** Only the frontmatter, save location, tracking sentence, a git-state line (branch, base SHA, head SHA) and the final path line differ from the original, so a manual and an unattended handoff read the same.
 - **Shared tracking rule.** Commit or not comes from [`TRACKING.md`](TRACKING.md), the single source for every file under `skilleddocs/`.
 
@@ -50,7 +50,7 @@ Model-invocable: another skill calls the Skill tool with `handoff-auto` (optiona
 
 - Call `/handoff` yourself for manual handoffs; this variant exists so skills and agents can call it.
 - Pass the next session's focus (an issue number or a sentence) as the argument to tailor the doc.
-- If you parse its output, read only the last line: that is the file path.
+- If a script reads its output, it should read only the last line: that is the file path.
 - On a fork the file is never committed: it stays untracked and `skilleddocs/` is added to the git exclude file.
 
 ## Example
