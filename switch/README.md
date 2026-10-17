@@ -60,7 +60,7 @@ Then, in a new shell, run `claude` or `claude-personal`. Inside a session you ha
 /switch theme <name> [dark|light|...|-]
 ```
 
-User-invoked only; Claude never switches on its own. To take the
+Only you can run it; Claude never switches on its own. To take the
 statusline and hook back out of `settings.json`:
 `python3 claude_switch.py setup --uninstall`.
 

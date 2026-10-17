@@ -64,7 +64,7 @@ Writes a Markdown file under `skilleddocs/handoffs/` with state, open questions,
 
 ## Related
 
-- [`handoff-auto`](../handoff-auto/) — same, model-invocable, prints the path last.
+- [`handoff-auto`](../handoff-auto/) — same, but Claude can call it itself; prints the path last.
 - [`session-handoff`](../kanban/session-handoff/) — kanban-aware wrapper (uses `handoff-auto`).
 
 ## Prereqs
