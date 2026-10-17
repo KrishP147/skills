@@ -4,7 +4,7 @@
 
 ## What it does
 
-Works through a repo's backlog unattended. Claude becomes the **orchestrator**: it never implements, it loops `planner` → `manager` (or `implementer`) → merge gate → `verifier`, holds the merge gate itself (tests + CI green or no merge), logs every event to a ledger, and hands off to a fresh orchestrator session after a budget of merges. Almost every behaviour is a setting you pick on the first run.
+Works through a repo's backlog unattended. Claude becomes the **orchestrator**: it never implements, it loops `planner` → `manager` (or `implementer`, or a swarm of `haiku` implementers) → merge gate → `verifier`, holds the merge gate itself (tests + CI green or no merge), logs every event to a ledger, and hands off to a fresh orchestrator session after a budget of merges. Almost every behaviour is a setting you pick on the first run.
 
 ## When to use
 
@@ -21,7 +21,7 @@ Works through a repo's backlog unattended. Claude becomes the **orchestrator**: 
 - First run: setup interview (below), then the loop.
 - `resume`: no questions; continues from `orchestrator-handoff.md`.
 - `reconfigure`: re-run the interview on an existing run.
-- `key=value` skips that question, e.g. `merge=ask execution=flat reports=end`.
+- `key=value` skips that question, e.g. `merge=ask shape=flat reports=end`. An old `execution=` key still works as `shape=`.
 
 ## How it works
 
@@ -29,14 +29,14 @@ Works through a repo's backlog unattended. Claude becomes the **orchestrator**: 
 
    | Round | You choose |
    |---|---|
-   | Run shape | which issues, when to stop (queue empty / N merges / time box), `pair` vs `flat`, how many issues in parallel |
+   | Run shape | which issues, when to stop (queue empty / N merges / time box), shape (`pair` / `auto` / `swarm` / `flat`), how many issues in parallel |
    | Control | merge `auto` / `ask` each time / `pr-only`, merge style, whether agents may answer planning questions for you, ask vs assume on calls with no written answer, which changes always pause for you (new deps, migrations, deletions, API or CI changes; billable always) |
    | Documentation | what gets written (ledger always; decisions register, per-issue handoffs, manager reports, CHANGELOG lines), whether docs are committed, report cadence (each handoff / every N merges / end / on request), Markdown or docx, ledger detail |
-   | Models and pacing | implementer model, review model, handoff budget, push notifications |
+   | Models and pacing | implementer model (by size unless pinned), review model, handoff budget, push notifications |
 
    Writes **`skilleddocs/orchestrator/scope.md`** (a yaml block of every key), commits it, and offers to save your choices as personal defaults so the next repo starts from them.
-1. **Agents.** `planner` → kickoff brief; `manager` (`execution: pair`) or `implementer` (`execution: flat`); `verifier`; mechanical chores go to `general-purpose` on `haiku`, never judgment or the merge gate. Each step is a fresh Agent call. Agents run code review inline (nested fan-out stalls). An **INTERIM** report is not a result, nor is a manager handback missing its Branch, Tests or Rounds section (asked once, then rerun).
-2. **Loop:** `planner → manager | implementer → merge gate → verifier → repeat`; parallel issues each get their own worktree. With `parallel > 1`, [`lanes`](../lanes/) groups the queue into file-disjoint lanes, each working its issues in order; `/lanes` changes them mid-run.
+1. **Agents.** `planner` → kickoff brief with the issue's size (a `size:*` label wins over its rating) and a recommended shape; then by `shape` ([`SKILL.md`](SKILL.md) §2): `pair` (default) runs a `manager` per issue, `flat` an `implementer` directly, `swarm` one `haiku` implementer per trivial item, each in its own worktree off one batch branch, ≤`parallel` at once, merged into the batch branch, then one opus review at the merge gate and one PR; `auto` takes the planner's pick per brief. Implementer model by size: trivial → haiku, small/medium → sonnet, large or risky → opus, unless the brief or `implementer_model` says otherwise. `verifier`; mechanical chores go to `general-purpose` on `haiku`, never judgment or the merge gate. Each step is a fresh Agent call. Agents run code review inline (nested fan-out stalls). An **INTERIM** report is not a result, nor is a manager handback missing its Branch, Tests or Rounds section (asked once, then rerun).
+2. **Loop:** `planner → manager | implementer | swarm → merge gate → verifier → repeat`; parallel issues each get their own worktree. With `parallel > 1`, [`lanes`](../lanes/) groups the queue into file-disjoint lanes, each working its issues in order; `/lanes` changes them mid-run.
 3. **Merge gate (orchestrator only).** Tests/CI green for the head SHA; diff skimmed for scope creep, secrets, drift and anything on your pause list; push, then merge per your `merge` setting; worktree torn down links-first; ledger entry.
 4. **Autonomy.** One retry per failure, then split or park, never loop. `decisions: assume` lets agents pick their recommendation for calls with no written answer (unlike `interview: answer`, which answers from the written plan) and log an open `A-n` for you to confirm; listed in every handoff and report. The `guard-git.py` hook blocks agents from pushing default or merging.
 5. **Ledger.** Append-only `skilleddocs/orchestrator/ledger.md`, local timestamps, committed per entry (unless you chose uncommitted docs).
@@ -47,15 +47,17 @@ Works through a repo's backlog unattended. Claude becomes the **orchestrator**: 
 
 ```mermaid
 flowchart TD
-    planner[planner: kickoff brief] -->|execution: pair| manager[manager]
-    planner -->|execution: flat| implementer[implementer]
+    planner[planner: kickoff brief] -->|shape: pair| manager[manager]
+    planner -->|shape: flat| implementer[implementer]
+    planner -->|shape: swarm| swarm[haiku implementer per item]
     manager --> gate[Merge gate: the orchestrator]
     implementer --> gate
+    swarm -->|batch branch| gate
     gate --> verifier[verifier]
     verifier -->|repeat| planner
 ```
 
-One issue's trip. With lanes, each lane runs this loop on its own issues; the merge gate stays serial.
+One issue's trip (a swarm: one batch's). With lanes, each lane runs this loop on its own issues; the merge gate stays serial.
 
 ## Design principles
 
@@ -91,7 +93,7 @@ in full, then the rotation after the tenth merge:
 ⏺ Resolved contract (merge from your arguments; prefix, order, test command from recon):
     scope: all open issues
     exclude: gated / people / external-input
-    execution: pair, parallel: 1
+    shape: pair, parallel: 1
     merge: ask, merge_style: squash (the repo's style)
     interview: answer
     handoff_budget: 10
@@ -106,7 +108,7 @@ in full, then the rotation after the tenth merge:
   ⎿ Issue: #17 Add CSV export (checklist: 3 items)
     Key files: src/export.py, tests/test_export.py
     Branch: feat/issue-17-csv-export
-    Model: sonnet, well-specified
+    Size, shape, model: medium (size:M), pair, sonnet: well-specified
     Divide: no
 ⏺ Bash(git worktree add ../_worktrees/myrepo-issue-17-csv-export -b feat/issue-17-csv-export main)
 ⏺ Agent(subagent_type="manager", prompt="working directory: /home/you/code/_worktrees/myrepo-issue-17-csv-export; <the brief, verbatim>; prefix=feat; protected=main; max_rounds=3; never push or merge; code review inline, both axes, no reviewer subagents")

@@ -9,16 +9,16 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 | Agent | Model | Preloads | Spawned by |
 |---|---|---|---|
 | [`planner`](#planner) | opus | `next`, `divide` | `meta-orchestrator` |
-| [`manager`](#manager) | opus | `handoff-auto` | `pair`; `meta-orchestrator` (`execution: pair`) |
-| [`implementer`](#implementer) | sonnet | `handoff-auto`, `session-handoff` | `manager`; `meta-orchestrator` (`execution: flat`) |
+| [`manager`](#manager) | opus | `handoff-auto` | `pair`; `meta-orchestrator` (`shape: pair`) |
+| [`implementer`](#implementer) | sonnet (caller picks by size) | `handoff-auto`, `session-handoff` | `manager`; `meta-orchestrator` (`shape: flat`, or `swarm` on haiku) |
 | [`verifier`](#verifier) | opus | `update-progress`, `consult-plan`, `next` | `meta-orchestrator` |
 
 ## planner
 
 - **Role:** picks the next single unit of work from the board and writes the kickoff brief. Read-only: `disallowedTools: Edit, Write, NotebookEdit`; never creates issues. `maxTurns: 40`.
-- **You pass:** repo path + scope contract (exclusions such as gated issues / people tasks / labels, ordering rule, `lanes`), issues in flight, optional `decisions` (`ask`|`assume`).
-- **How it works:** runs `next` → drops excluded items and `wayfinder:*` issues → picks exactly one task (with `lanes:`, one per lane whose head isn't in flight) → uses `divide` to *propose* a split if it looks multi-session → if nothing is left, says so and stops.
-- **You get back (≤40 lines):** issue + acceptance checklist, key files, decisions/ADRs to respect, branch name `<prefix>/issue-<n>-<kebab-title>` (`pair` §2's rule, used verbatim downstream), gotchas, recommended model (and why), divide yes/no + proposed split, **Assumptions needed** (when `decisions=assume`).
+- **You pass:** repo path + scope contract (exclusions such as gated issues / people tasks / labels, ordering rule, `lanes`, `shape`), issues in flight, optional `decisions` (`ask`|`assume`).
+- **How it works:** runs `next` → drops excluded items and `wayfinder:*` issues → picks exactly one task (with `lanes:`, one per lane whose head isn't in flight; swarm: one batch of trivial, file-disjoint items) → uses `divide` to *propose* a split if it looks multi-session → if nothing is left, says so and stops.
+- **You get back (≤40 lines):** issue + acceptance checklist, key files, decisions/ADRs to respect, branch name `<prefix>/issue-<n>-<kebab-title>` (`pair` §2's rule, used verbatim downstream), gotchas, size (a `size:*` label wins), recommended shape and model (and why), divide yes/no + proposed split, **Assumptions needed** (when `decisions=assume`).
 - **Design principles:** read-only by construction (`disallowedTools`), so it can only propose, never change the board; exactly one task per brief; the ≤40-line cap keeps the brief cheap to pass verbatim to the next agent.
 - **Use cases:** briefing the next issue for a `meta-orchestrator` loop; asking on your own "use the planner agent to brief the next issue" before starting work by hand.
 - **Tips:** put gated issues, people tasks and labels to skip in the scope contract's `exclude`, or the planner may pick them. A proposed split is only a proposal; create the issues yourself (or with `divide`).
@@ -31,13 +31,13 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 - **How it works:**
   1. Orients read-only; confirms every file the task cites exists; detects the test command.
   2. Writes a ≤40-line brief (includes "if stuck, write `skilleddocs/HANDOFF.md`, commit only if [`TRACKING.md`](../handoff-auto/TRACKING.md) says so, stop").
-  3. Spawns an `implementer` (not `fork`, no `isolation`) with `run_in_background` unset so the call blocks. Some Agent tool versions have no foreground mode; then, or if the call returns early, it never fabricates a result or sleep-polls, ends the turn with a plain-text status and lets the completion notification wake it. Only with no notification path does it return **INTERIM — implementer still running** (callers must not act on it).
+  3. Spawns an `implementer` (not `fork`, no `isolation`) on the model it was given, else by size (trivial → haiku, small/medium → sonnet, large or risky → opus) with `run_in_background` unset so the call blocks. Some Agent tool versions have no foreground mode; then, or if the call returns early, it never fabricates a result or sleep-polls, ends the turn with a plain-text status and lets the completion notification wake it. Only with no notification path does it return **INTERIM — implementer still running** (callers must not act on it).
   4. Reviews every round itself, inline: commit scope, `git diff <base>...HEAD`, reruns tests + lint, and checks `git diff --name-only <base>...HEAD` carries no `skilleddocs/HANDOFF.md` (nothing in the handoff folder, `AGENTS.md`/`CLAUDE.md`'s else `skilleddocs/handoffs/`, in commit mode; nothing under `skilleddocs/` or that folder when untracked). Fixes one-liners; larger gaps go to the next round. Never spawns reviewer subagents.
   5. Retries with a **fresh** implementer + `skilleddocs/HANDOFF.md`/findings, up to `max_rounds`; deletes `HANDOFF.md` once picked up (in a commit if tracked).
 - **You get back:** branch + base/head SHA, commits, tests (command + counts) and lint run by it, review findings and who fixed each, rounds used, **Assumed** open `A-n` ids, `skilleddocs/HANDOFF.md` path (or the last SHA that held it, if tracked) if unfinished, manual steps (e.g. the push).
 - **Guard:** same `guard-git.py` hook as the implementer. Never pushes, merges or opens PRs — the caller does. `gh` is read-only (plus `gh pr create`), so card moves, issue comments and labels go to the caller as manual steps. Never deletes links or worktrees either, and never a recursive delete through a linked `node_modules`/`.venv` — teardown is the caller's job.
 - **Design principles:** never implements, only briefs and reviews, treating the implementer's "pass" as a claim to rerun; review stays inline in its own context (no reviewer subagents, nested fan-out stalls); a stalled round restarts a fresh implementer from `HANDOFF.md` instead of stretching one context.
-- **Use cases:** one task inside a worktree for [`pair`](../pair/); each task of a `meta-orchestrator` run in `execution: pair` mode.
+- **Use cases:** one task inside a worktree for [`pair`](../pair/); each task of a `meta-orchestrator` run with `shape: pair`; the fix brief after a swarm batch's review.
 - **Tips:** pass the working directory as an absolute path; it is handed to the implementer verbatim. Raise `max_rounds` only for tasks you expect to need several fresh starts. An **INTERIM** report means the implementer is still running, so don't act on it.
 - **Prereqs:** the `implementer` agent and `handoff-auto` skill installed; Python 3.8+ (and Git Bash on Windows) for the guard hook.
 
@@ -49,7 +49,7 @@ Installed by `scripts/install-skills.*` into `~/.claude/agents/`, with `hooks/` 
 - **You get back:** calls `session-handoff` (which wraps `handoff-auto`); final message ends with the handoff document's absolute path on its own line; the handoff cites any open `A-n` it assumed.
 - **Guard:** `guard-git.py` hook (below).
 - **Design principles:** one issue, one session, small commits; "done" means it watched the tests pass; push and PR merge belong to the caller and the hook blocks pushes to protected branches and PR merges (local `git merge` is left to the caller); board errors never block, they go in the handoff.
-- **Use cases:** the worker under a `manager` (via `pair`) or directly under `meta-orchestrator` with `execution: flat`; any well-specified issue you want implemented unattended.
+- **Use cases:** the worker under a `manager` (via `pair`) or directly under `meta-orchestrator` with `shape: flat`, or on haiku per item of a `swarm` batch; any well-specified issue you want implemented unattended.
 - **Tips:** give it a real kickoff brief (checklist, key files, branch prefix, protected branch); scope that grows past one session makes it stop early and hand off. A guard-hook block is reported, not worked around. Its last output line is the handoff path, which callers parse.
 - **Prereqs:** `handoff-auto` and `session-handoff` installed; `gh` for reads (card moves are the caller's); Python 3.8+ (and Git Bash on Windows) for the guard hook.
 
@@ -138,7 +138,7 @@ its report comes back; you push and merge in between:
     Constraints: none
     Branch: feat/issue-31-csv-export
     Gotchas: none
-    Model: sonnet, narrow and well-specified
+    Size, shape, model: small, pair, sonnet: narrow and well-specified
     Divide: no
 ⏺ Agent(subagent_type="manager", prompt="working directory: /home/you/code/_worktrees/myrepo-issue-31-csv-export; <the brief, verbatim>; prefix=feat; protected=main; max_rounds=3; never push or merge")
   ⎿ Branch: feat/issue-31-csv-export, base 1a2b3c4, head 5d6e7f8

@@ -1,12 +1,12 @@
 ---
 name: pair
 description: Run one task (issue number or free text) in an isolated git worktree via a manager subagent that owns its implementer and retries; you push and open the PR at the end. Use for "implement issue N", "pair on this", or one task on any repo, forks included.
-argument-hint: "<issue # | task text> [--no-worktree] [--push] [--model opus|sonnet]"
+argument-hint: "<issue # | task text> [--no-worktree] [--push] [--model haiku|sonnet|opus]"
 ---
 
 You run **one task** through a `manager` subagent. Neither you nor the agents implement in your context; you are the only one who touches the remote.
 
-Flags: `--no-worktree` (new branch in the current checkout), `--push` (push + PR without asking), `--model` (implementer model; default: the manager's call).
+Flags: `--no-worktree` (new branch in the current checkout), `--push` (push + PR without asking), `--model` (implementer model; default: by size, the `manager` agent's step 3).
 
 ## 1. Resolve
 
@@ -47,7 +47,7 @@ working directory: <absolute worktree path>
 task: <#n: title> + acceptance checklist
 key files (verified): …   missing/moved: …
 rules: prefix=<p>, protected=<default>, test cmd=<cmd>, commit style=<…>, read <AGENTS.md>
-implementer model: <--model or "your call">
+implementer model: <--model or "by size">
 decisions: <ask | assume>; first A-id: A-<k> (next after the highest A-<number> in main's register)
 register header: <main's register header row, verbatim; none → the default in TEARDOWN.md, Register rows>; each A-n is one row in that format
 max_rounds: 3
