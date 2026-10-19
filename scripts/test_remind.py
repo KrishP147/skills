@@ -327,6 +327,7 @@ class SwitchHookTest(Base):
         self.assertTrue((self.sw / "remind.py").is_file())
         data = self.store()
         data["reminders"][0]["at"] = time.time() - 1  # the copy runs on the real clock
+        data["reminders"][1]["at"] = time.time() + 3600  # not due on any real date
         (self.sw / "reminders.json").write_text(json.dumps(data))
         self.assertEqual(self.switch_hook(), "work at 92%: run /switch personal\nReminder 1: tea")
         self.assertIsNone(self.switch_hook())

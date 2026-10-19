@@ -98,34 +98,39 @@ def collect(root):
 
 
 def hook_files(root):
-    """hooks/*.py, sorted. Agent hooks (agents/hooks/) are not listed."""
-    d = os.path.join(root, "hooks")
-    if not os.path.isdir(d):
-        return []
-    return [os.path.join(d, fn) for fn in sorted(os.listdir(d)) if fn.endswith(".py")]
+    """(path, readme) per hook, sorted by name: hooks/*.py, documented in
+    hooks/README.md, and agents/hooks/*.py (guard-git), documented in
+    agents/README.md."""
+    out = []
+    for d, readme in (("hooks", "hooks/README.md"), ("agents/hooks", "agents/README.md")):
+        full = os.path.join(root, *d.split("/"))
+        if os.path.isdir(full):
+            out += [(os.path.join(full, fn), readme) for fn in os.listdir(full) if fn.endswith(".py")]
+    return sorted(out, key=lambda t: os.path.basename(t[0]))
 
 
 def collect_hooks(root):
-    """One entry per hooks/<stem>.py. Its page text is the "## `<stem>.py`"
-    section of hooks/README.md. Its summary is the heading tagline (text after
-    the em dash), capitalized and ending in a period like skill summaries; its
+    """One entry per hook file. Its page text is the "## `<stem>.py`" section
+    of hooks/README.md (agents/README.md: "## hooks/<stem>.py"). Its summary
+    is the heading tagline (text after the em dash), capitalized and ending in
+    a period like skill summaries, else the section's first sentence; its
     description is that summary plus the section's first paragraph."""
-    files = hook_files(root)
-    if not files:
-        return []
-    readme = read_text(os.path.join(root, "hooks", "README.md"))
     out = []
-    for path in files:
+    readmes = {}
+    for path, readme_rel in hook_files(root):
         fn = os.path.basename(path)
-        heading, body = site_detail.hook_section(readme, fn)
+        if readme_rel not in readmes:
+            readmes[readme_rel] = read_text(os.path.join(root, *readme_rel.split("/")))
+        heading, body = site_detail.hook_section(readmes[readme_rel], fn)
         if not body:
-            raise SystemExit("hooks/README.md: no '## `%s`' section" % fn)
+            raise SystemExit("%s: no '## `%s`' section" % (readme_rel, fn))
         e = _entry({}, os.path.splitext(fn)[0], "hooks", posix_rel(path, root), body + "\n", "")
         lead = site_detail.first_paragraph_text(body)
         e["summary"] = hook_tagline(heading) or first_sentence(lead)
         e["description"] = e["summary"] + " " + lead if lead else e["summary"]
         e["_x"]["lead"] = lead
         e["_x"]["heading"] = heading
+        e["_x"]["hook_readme"] = readme_rel
         out.append(e)
     return out
 
@@ -189,7 +194,10 @@ def normalize_base(base):
     return "/" + base if base else ""
 
 
-def render_list(entries, base=""):
+def render_list(entries, base="", meta=None):
+    """Home list by category; third-party entries show their author
+    (meta.json authors) before the summary, like the README's tags."""
+    authors = (meta or {}).get("authors", {})
     out = []
     for cat in dict.fromkeys(e["category"] for e in entries):  # entries are in category order
         items = [e for e in entries if e["category"] == cat]
@@ -198,10 +206,12 @@ def render_list(entries, base=""):
                    % (esc(cat), esc(site_map.group_title(cat)), len(items)))
         out.append('<ul class="skill-list">')
         for e in items:
+            by = authors.get(e["name"])
+            by = '<span class="by">(%s)</span> ' % esc(by) if by else ""
             out.append(
                 '<li><a href="%s/%s"><span class="nm">/%s</span>'
-                '<span class="ds">%s</span></a></li>'
-                % (esc(base), esc(e["name"]), esc(e["name"]), esc(e["summary"])))
+                '<span class="ds">%s%s</span></a></li>'
+                % (esc(base), esc(e["name"]), esc(e["name"]), by, esc(e["summary"])))
         out.append("</ul>")
         out.append("</section>")
     return "\n".join(out)
@@ -255,7 +265,7 @@ def nav_data(entries, meta=None):
 def render_index(template, entries, base="", meta=None):
     return (template.replace("{{BASE}}", esc(base))
             .replace("{{COUNT}}", esc(count_line(entries)))
-            .replace("{{LIST}}", render_list(entries, base))
+            .replace("{{LIST}}", render_list(entries, base, meta))
             .replace("{{DATA}}", nav_data(entries, meta)))
 
 

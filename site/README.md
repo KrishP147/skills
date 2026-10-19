@@ -28,8 +28,9 @@ only), with [`site_detail.py`](../scripts/site_detail.py) for detail pages and
 [`md_render.py`](../scripts/md_render.py), a small Markdown renderer that
 escapes all raw HTML and drops non-http(s)/mailto link URLs. It reuses `scripts/lint.py`'s discovery, so the site lists exactly what
 lint counts. Groups: top-level skill dirs = core, `kanban/*` = kanban,
-`agents/*.md` (minus README) = agents, `hooks/*.py` = hooks (lint doesn't
-count hooks; `agents/hooks/guard-git.py` is not listed). The home count line
+`agents/*.md` (minus README) = agents, `hooks/*.py` and `agents/hooks/*.py`
+= hooks (lint doesn't count hooks; `guard-git` takes its page from the
+`## hooks/guard-git.py` section of `agents/README.md`). The home count line
 reads `N skills · M agents · K hooks`. The build fails on a name shared by
 two entries of any kind.
 
@@ -150,7 +151,7 @@ preview deploys.
   inherited from a group README; entries in no workflow get no section.
 - **Warning.** An entry with no Example prints
   `WARN: <name>: no Example section ...` on stderr (the build still
-  succeeds); a test keeps all 35 entries (29 skills, 4 agents, 2 hooks) at
+  succeeds); a test keeps all 36 entries (29 skills, 4 agents, 3 hooks) at
   zero warnings.
 - **Back home.** A visible `← all commands` link above the echoed command;
   on the prompt, Esc clears the text, then (bare `/`, menu open or not)

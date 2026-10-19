@@ -270,6 +270,7 @@ body:not(.page-home):not(.detail) .wrap { padding-top: 84px; }
 .skill-list a:hover { background: var(--sel-bg); }
 .skill-list a:hover .nm { color: var(--accent-sel); }
 .skill-list .nm { flex: 0 0 11em; color: var(--accent); }
+.skill-list .by { font-style: italic; }
 .skill-list .ds {
   color: var(--dim);
   display: -webkit-box;

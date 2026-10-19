@@ -130,8 +130,9 @@ class BuildSiteTest(unittest.TestCase):
         skills, agents, hooks = build_site.counts(self.entries)
         self.assertEqual(skills, len(lint.find_skill_files(ROOT)))
         self.assertEqual(agents, len(lint.find_agent_files(ROOT)))
-        self.assertEqual(hooks, len(glob(os.path.join(ROOT, "hooks", "*.py"))))
-        self.assertEqual(hooks, 2)
+        self.assertEqual(hooks, len(glob(os.path.join(ROOT, "hooks", "*.py")))
+                         + len(glob(os.path.join(ROOT, "agents", "hooks", "*.py"))))
+        self.assertEqual(hooks, 3)
         line = build_site.count_line(self.entries)
         self.assertEqual(line, "%d skills · %d agents · %d hooks" % (skills, agents, hooks))
         self.assertIn(build_site.esc(line), self.index)
@@ -151,8 +152,23 @@ class BuildSiteTest(unittest.TestCase):
             "Block billable commands without an approval. PreToolUse hook for Bash"))
         with open(os.path.join(self.out, "spend-guard", "index.html"), encoding="utf-8") as f:
             self.assertIn('<span class="k">invocation</span> PreToolUse hook</li>', f.read())
-        self.assertNotIn("guard-git", by)
+        g = by["guard-git"]  # agents/hooks/, documented in agents/README.md
+        self.assertEqual((g["group"], g["source"]), ("hooks", "agents/hooks/guard-git.py"))
+        self.assertTrue(g["summary"].startswith("PreToolUse hook that stops the implementer and manager"))
+        self.assertNotIn("\n## ", g["readme"])
+        with open(os.path.join(self.out, "guard-git", "index.html"), encoding="utf-8") as f:
+            page = f.read()
+        self.assertIn('<span class="k">invocation</span> PreToolUse hook</li>', page)
+        self.assertIn("agents/README.md#hooksguard-gitpy", page)
         self.assertIn('href="/spend-guard"', self.index)
+        self.assertIn('href="/guard-git"', self.index)
+
+    def test_list_shows_third_party_author(self):
+        self.assertIn('<span class="nm">/ponytail</span><span class="ds"><span class="by">(Dietrich Gebert)</span> ',
+                      self.index)
+        self.assertIn('<span class="nm">/grilling</span><span class="ds"><span class="by">(Matt Pocock)</span> ',
+                      self.index)
+        self.assertIn('<span class="nm">/pair</span><span class="ds">Run one', self.index)
 
     def test_name_collision_fails(self):
         real = build_site.collect(ROOT)

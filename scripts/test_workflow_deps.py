@@ -39,11 +39,12 @@ class ResolveTest(unittest.TestCase):
             for n in r["agent"]:
                 self.assertTrue(os.path.isfile(os.path.join(ROOT, "agents", n + ".md")), n)
             for n in r["hook"]:
-                self.assertTrue(os.path.isfile(os.path.join(ROOT, "hooks", n + ".py")), n)
+                self.assertTrue(os.path.isfile(os.path.join(ROOT, self.g.by_name[n]["source"])), n)
             # hooks only come from the workflow's own steps
             self.assertEqual(set(r["hook"]), {s["name"] for s in wf["steps"] if s["kind"] == "hook"}, wf["name"])
             lines = self.g.lines([wf["name"]])
-            self.assertEqual("agent-hooks" in lines, bool(r["agent"]), wf["name"])
+            self.assertEqual("agent-hooks" in lines, bool(r["agent"]) or "guard-git" in r["hook"], wf["name"])
+            self.assertNotIn("hook guard-git", lines, wf["name"])  # agents/hooks/, not hooks/
 
     def test_no_installed_skill_links_outside_selection(self):
         # every relative link from a selected skill's own files into another
@@ -90,7 +91,9 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(data["hooks"]["PreToolUse"][0]["matcher"], "Bash|PowerShell|mcp__.*")
 
     def test_every_hook_has_wiring(self):
-        hooks = [n for n, k in self.g.kinds.items() if k == "hook"]
+        # agents/hooks/ (guard-git) are wired in agent frontmatter, not by a snippet
+        hooks = [n for n, k in self.g.kinds.items()
+                 if k == "hook" and not self.g.by_name[n]["source"].startswith("agents/")]
         self.assertEqual(sorted(hooks), sorted(workflow_deps.HOOK_WIRING))
 
 
@@ -103,12 +106,13 @@ def copy_like_installer(g, r, dest):
     for n in r["skill"]:
         shutil.copytree(os.path.join(ROOT, g.by_name[n]["source"]), os.path.join(dest, "skills", n),
                         ignore=shutil.ignore_patterns("__pycache__"))
-    if r["agent"]:
+    agent_hooks = [n for n in r["hook"] if g.by_name[n]["source"].startswith("agents/")]
+    if r["agent"] or agent_hooks:
         shutil.copytree(os.path.join(ROOT, "agents", "hooks"), os.path.join(dest, "agents", "hooks"),
                         ignore=shutil.ignore_patterns("__pycache__"))
     for n in r["agent"]:
         shutil.copy(os.path.join(ROOT, "agents", n + ".md"), os.path.join(dest, "agents"))
-    for n in r["hook"]:
+    for n in (h for h in r["hook"] if h not in agent_hooks):
         os.makedirs(os.path.join(dest, "hooks"), exist_ok=True)
         shutil.copy(os.path.join(ROOT, "hooks", n + ".py"), os.path.join(dest, "hooks"))
 
@@ -162,6 +166,7 @@ class NamesTest(unittest.TestCase):
         self.assertIn("next", r["skill"])
         self.assertIn("agent-hooks", self.g.lines(names=["planner"]))
         self.assertEqual(self.g.resolve(names=["spend-guard"]), {"skill": [], "agent": [], "hook": ["spend-guard"]})
+        self.assertEqual(self.g.lines(names=["guard-git"]), ["agent-hooks"])
 
     def test_unknown_name_raises(self):
         with self.assertRaises(workflow_deps.UnknownName):

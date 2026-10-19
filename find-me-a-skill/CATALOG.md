@@ -49,6 +49,7 @@ Install section.
 | manager | agent | opus | high | `Agent(subagent_type="manager")` | Owns one task inside a worktree — briefs an implementer subagent, reviews its diff and reruns tests itself, restarts a fresh implementer from skilleddocs/HANDOFF.md when one stalls (≤3 rounds). | unattended-backlog, pair-to-pr, orchestration-shapes |
 | planner | agent | opus | medium | `Agent(subagent_type="planner")` | Picks the next issue from a repo's board, applies the run's scope exclusions, decides whether to divide, rates its size, recommends a shape and model, and returns a ≤40-line kickoff brief. | unattended-backlog, orchestration-shapes |
 | verifier | agent | opus | high | `Agent(subagent_type="verifier")` | Verifies an implementation session: checks its handoff's claims against git, tests and CI, reviews the diff, updates docs/board/issues, reconciles deviations via consult-plan, and ends with the next task. | unattended-backlog, orchestration-shapes |
+| guard-git | hook | haiku | low | install: comes with the agents | PreToolUse hook that stops the implementer and manager agents from pushing to protected branches, force pushing, merging PRs or writing other remote state. | unattended-backlog |
 | smartzone | hook | haiku | low | install: hooks/README.md | "Your context has left the smart zone" warning. | wrap-up-long-session |
 | spend-guard | hook | haiku | low | install: hooks/README.md | Block billable commands without an approval. | paid-tests |
 
@@ -113,12 +114,13 @@ human-in-the-loop points: nothing continues without you.
 5. planner (agent, opus · medium): Runs next, picks exactly one issue and returns a kickoff brief of at most 40 lines.
 6. manager (agent, opus · high): Briefs an implementer, reviews every round inline and reruns the tests itself, for up to 3 rounds.
 7. implementer (agent, sonnet · medium): Implements on its branch, commits small, watches the tests pass and ends with session-handoff.
-8. verifier (agent, opus · high): Runs update-progress end to end, answers or parks deviations, then runs next.
-9. you: When the statusline warns near the limit (90%), type /switch between merges; it is user-only, so Claude can't start it.
-10. /switch (skill, haiku · low): The session resumes on the other account; running subagents pause (resume each with SendMessage to its id) and background commands end, hence between merges.
-11. /remind (skill, haiku · low): /remind when <first account>'s session limit resets pops a toast at the reset time and says it once at your next prompt.
-12. /progress-report (skill, sonnet · low): Every N merges, writes a two-minute report of what happened since the last one, never overlapping.
-13. you: Read the report and do the manual steps it lists.
+8. guard-git (hook, haiku · low): Runs on every manager and implementer shell command: a feature-branch push and gh pr create get through, while pushes to main, force pushes, merges and other remote writes are blocked, so only the orchestrator merges.
+9. verifier (agent, opus · high): Runs update-progress end to end, answers or parks deviations, then runs next.
+10. you: When the statusline warns near the limit (90%), type /switch between merges; it is user-only, so Claude can't start it.
+11. /switch (skill, haiku · low): The session resumes on the other account; running subagents pause (resume each with SendMessage to its id) and background commands end, hence between merges.
+12. /remind (skill, haiku · low): /remind when <first account>'s session limit resets pops a toast at the reset time and says it once at your next prompt.
+13. /progress-report (skill, sonnet · low): Every N merges, writes a two-minute report of what happened since the last one, never overlapping.
+14. you: Read the report and do the manual steps it lists.
 
 ### pair-to-pr: One issue to a reviewed PR
 

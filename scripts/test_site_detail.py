@@ -124,7 +124,8 @@ class DetailPagesTest(unittest.TestCase):
             self.assertEqual(first.groups(), ("install", "Install"), name)
             self.assertIn("./scripts/install-skills.sh --skill %s   #" % name, page, name)
             self.assertIn(".\\scripts\\install-skills.ps1 -Skill %s   #" % name, page, name)
-            self.assertEqual("copied, not wired" in page, self.by[name]["group"] == "hooks", name)
+            self.assertEqual("copied, not wired" in page,
+                             self.by[name]["group"] == "hooks" and name != "guard-git", name)
 
     def test_needs_line_in_install_not_body(self):
         # the README's "Works on its own." / "Needs: ..." line sits under the
@@ -303,8 +304,8 @@ class DetailPagesTest(unittest.TestCase):
         return m.group(1)
 
     def test_every_entry_has_example_no_warnings(self):
-        self.assertEqual(len(self.entries), 35)  # 29 skills, 4 agents, 2 hooks
-        self.assertEqual(build_site.counts(self.entries), (29, 4, 2))
+        self.assertEqual(len(self.entries), 36)  # 29 skills, 4 agents, 3 hooks
+        self.assertEqual(build_site.counts(self.entries), (29, 4, 3))
         self.assertNotIn("WARN", self.stderr)
         for name in self.pages:
             self.assertIn('<div class="tx" role="group" aria-label="Example session">',

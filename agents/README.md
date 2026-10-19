@@ -187,7 +187,7 @@ Needs: `consult-plan`, `next`, `update-progress`, the `guard-git` hook (installe
 
 ## hooks/guard-git.py
 
-`PreToolUse` hook on `Bash|PowerShell`, wired in the `implementer` and `manager` frontmatter. Exits 2 (blocks, reason on stderr) or 0 (allows).
+`PreToolUse` hook that stops the `implementer` and `manager` agents from pushing to protected branches, force pushing, merging PRs or writing other remote state. It runs on `Bash|PowerShell`, is wired in their frontmatter, and exits 2 (blocks, reason on stderr) or 0 (allows).
 
 **As a plugin.** Claude Code ignores `hooks` frontmatter in plugin agents, so the plugin wires the same command once, plugin-wide, in [`.claude-plugin/plugin.json`](../.claude-plugin/plugin.json), with `--plugin`.
 
@@ -351,6 +351,16 @@ Protected branches: `GUARD_PROTECTED_BRANCHES` (comma list), default `main,maste
 
 - A block is working as intended, not something for the agent to route around.
 - Self-test (every case above, current branch injected, plus stdin end-to-end runs and the `--plugin` agent filter): `python agents/hooks/guard-git.py --self-test`.
+
+Example output when a guarded agent tries to merge its own PR, then push to main:
+the hook exits 2 and prints one line on stderr for each.
+
+```transcript
+⏺ Bash(gh pr merge 12 --squash)
+  ⎿ Blocked: gh pr merge is a write; guarded agents get read-only gh + pr create; card moves, comments and labels belong to the caller.
+⏺ Bash(git push origin main)
+  ⎿ Blocked: push to protected branch 'main' is not allowed.
+```
 
 ## Example
 
