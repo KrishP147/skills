@@ -50,7 +50,7 @@
     "repo-and-safety": ["repo-showcase", "repo-scrub", "spend-gate"],
     "kanban-board": ["next", "session-handoff", "update-progress", "divide", "kanban-setup"],
     "agents": ["planner", "manager", "implementer", "verifier"],
-    "hooks": ["smartzone", "spend-guard"]
+    "hooks": ["guard-git", "smartzone", "spend-guard"]
   },
   "authors_note": "Default author is Krish. Third-party entries must match THIRD_PARTY_LICENSES.md.",
   "default_author": "Krish",
@@ -60,7 +60,7 @@
     "handoff": "derived from Matt Pocock",
     "handoff-auto": "derived from Matt Pocock",
     "wayfinder": "derived from Matt Pocock",
-    "ponytail": "DietrichGebert"
+    "ponytail": "Dietrich Gebert"
   },
   "model_effort_note": "Suggested model (haiku|sonnet|opus) and /effort (low|medium|high|xhigh|max) per entry; every entry exactly once. Must match an entry's own model/effort frontmatter when it sets one. Hooks run no model: cheapest values.",
   "model_effort": {
@@ -96,6 +96,7 @@
     "manager": {"model": "opus", "effort": "high"},
     "planner": {"model": "opus", "effort": "medium"},
     "verifier": {"model": "opus", "effort": "high"},
+    "guard-git": {"model": "haiku", "effort": "low"},
     "smartzone": {"model": "haiku", "effort": "low"},
     "spend-guard": {"model": "haiku", "effort": "low"},
     "find-me-a-skill": {"model": "haiku", "effort": "low"}

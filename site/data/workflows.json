@@ -72,6 +72,7 @@
       {"kind": "agent", "name": "planner", "why": "Runs next, picks exactly one issue and returns a kickoff brief of at most 40 lines."},
       {"kind": "agent", "name": "manager", "why": "Briefs an implementer, reviews every round inline and reruns the tests itself, for up to 3 rounds."},
       {"kind": "agent", "name": "implementer", "why": "Implements on its branch, commits small, watches the tests pass and ends with session-handoff."},
+      {"kind": "hook", "name": "guard-git", "why": "Runs on every manager and implementer shell command: a feature-branch push and gh pr create get through, while pushes to main, force pushes, merges and other remote writes are blocked, so only the orchestrator merges."},
       {"kind": "agent", "name": "verifier", "why": "Runs update-progress end to end, answers or parks deviations, then runs next."},
       {"kind": "human", "why": "When the statusline warns near the limit (90%), type /switch between merges; it is user-only, so Claude can't start it."},
       {"kind": "skill", "name": "switch", "why": "The session resumes on the other account; running subagents pause (resume each with SendMessage to its id) and background commands end, hence between merges."},

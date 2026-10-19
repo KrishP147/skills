@@ -40,7 +40,7 @@ def invoke(e):
     if kind == "agent":
         return '`Agent(subagent_type="%s")`' % e["name"]
     if kind == "hook":
-        return "install: hooks/README.md"
+        return "install: %s" % ("comes with the agents" if e["source"].startswith("agents/") else "hooks/README.md")
     return "`/%s`" % e["name"]
 
 

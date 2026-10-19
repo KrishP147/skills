@@ -180,11 +180,11 @@ class LinkIndex:
         self.names = {e["name"] for e in entries}
         self.agents = {e["name"] for e in entries if e["group"] == "agents"}
         self.dir_to_name = {}
-        self.hook_anchors = {}  # hooks/README.md#<slug> -> hook name
+        self.hook_anchors = {}  # (hooks/README.md or agents/README.md, <slug>) -> hook name
         for e in entries:
             self.dir_to_name[e["source"]] = e["name"]  # skill dir, agents/<name>.md, hooks/<name>.py
             if e["group"] == "hooks":
-                self.hook_anchors[hook_anchor(e["_x"]["heading"])] = e["name"]
+                self.hook_anchors[(hook_readme(e), hook_anchor(e["_x"]["heading"]))] = e["name"]
             elif e["group"] != "agents":
                 self.dir_to_name[e["source"] + "/README.md"] = e["name"]
 
@@ -196,6 +196,8 @@ class LinkIndex:
             if not path:
                 if agents_readme and frag in self.agents:
                     return self._page(frag, on_page_link)
+                if agents_readme and ("agents/README.md", frag) in self.hook_anchors:
+                    return self._page(self.hook_anchors[("agents/README.md", frag)], on_page_link)
                 if agents_readme:
                     return "%s/blob/master/agents/README.md#%s" % (REPO_URL, frag)
                 return url  # in-page anchor
@@ -207,8 +209,8 @@ class LinkIndex:
                 return self._page(self.dir_to_name[key], on_page_link)
             if key == "agents/README.md" and frag in self.agents:
                 return self._page(frag, on_page_link)
-            if key == "hooks/README.md" and frag in self.hook_anchors:
-                return self._page(self.hook_anchors[frag], on_page_link)
+            if (key, frag) in self.hook_anchors:
+                return self._page(self.hook_anchors[(key, frag)], on_page_link)
             kind = "tree" if os.path.isdir(os.path.join(self.root, *key.split("/"))) else "blob"
             return "%s/%s/master/%s%s" % (REPO_URL, kind, key, "#" + frag if frag else "")
         return rewrite
@@ -230,12 +232,18 @@ def agent_section(agents_readme, name):
 
 
 def hook_section(hooks_readme, filename):
-    """(heading, body) of the '## `<filename>` ...' section, else ("", "")."""
+    """(heading, body) of the '## `<filename>` ...' section (agents/README.md:
+    '## hooks/<filename>'), else ("", "")."""
     _pre, secs = split_h2(hooks_readme)
     for heading, body in secs:
-        if heading.startswith("`%s`" % filename):
+        if heading.startswith(("`%s`" % filename, "hooks/%s" % filename)):
             return heading, body
     return "", ""
+
+
+def hook_readme(e):
+    """Repo path of the README that documents hook entry e."""
+    return e["_x"].get("hook_readme", "hooks/README.md")
 
 
 def hook_anchor(heading):
@@ -489,7 +497,8 @@ def build_pages(root, entries, meta, template, data_json, site_base="", workflow
         if e["group"] == "agents":
             base_dir, agents_md = "agents", True
         elif e["group"] == "hooks":
-            base_dir, agents_md = "hooks", False
+            base_dir = posixpath.dirname(hook_readme(e))
+            agents_md = base_dir == "agents"
         else:
             base_dir, agents_md = e["source"], False
         targets = set()
@@ -640,10 +649,14 @@ def install_section(e, sid, needs_html=""):
     """'Install' section, first on every detail page; needs_html is the
     rendered README needs line, shown under the commands."""
     sh, ps = install_cmds(e["name"])
-    note = ("Install just this, from a clone of the repo. It is copied, not wired: "
-            "the installer prints the settings.json snippet to add."
-            if e["group"] == "hooks" else
-            "Install just this, from a clone of the repo. Anything it needs comes with it.")
+    if e["group"] != "hooks":
+        note = "Install just this, from a clone of the repo. Anything it needs comes with it."
+    elif hook_readme(e) == "agents/README.md":
+        note = ("Comes with every agent install and is wired in the agents' own frontmatter; "
+                "this copies it on its own, from a clone of the repo.")
+    else:
+        note = ("Install just this, from a clone of the repo. It is copied, not wired: "
+                "the installer prints the settings.json snippet to add.")
     needs = '<p class="needs">%s</p>\n' % needs_html if needs_html else ""
     return ('<section class="sec" aria-labelledby="%s">\n<h2 id="%s">Install</h2>\n<p class="dim">%s</p>\n'
             '<pre class="wf-cmd"><code>%s   # bash, Git Bash, macOS, Linux\n%s   # Windows PowerShell</code></pre>\n'
@@ -658,10 +671,10 @@ def _source_section(e):
         links.append(("agents/README.md#%s" % e["name"],
                       "%s/blob/master/agents/README.md#%s" % (REPO_URL, e["name"])))
     elif e["group"] == "hooks":
-        anchor = hook_anchor(e["_x"]["heading"])
+        anchor, readme = hook_anchor(e["_x"]["heading"]), hook_readme(e)
         links.append((e["source"], "%s/blob/master/%s" % (REPO_URL, e["source"])))
-        links.append(("hooks/README.md#%s" % anchor,
-                      "%s/blob/master/hooks/README.md#%s" % (REPO_URL, anchor)))
+        links.append(("%s#%s" % (readme, anchor),
+                      "%s/blob/master/%s#%s" % (REPO_URL, readme, anchor)))
     else:
         links.append((e["source"] + "/SKILL.md", "%s/blob/master/%s/SKILL.md" % (REPO_URL, e["source"])))
         if e["readme"]:

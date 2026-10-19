@@ -111,7 +111,8 @@ def related_md(root, e, agents_readme):
     pre, pairs, _base = site_detail.raw_sections(root, e, agents_readme)
     ordered, _extras = site_detail.organise(pre, pairs)
     body = next((b for k, _t, b in ordered if k == "related"), "")
-    base_dir = {"agents": "agents", "hooks": "hooks"}.get(e["group"], e["source"])
+    base_dir = ("agents" if e["group"] == "agents" else
+                posixpath.dirname(site_detail.hook_readme(e)) if e["group"] == "hooks" else e["source"])
     return body, base_dir
 
 
@@ -125,7 +126,7 @@ def link_targets(root, entries, name, md, base_dir, cache=None):
         if e["group"] == "agents":
             agents.append(e["name"])
         elif e["group"] == "hooks":
-            hook_anchors[site_detail.hook_anchor(e["_x"]["heading"])] = e["name"]
+            hook_anchors[(site_detail.hook_readme(e), site_detail.hook_anchor(e["_x"]["heading"]))] = e["name"]
         else:
             by_path[e["source"] + "/README.md"] = e["name"]
     out = []
@@ -141,12 +142,12 @@ def link_targets(root, entries, name, md, base_dir, cache=None):
             _fail("%s leaves the repo" % where)
         if not os.path.exists(os.path.join(root, *key.split("/"))):
             _fail("%s: no such file" % where)
-        if key == "agents/README.md" and frag in agents:
+        if (key, frag) in hook_anchors:
+            out.append(hook_anchors[(key, frag)])
+        elif key == "agents/README.md" and frag in agents:
             out.append(frag)
         elif key == "agents/README.md" and not frag:
             out.extend(n for n in _TICK_RE.findall(text) if n in agents)
-        elif key == "hooks/README.md" and frag in hook_anchors:
-            out.append(hook_anchors[frag])
         else:
             if frag and key.endswith(".md") and frag not in _anchors(root, key, cache):
                 _fail("%s: no heading #%s" % (where, frag))

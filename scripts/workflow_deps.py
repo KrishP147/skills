@@ -12,6 +12,7 @@ and install-skills.ps1.
       agent <name>                agents/<name>.md
       hook <name>                 hooks/<name>.py (copied, never wired)
       agent-hooks                 agents/hooks/ (guard-git), once if any agent
+                                  or guard-git itself is selected
   workflow_deps.py snippet HOOKS_DIR HOOK [HOOK ...]
                                             settings.json snippet for hooks
                                             copied into HOOKS_DIR
@@ -177,8 +178,9 @@ class Graph:
         r = self.resolve(wf_names, names)
         out = ["skill " + self.by_name[n]["source"] for n in r["skill"]]
         out += ["agent " + n for n in r["agent"]]
-        out += ["hook " + n for n in r["hook"]]
-        if r["agent"]:
+        agent_hooks = [n for n in r["hook"] if self.by_name[n]["source"].startswith("agents/")]
+        out += ["hook " + n for n in r["hook"] if n not in agent_hooks]
+        if r["agent"] or agent_hooks:
             out.append("agent-hooks")
         return out
 

@@ -74,7 +74,7 @@ Run one task, or a whole backlog, with agents.
 | [`meta-orchestrator`](meta-orchestrator/README.md) | Runs a repo's backlog unattended. It loops `planner` → `manager` → `verifier` per issue (`shape: flat` uses `implementer` instead of `manager`; `shape: swarm` uses a swarm of haiku implementers; the implementer model follows issue size). It holds the merge gate itself: no merge until tests and CI are green. It reads `skilleddocs/` for the design record and appends every event to `skilleddocs/orchestrator/ledger.md` (committed in the repo, unless `docs_commit: uncommitted`). After a budget of merges it writes `orchestrator-handoff.md`, so `/meta-orchestrator <repo> resume` continues in a fresh session. | `gh`; the four agents installed; a kanban board, `status:*` labels, or a roadmap doc (whatever `next` finds) |
 | [`lanes`](lanes/README.md) | Sets how many issues a `meta-orchestrator` run works on at once: predicts each queued issue's files, groups overlapping issues into the same lane, proposes a count with a token-cost line, and on your yes writes named lanes to `scope.md`. `/lanes <n> \| increase \| decrease`; changes apply at the orchestrator's next loop. | a `meta-orchestrator` run; `gh` |
 | [`score-loop`](score-loop/README.md) | Pushes one rerunnable numeric score up or down, unattended. It builds a local harness that mirrors the grader (correctness check, median of N runs, noise margin from baseline runs). It then commits one hypothesis at a time on `<prefix>score-loop/<slug>`, keeps a commit only when it beats the best by more than the margin, and `git revert`s the rest. Every experiment is logged to `skilleddocs/experiments.md`. It stops on budget, deadline freeze or plateau. Official submissions stay inside a quota you approve; paid ones go through `spend-gate`. | a score you can compute locally |
-| [`ponytail`](ponytail/README.md) *(DietrichGebert)* | Lazy-senior-developer mode for the whole session: the smallest change that fully solves the task, plus a closing line on what was skipped and any risk. Levels `lite`, `full` (default), `ultra`; stays on until "stop ponytail". | none |
+| [`ponytail`](ponytail/README.md) *(Dietrich Gebert)* | Lazy-senior-developer mode for the whole session: the smallest change that fully solves the task, plus a closing line on what was skipped and any risk. Levels `lite`, `full` (default), `ultra`; stays on until "stop ponytail". | none |
 
 ### Sessions and accounts
 
@@ -136,7 +136,7 @@ Full explainer (inputs, outputs, procedure, guard hook): [`agents/README.md`](ag
 
 ### [`hooks/`](hooks/) — optional per-repo hooks
 
-Not auto-installed. [`smartzone.py`](hooks/smartzone.py) is a `UserPromptSubmit` hook that warns in-conversation when the transcript suggests context has left the smart zone (~75k tokens, `SMARTZONE_TOKENS`), so a session wraps up instead of degrading. [`spend-guard.py`](hooks/spend-guard.py) is a `PreToolUse` hook that blocks known billable commands/MCP calls (GPU pod creation, paid deploys, ...) unless an approval token from the [`spend-gate`](spend-gate/README.md) skill already exists. Copy + settings snippets in [`hooks/README.md`](hooks/README.md).
+Not auto-installed. The third hook, [`guard-git.py`](agents/hooks/guard-git.py), lives under `agents/hooks/` and comes with the agents: it stops the `implementer` and `manager` from pushing to `main`, force pushing or merging, so only the orchestrator merges ([details](agents/README.md#hooksguard-gitpy)). [`smartzone.py`](hooks/smartzone.py) is a `UserPromptSubmit` hook that warns in-conversation when the transcript suggests context has left the smart zone (~75k tokens, `SMARTZONE_TOKENS`), so a session wraps up instead of degrading. [`spend-guard.py`](hooks/spend-guard.py) is a `PreToolUse` hook that blocks known billable commands/MCP calls (GPU pod creation, paid deploys, ...) unless an approval token from the [`spend-gate`](spend-gate/README.md) skill already exists. Copy + settings snippets in [`hooks/README.md`](hooks/README.md).
 
 ### [`site/`](site/) — static skills site
 
@@ -388,4 +388,4 @@ Pass `--prefix <p>` (sh) / `-Prefix <p>` (ps1) to fill in the branch-prefix plac
 
 ## License
 
-MIT (see [`LICENSE`](LICENSE)) for everything original in this repo. Matt Pocock's skills and DietrichGebert's `ponytail` carry their own MIT notices; see [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
+MIT (see [`LICENSE`](LICENSE)) for everything original in this repo. Matt Pocock's skills and Dietrich Gebert's `ponytail` carry their own MIT notices; see [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
