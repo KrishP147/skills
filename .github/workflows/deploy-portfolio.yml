@@ -18,9 +18,9 @@ on:
       - "*/*/README.md"
       - "CONTRIBUTING.md"
       - "THIRD_PARTY_LICENSES.md"
-  # Weekly rebuild so the GitHub star count on the site stays current.
+  # Hourly rebuild so the GitHub star count on the site stays current.
   schedule:
-    - cron: "0 12 * * 1"
+    - cron: "17 * * * *"
   workflow_dispatch:
 
 permissions: {}
