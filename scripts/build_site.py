@@ -17,9 +17,11 @@ exactly what lint counts. Output (wiped + recreated every run):
   site/dist/*.css|*.js|*.svg    copied as text from site/src/
   site/dist/*.webp|*.png|*.jpg  copied byte for byte (rocky.webp, favicon-32.png, apple-touch-icon.png)
 
-Usage: python scripts/build_site.py [--base /prefix] [--out DIR]
+Usage: python scripts/build_site.py [--base /prefix] [--out DIR] [--no-stars]
   --base  URL prefix the site is served under (default env SITE_BASE, else "/")
   --out   output dir, relative to cwd (default <repo>/site/dist)
+  --no-stars  skip the GitHub API call for the star count (shown beside the
+              GitHub icon; omitted if the call fails)
 """
 import argparse
 import html
@@ -28,6 +30,7 @@ import os
 import re
 import shutil
 import sys
+import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lint  # noqa: E402
@@ -39,6 +42,8 @@ GROUPS = ("core", "kanban", "agents", "hooks")
 KINDS = {"agents": "agent", "hooks": "hook"}  # nav kind per group, else "skill"
 STATIC_EXTS = (".css", ".js", ".svg")
 BINARY_EXTS = (".webp", ".png", ".jpg")  # copied byte for byte
+REPO_API = "https://api.github.com/repos/KrishP147/skills"
+STARS_SLOT = '<span class="gh-stars" hidden></span>'  # in every template's GitHub link
 # Abbreviations that end in '.' but don't end a sentence.
 _ABBREV = ("e.g.", "i.e.", "etc.", "vs.")
 
@@ -275,7 +280,32 @@ def write(path, text):
         f.write(text)
 
 
-def build(root, out, base=""):
+def fetch_stars(timeout=5):
+    """Repo star count from the GitHub API, or None on any failure (never fails the build)."""
+    req = urllib.request.Request(REPO_API, headers={"Accept": "application/vnd.github+json"})
+    if os.environ.get("GITHUB_TOKEN"):
+        req.add_header("Authorization", "Bearer " + os.environ["GITHUB_TOKEN"])
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            n = json.load(r)["stargazers_count"]
+        return n if isinstance(n, int) and n >= 0 else None
+    except Exception:
+        return None
+
+
+def fill_stars(out, stars):
+    """Show the star count next to the GitHub icon on every built page."""
+    if stars is None:
+        return
+    label = '<span class="gh-stars">&#9733; %d</span>' % stars
+    for dirpath, _dirs, files in os.walk(out):
+        for fn in files:
+            if fn.endswith(".html"):
+                path = os.path.join(dirpath, fn)
+                write(path, read_text(path).replace(STARS_SLOT, label))
+
+
+def build(root, out, base="", stars=None):
     base = normalize_base(base)
     src = os.path.join(root, "site", "src")
     entries = collect(root)
@@ -315,6 +345,7 @@ def build(root, out, base=""):
             write(os.path.join(out, fn), read_text(os.path.join(src, fn)))
         elif fn.endswith(BINARY_EXTS):
             shutil.copyfile(os.path.join(src, fn), os.path.join(out, fn))
+    fill_stars(out, stars)
     return entries
 
 
@@ -330,10 +361,12 @@ def main(argv):
     ap.add_argument("--base", default=os.environ.get("SITE_BASE", "/"),
                     help='URL prefix to serve under, e.g. /skills (default: $SITE_BASE or "/")')
     ap.add_argument("--out", default=None, help="output dir, relative to cwd (default: <repo>/site/dist)")
+    ap.add_argument("--no-stars", action="store_true", help="skip fetching the GitHub star count")
     args = ap.parse_args(argv)
     root = lint.repo_root()
     out = os.path.abspath(args.out) if args.out else os.path.join(root, "site", "dist")
-    entries = build(root, out, args.base)
+    stars = None if args.no_stars else fetch_stars()
+    entries = build(root, out, args.base, stars)
     print("Built %s: %s" % (display_path(out, root), count_line(entries).replace(" · ", ", ")))
 
 

@@ -674,11 +674,52 @@ class CliTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="site-cwd-") as cwd:
             r = subprocess.run(
                 [sys.executable, os.path.join(ROOT, "scripts", "build_site.py"),
-                 "--base", "/skills", "--out", "public/skills"],
+                 "--base", "/skills", "--out", "public/skills", "--no-stars"],
                 cwd=cwd, capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertTrue(os.path.isfile(os.path.join(cwd, "public", "skills", "index.html")))
             self.assertIn("Built ", r.stdout)
+
+
+class StarsTest(unittest.TestCase):
+    def build(self, stars):
+        tmp = tempfile.mkdtemp(prefix="site-stars-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        build_site.build(ROOT, tmp, "/skills", stars)
+        return tmp
+
+    def test_count_on_every_page(self):
+        out = self.build(42)
+        pages = glob(os.path.join(out, "**", "*.html"), recursive=True)
+        self.assertGreater(len(pages), 5)
+        for p in pages:
+            with open(p, encoding="utf-8") as f:
+                page = f.read()
+            self.assertIn('<span class="gh-stars">&#9733; 42</span>', page, p)
+            self.assertNotIn(build_site.STARS_SLOT, page, p)
+
+    def test_no_count_keeps_hidden_slot(self):
+        out = self.build(None)
+        with open(os.path.join(out, "index.html"), encoding="utf-8") as f:
+            page = f.read()
+        self.assertIn(build_site.STARS_SLOT, page)
+        self.assertNotIn("&#9733;", page)
+
+    def test_every_template_has_slot(self):
+        for p in glob(os.path.join(ROOT, "site", "src", "*.html")):
+            with open(p, encoding="utf-8") as f:
+                self.assertEqual(f.read().count(build_site.STARS_SLOT), 1, p)
+
+    def test_fetch_failure_is_none(self):
+        with mock.patch("urllib.request.urlopen", side_effect=OSError("offline")):
+            self.assertIsNone(build_site.fetch_stars())
+
+    def test_fetch_parses_count(self):
+        resp = mock.MagicMock()
+        resp.__enter__.return_value = resp
+        resp.read.return_value = b'{"stargazers_count": 7}'
+        with mock.patch("urllib.request.urlopen", return_value=resp):
+            self.assertEqual(build_site.fetch_stars(), 7)
 
 
 if __name__ == "__main__":

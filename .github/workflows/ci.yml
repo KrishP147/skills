@@ -22,7 +22,7 @@ jobs:
       - name: Lint skills and agents
         run: python3 scripts/lint.py
       - name: Build site
-        run: python3 scripts/build_site.py
+        run: python3 scripts/build_site.py --no-stars
       - name: Python tests
         run: python3 -m unittest discover -s scripts -p "test_*.py"
       - name: repo-scrub tests

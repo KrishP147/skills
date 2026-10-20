@@ -216,12 +216,16 @@ kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
+  gap: 6px;
+  min-width: 36px;
   height: 36px;
+  padding: 0 8px;
   flex: 0 0 auto;
   border-radius: 8px;
   color: var(--dim);
+  text-decoration: none;
 }
+.gh-stars { font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 .gh:hover { color: var(--fg); background: var(--accent-soft); }
 .gh-fixed {
   position: fixed;
