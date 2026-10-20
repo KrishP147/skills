@@ -2,6 +2,34 @@
    filter.js (SkillFilter); this file only handles events and rendering.
    The buffer always starts with "/" (pre-typed, undeletable); the rest is
    typed freely and ranked by SkillFilter.search. */
+// Live GitHub star count. The build bakes in a count (build_site.py); this
+// refreshes it per visit, cached 10 min per tab to stay under the API's
+// 60 requests/hour unauthenticated limit. Any failure keeps the baked count.
+(function () {
+  "use strict";
+  var KEY = "gh-stars";
+  function show(n) {
+    var els = document.querySelectorAll(".gh-stars");
+    for (var i = 0; i < els.length; i++) {
+      els[i].textContent = "★ " + n;
+      els[i].hidden = false;
+    }
+  }
+  try {
+    var c = JSON.parse(sessionStorage.getItem(KEY) || "null");
+    if (c && Date.now() - c.t < 600000) return show(c.n);
+  } catch (e) {}
+  if (!window.fetch) return;
+  fetch("https://api.github.com/repos/KrishP147/skills")
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d || typeof d.stargazers_count !== "number") return;
+      show(d.stargazers_count);
+      try { sessionStorage.setItem(KEY, JSON.stringify({ n: d.stargazers_count, t: Date.now() })); } catch (e) {}
+    })
+    .catch(function () {});
+})();
+
 (function () {
   "use strict";
   var F = window.SkillFilter;
