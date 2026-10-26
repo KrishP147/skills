@@ -4,7 +4,8 @@ stdin (setup puts it in each account's settings.json as `statusLine`). Prints
 
   <account in its colour>  session 42% · 2h13m left  week 18% · 4d6h left
 
-(`-` for a window Claude hasn't reported), caches the last seen usage in
+(`-` for a window Claude hasn't reported; the model's name after the
+account when it is Fable, as Claude sends no Fable window), caches the last seen usage in
 $CLAUDE_SWITCH_HOME/usage/<account>.json for the usage guard, then runs the
 statusLine you had before setup with the same stdin and puts its output on
 the same line. Never fails: bad input prints what it can and exits 0.
@@ -37,6 +38,18 @@ def window(label, w, now):
     if cs._num(r) and r > now:
         out += " · %s left" % time_left(r - now)
     return out
+
+
+def fable_model(data):
+    """The model's name when the session runs Fable, else None. Claude Code
+    sends no Fable usage window (rate_limits has five_hour and seven_day
+    only), so the line names the model rather than guess a %."""
+    m = data.get("model")
+    m = m if isinstance(m, dict) else {}
+    mid, name = m.get("id"), m.get("display_name")
+    if not any(isinstance(s, str) and "fable" in s.lower() for s in (mid, name)):
+        return None
+    return name.strip() if isinstance(name, str) and name.strip() else "Fable"
 
 
 def git_bash():
@@ -91,6 +104,9 @@ def render(data, reg, raw, now):
         except OSError:
             pass
     parts = [cs.paint(acct, acct["name"], force=True)] if acct else []
+    fable = fable_model(data)
+    if fable:
+        parts.append(fable)
     parts += [window(label, rl.get(key), now) for key, label in LABELS]
     line = "  ".join(parts)
     theirs = run_original(cs.statusline_original(reg), raw)
