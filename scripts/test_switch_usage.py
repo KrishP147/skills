@@ -79,6 +79,14 @@ class StatuslineTest(Base):
         out = self.render(rate(7), {"CLAUDE_SWITCH_ACCOUNT": "alt"})  # one window only
         self.assertIn("session 7% · 2h13m left  week -", out)
 
+    def test_fable_model_named(self):
+        data = dict(rate(42, 18), model={"id": "claude-fable-5-1", "display_name": "Fable 5.1"})
+        out = self.render(data, {"CLAUDE_SWITCH_ACCOUNT": "alt"})
+        self.assertIn("alt\x1b[0m  Fable 5.1  session 42%", out)
+        self.assertEqual(sl.fable_model({"model": {"id": "claude-fable-5-1"}}), "Fable")
+        for model in ({"id": "claude-opus-5-5", "display_name": "Opus"}, "fable", None):
+            self.assertIsNone(sl.fable_model({"model": model}), model)
+
     def test_account_by_dir(self):
         alt_dir = cs.find(self.reg, "alt")["dir"]
         self.assertIn("alt\x1b[0m", self.render({}, {"CLAUDE_CONFIG_DIR": alt_dir}))

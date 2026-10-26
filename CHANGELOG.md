@@ -6,6 +6,7 @@ version in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json);
 
 ## [0.1.0] - 2026-10-15
 
+- `switch` statusline names the model after the account when the session runs Fable (`work  Fable 5.1  session ...`). Claude Code's statusline input has no Fable usage window (only `five_hour` and `seven_day`), so no Fable % is shown.
 - Site lists `guard-git` as the third hook (page from `agents/README.md`, in the unattended-backlog workflow; `--skill guard-git` copies `agents/hooks/`), and the home list tags third-party entries with their author, like the README.
 - Docs pass before launch: plainer, shorter READMEs and site copy; "Needs:" lines name the `guard-git` hook that any agent install brings; internal decision ids dropped; stale facts fixed (`switch` pre-switch notes, `score-loop` example total, `lanes` decrease, broken `repo-scrub` and `kanban` links).
 - `install-skills --skill <name>` / `-Skill <name>` (#233) installs one skill, agent or hook plus what it needs; `--list-skills` / `-ListSkills` lists the names. Combines with `--workflow`. Optional companions are no longer pulled in (e.g. `find-me-a-skill` no longer brings `meta-orchestrator`; `pr-watch` fixes inline without `pair`). Each README says "Works on its own." or what it needs, each site page shows its one-line install, and a test installs every entry alone and checks it links to nothing missing.

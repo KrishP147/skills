@@ -119,7 +119,7 @@ statusline and hook back out of `settings.json`:
 9. **Statusline.** Setup also writes a `statusLine` (refreshed every 60 s), and the hook below, into every account's `settings.json`.
    - A `settings.json` linked between accounts is written once. An account whose dir doesn't exist yet is skipped (rerun setup after its first login).
    - `add` and `migrate` do the same for a new account with its own file; `remove` takes them out of a file no other account uses.
-   - The statusline prints the account name in its colour, then `session 42% · 2h13m left  week 18% · 4d6h left` from Claude Code's `rate_limits.five_hour` / `seven_day` fields (`-` until Claude reports them; they only exist for Pro and Max plans).
+   - The statusline prints the account name in its colour, then `session 42% · 2h13m left  week 18% · 4d6h left` from Claude Code's `rate_limits.five_hour` / `seven_day` fields (`-` until Claude reports them; they only exist for Pro and Max plans). A Fable session also shows the model's name after the account (`work  Fable 5.1  session ...`); Claude Code sends no Fable-only usage window, so there is no Fable %.
    - A statusline you had before is never overwritten. Setup records it per file in the registry. The new statusline runs it with the same input and puts its output on the same line. `setup --uninstall` puts it back.
    - Settings are backed up to `~/.claude-switch/backups/` and written in place, so a linked `settings.json` stays linked.
 10. **Usage guard.** The statusline caches each account's last seen usage in `~/.claude-switch/usage/<account>.json`.
